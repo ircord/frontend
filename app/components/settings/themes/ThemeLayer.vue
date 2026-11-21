@@ -15,38 +15,41 @@ const { t } = useI18n()
 const $t = t
 
 const studioWidth = 360
-const hostStyle = [
-  'all: initial !important',
-  'position: fixed !important',
-  'inset: 0 !important',
-  'width: 100vw !important',
-  'height: 100dvh !important',
-  'max-width: none !important',
-  'max-height: none !important',
-  'margin: 0 !important',
-  'padding: 0 !important',
-  'border: 0 !important',
-  'background: transparent !important',
-  'display: block !important',
-  'visibility: visible !important',
-  'opacity: 1 !important',
-  'pointer-events: none !important',
-  'overflow: visible !important',
-  'transform: none !important',
-  'filter: none !important',
-  'clip-path: none !important',
-  'z-index: 2147483647 !important',
-].join(';')
+const hostStyle = {
+  all: 'initial',
+  position: 'fixed',
+  inset: '0',
+  width: '100vw',
+  height: '100dvh',
+  'max-width': 'none',
+  'max-height': 'none',
+  margin: '0',
+  padding: '0',
+  border: '0',
+  background: 'transparent',
+  display: 'block',
+  visibility: 'visible',
+  opacity: '1',
+  'pointer-events': 'none',
+  overflow: 'visible',
+  transform: 'none',
+  filter: 'none',
+  'clip-path': 'none',
+  'z-index': '2147483647',
+}
 
 const target = shallowRef<HTMLElement | null>(null)
 let host: HTMLElement | null = null
 onMounted(() => {
   host = document.createElement('div')
   host.setAttribute('popover', 'manual')
-  host.setAttribute('style', hostStyle)
+  // Desktop's nonce-based style policy allows CSSOM properties and blocks style attributes.
+  for (const [name, value] of Object.entries(hostStyle)) host.style.setProperty(name, value, 'important')
   host.dataset.ircordThemeLayer = ''
   const root = host.attachShadow({ mode: 'open' })
   const style = document.createElement('style')
+  const nonce = document.head.querySelector<HTMLStyleElement>('style[nonce]')?.nonce
+  if (nonce) style.nonce = nonce
   style.textContent = layerCss
   const container = document.createElement('div')
   root.append(style, container)

@@ -5,6 +5,11 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+### Fixed
+
+- Show the sliders for message text size, message spacing, and interface scale in Settings.
+- Remove the small white square in the center of the desktop app.
+
 ## v0.8.1 — 2026-11-21
 
 ### Improved

@@ -51,8 +51,8 @@ function update(event: Event) {
   --slider-direction: to right;
   --slider-track: linear-gradient(
     var(--slider-direction),
-    var(--primary) var(--slider-fill),
-    var(--border) var(--slider-fill)
+    var(--accent) var(--slider-fill),
+    var(--control-border) var(--slider-fill)
   );
 }
 .ui-range:dir(rtl) {
@@ -73,16 +73,16 @@ function update(event: Event) {
   width: 16px;
   height: 16px;
   margin-top: -6px;
-  border: 2px solid var(--primary);
+  border: 2px solid var(--accent);
   border-radius: 50%;
-  background: var(--background);
+  background: var(--main);
 }
 .ui-range::-moz-range-thumb {
   box-sizing: border-box;
   width: 16px;
   height: 16px;
-  border: 2px solid var(--primary);
+  border: 2px solid var(--accent);
   border-radius: 50%;
-  background: var(--background);
+  background: var(--main);
 }
 </style>
