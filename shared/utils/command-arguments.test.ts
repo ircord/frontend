@@ -64,6 +64,9 @@ test('catalog covers every existing command and its guided fields', () => {
   assert.equal(command('settings').channel, true)
   assert.equal(command('nick').fields[0]?.type, 'text')
   assert.equal(command('nick').fields[0]?.autocomplete, undefined)
+  // Inviting someone who is already in the channel does nothing, so /invite looks further.
+  assert.equal(command('invite').fields[0]?.type, 'nickname')
+  assert.equal(command('invite').fields[0]?.autocomplete, 'invitee')
 })
 
 test('resolves aliases, case and exact parameterized prefixes only', () => {

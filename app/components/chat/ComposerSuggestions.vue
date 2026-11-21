@@ -26,7 +26,6 @@ const emit = defineEmits<{
 }>()
 const library = useLibraryStore()
 const appearance = useAppearanceStore()
-const nameStyle = useNameStyle()
 const { t, n } = useI18n()
 const list = ref<HTMLElement | null>(null)
 const optionClass =
@@ -141,17 +140,7 @@ watch(
           @mousedown.prevent="emit('member', member)"
           @mousemove="index !== active && emit('hover', index)"
         >
-          <UserAvatar
-            :member="member"
-            size="tiny"
-            presence
-          />
-          <span
-            class="suggestion-name flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
-            :style="nameStyle(member)"
-            >{{ member.displayName }}</span
-          >
-          <span class="suggestion-code text-[12px] text-faint">@{{ member.nick }}</span>
+          <PersonOption :member="member" />
         </li>
         <li
           v-for="(group, offset) in groups ?? []"
