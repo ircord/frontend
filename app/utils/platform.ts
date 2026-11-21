@@ -22,6 +22,7 @@ interface PlatformNotifications {
   supported: boolean
   webPush: boolean
   requiresHomeScreen: boolean
+  testMode: 'open' | 'push'
   getPermission(): Promise<PlatformPermission>
   requestPermission(): Promise<PlatformPermission>
   onPermissionChange(callback: Unlisten): Unlisten
@@ -72,6 +73,7 @@ function webNotifications(window: ClientWindow): PlatformNotifications {
     requiresHomeScreen:
       /iPad|iPhone|iPod/.test(navigator.userAgent) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+    testMode: 'push',
     async getPermission() {
       return supported ? window.Notification.permission : 'unsupported'
     },
@@ -139,6 +141,7 @@ function desktopNotifications(bridge: DesktopBridge): PlatformNotifications {
     supported: true,
     webPush: false,
     requiresHomeScreen: false,
+    testMode: 'open',
     getPermission: () => permission('notification_permission'),
     requestPermission: () => permission('request_notification_permission'),
     onPermissionChange: noListener, // The store refreshes on returning to the window.
@@ -173,6 +176,7 @@ export function createPlatform(window: ClientWindow) {
   const windowControls = bridge?.window?.getCurrentWindow()
   return {
     kind: bridge ? ('tauri' as const) : ('web' as const),
+    nativeDevice: !!bridge,
     titleBar,
     serverOrigin,
     chooseServer: bridge
@@ -182,6 +186,10 @@ export function createPlatform(window: ClientWindow) {
       : undefined,
     client: bridge && serverOrigin ? createDesktopClient(bridge.core, serverOrigin) : undefined,
     windowControls,
+    async copyText(text: string) {
+      if (bridge) await bridge.core.invoke('plugin:clipboard-manager|write_text', { text })
+      else await window.navigator.clipboard.writeText(text)
+    },
     dragWindow(event: MouseEvent) {
       if (!windowControls || event.button !== 0 || event.defaultPrevented) return
       if (

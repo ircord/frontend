@@ -74,7 +74,7 @@ async function check() {
 
 async function copy() {
   try {
-    await navigator.clipboard.writeText(ircToMarkdown(props.message.text))
+    await usePlatform().copyText(ircToMarkdown(props.message.text))
     chat.notify(t('workspaceUi.message.outboxCopied'))
   } catch {
     chat.notify(t('workspaceUi.message.outboxCopyFailed'), { error: true })

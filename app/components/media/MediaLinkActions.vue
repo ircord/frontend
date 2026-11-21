@@ -10,7 +10,7 @@ const touchRevealed = useTouchMediaReveal(root)
 
 async function copy() {
   try {
-    await navigator.clipboard.writeText(props.url)
+    await usePlatform().copyText(props.url)
     chat.notify(t('mediaUi.linkActions.copySuccess'))
   } catch {
     chat.notify(t('mediaUi.linkActions.copyBlocked'))

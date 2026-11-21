@@ -8,6 +8,7 @@ What changed for people using IRCord, newest release first. Each release lists w
 ### New
 
 - Sign in to a public or self-hosted IRCord server from the desktop app.
+- Set up and test desktop notifications from Settings → Device.
 
 ### Improved
 

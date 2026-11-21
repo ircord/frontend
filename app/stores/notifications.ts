@@ -390,7 +390,7 @@ export const useNotificationStore = defineStore('notifications', () => {
   /** Sends a test notification to this device only. */
   async function test(): Promise<{ ok: boolean; message: string }> {
     try {
-      if (platform.kind === 'tauri') {
+      if (platform.nativeDevice) {
         await platformNotifications.show({
           title: 'IRCord',
           body: $i18n.t('notifications.device.testBody'),
@@ -439,7 +439,7 @@ export const useNotificationStore = defineStore('notifications', () => {
   watch(visibility, (state) => state === 'visible' && void refresh(), { flush: 'sync' })
   const relaunched = () => void refresh()
   watch(displayMode, relaunched, { flush: 'sync' })
-  if (platform.kind === 'tauri') useEventListener(window, 'focus', relaunched)
+  if (platform.nativeDevice) useEventListener(window, 'focus', relaunched)
   onScopeDispose(platformNotifications.onPermissionChange(relaunched))
 
   // Push subscriptions can be renewed or revoked by the browser; keep the server in step.

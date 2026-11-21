@@ -4,6 +4,7 @@
  * devices are their own components; quiet hours and what notifies you stay here.
  */
 const notifications = useNotificationStore()
+const { nativeDevice } = usePlatform()
 /** Quiet hours follow this device's time zone whenever they're edited here. */
 function setQuiet(changes: Partial<{ enabled: boolean; start: string; end: string }>) {
   notifications.update({
@@ -27,7 +28,7 @@ const levelOptions = computed(
 </script>
 <template>
   <div class="appearance-settings grid gap-6">
-    <NotificationDevice />
+    <NotificationDevice v-if="!nativeDevice" />
 
     <NotificationRouting />
 

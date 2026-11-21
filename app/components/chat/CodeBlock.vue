@@ -29,7 +29,7 @@ let reset: ReturnType<typeof setTimeout> | undefined
 /** Copies the source exactly as shown: no highlighting, label or fences. */
 async function copy() {
   try {
-    await navigator.clipboard.writeText(props.code)
+    await usePlatform().copyText(props.code)
   } catch {
     chat.notify(t('workspaceUi.controls.copyFailed'))
     return

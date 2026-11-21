@@ -6,6 +6,22 @@ const asWindow = (value: object) => value as Parameters<typeof createPlatform>[0
 const target = { accountId: 'alice', conversationId: 'private-thread' }
 const alert: PlatformAlert = { title: 'IRCord', body: '', icon: '/icon.png', silent: true, target }
 
+test('copy uses the clipboard for the current platform', async () => {
+  const saved: string[] = []
+  const commands: Array<[string, unknown]> = []
+  const web = createPlatform(asWindow({
+    navigator: { userAgent: '', clipboard: { writeText: async (text: string) => saved.push(text) } },
+  }))
+  const desktop = createPlatform(asWindow({
+    __IRCordDesktop: { titleBar: 'macos' },
+    __TAURI__: { core: { invoke: async (command: string, args: unknown) => commands.push([command, args]) } },
+  }))
+  await web.copyText('browser text')
+  await desktop.copyText('desktop text')
+  assert.deepEqual(saved, ['browser text'])
+  assert.deepEqual(commands, [['plugin:clipboard-manager|write_text', { text: 'desktop text' }]])
+})
+
 describe('notification platform', () => {
   test('a normal tab uses web notifications and handles worker messages', async () => {
     const worker = new EventTarget()
@@ -23,6 +39,8 @@ describe('notification platform', () => {
       },
     }))
     assert.equal(platform.kind, 'web')
+    assert.equal(platform.nativeDevice, false)
+    assert.equal(platform.notifications.testMode, 'push')
     assert.equal(platform.notifications.webPush, true)
     assert.equal(await platform.notifications.getPermission(), 'granted')
     const stop = platform.notifications.onActivate((value) => (active = value))
@@ -78,6 +96,8 @@ describe('notification platform', () => {
       },
     }))
     assert.equal(platform.titleBar, 'macos')
+    assert.equal(platform.nativeDevice, true)
+    assert.equal(platform.notifications.testMode, 'open')
     assert.equal(platform.notifications.webPush, false)
     const stop = platform.notifications.onActivate((value) => (active = value))
     assert.equal(await platform.notifications.requestPermission(), 'granted')

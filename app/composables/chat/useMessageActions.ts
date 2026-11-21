@@ -195,7 +195,7 @@ export function useMessageActions() {
   /** Copies the visible text, or explains how to copy it when the clipboard is unavailable. */
   async function copyMessage(m: Message) {
     try {
-      await navigator.clipboard.writeText(stripFormatting(m.text))
+      await usePlatform().copyText(stripFormatting(m.text))
       chat.notify(t('workspaceUi.menus.copiedClipboard'))
     } catch {
       chat.notify(t('workspaceUi.menus.selectToCopy'))

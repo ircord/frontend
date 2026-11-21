@@ -1,10 +1,12 @@
 <script setup vapor lang="ts">
-/** Settings → Notifications → This device: whether notifications work here, and how. */
+/** Notification setup for the device running IRCord. */
 import type { DeviceMode } from '../../stores/notifications'
 import { scopeLabels } from '../../../shared/settings-index'
 const notifications = useNotificationStore()
-const desktop = usePlatform().kind === 'tauri'
-const testMode: DeviceMode = desktop ? 'open' : 'push'
+const {
+  nativeDevice,
+  notifications: { testMode },
+} = usePlatform()
 const install = useInstallPrompt()
 const { t } = useI18n()
 const $t = t
@@ -24,7 +26,7 @@ const modes = computed(() => ([
     label: t('notifications.device.modes.push'),
     note: t('notifications.device.modes.pushNote'),
   },
-] satisfies { value: DeviceMode; label: string; note: string }[]).filter((mode) => !desktop || mode.value !== 'push'))
+] satisfies { value: DeviceMode; label: string; note: string }[]).filter((mode) => !nativeDevice || mode.value !== 'push'))
 const blocked = computed(() => notifications.permission === 'denied')
 /** The summary of this device: what is set, whether it works, and the one next step. */
 const summary = computed(() => {
@@ -47,8 +49,16 @@ const summary = computed(() => {
       return {
         icon: 'muted',
         tone: 'warn',
-        title: t('notifications.device.summary.blocked.title'),
-        detail: t('notifications.device.summary.blocked.detail'),
+        title: t(
+          nativeDevice
+            ? 'notifications.device.summary.blocked.nativeTitle'
+            : 'notifications.device.summary.blocked.title',
+        ),
+        detail: t(
+          nativeDevice
+            ? 'notifications.device.summary.blocked.nativeDetail'
+            : 'notifications.device.summary.blocked.detail',
+        ),
       }
     case 'off':
       return {
@@ -154,7 +164,7 @@ watch(
 </script>
 <template>
   <SettingGroup
-    :title="$t('notifications.device.title')"
+    :title="$t(nativeDevice ? 'settings.sections.notifications' : 'notifications.device.title')"
     :scope="$t(scopeLabels.device)"
   >
     <div
@@ -224,10 +234,12 @@ watch(
           <dd>{{ modes.find((m) => m.value === notifications.mode)?.label }}</dd>
         </div>
         <div>
-          <dt>{{ $t('notifications.device.facts.permission') }}</dt>
+          <dt>{{
+            $t(nativeDevice ? 'notifications.device.facts.nativePermission' : 'notifications.device.facts.permission')
+          }}</dt>
           <dd>{{ permissionText }}</dd>
         </div>
-        <div v-if="!desktop">
+        <div v-if="!nativeDevice">
           <dt>{{ $t('notifications.device.facts.push') }}</dt>
           <dd>{{ pushText }}</dd>
         </div>
@@ -248,7 +260,7 @@ watch(
       >
     </div>
     <div
-      v-else-if="!desktop && install.available"
+      v-else-if="!nativeDevice && install.available"
       data-setting="install-app"
       class="install-hint flex items-center gap-3 py-3 px-3.5 rounded-md bg-selection text-primary"
     >
@@ -273,11 +285,13 @@ watch(
       :label="$t('notifications.device.notifications')"
       stacked
       :description="
-        blocked
-          ? $t('notifications.device.blockedHelp')
-          : !notifications.supported.notifications
-            ? $t('notifications.device.unsupportedHelp')
-            : $t('notifications.device.help')
+        nativeDevice
+          ? undefined
+          : blocked
+            ? $t('notifications.device.blockedHelp')
+            : !notifications.supported.notifications
+              ? $t('notifications.device.unsupportedHelp')
+              : $t('notifications.device.help')
       "
     >
       <AppSegmented
@@ -322,7 +336,7 @@ watch(
         name="laptop"
         :size="15"
       /><span>
-        <i18n-t keypath="notifications.device.note">
+        <i18n-t :keypath="nativeDevice ? 'notifications.device.nativeNote' : 'notifications.device.note'">
           <template #link><SettingLink to="device-sessions" /></template>
         </i18n-t>
       </span>

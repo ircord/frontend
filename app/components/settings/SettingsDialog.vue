@@ -38,10 +38,12 @@ const { t, n } = useI18n()
 const $t = t
 const $n = n
 const messages = useSettingsMessages()
+const { nativeDevice, notifications: platformNotifications } = usePlatform()
 
 const access = computed<SettingsAccess>(() => ({
+  nativeDevice,
   emoteAdd: !!(media.instanceQuery.data?.canAdd ?? media.instanceQuery.data?.canManage),
-  push: notifications.mode === 'push',
+  notificationTest: notifications.mode === platformNotifications.testMode,
   quietHours: notifications.settings.quietHours.enabled,
   install: notifications.needsInstall || install.available,
   localSpeech: localSpeech.operatorOn,
@@ -56,7 +58,8 @@ const tab = ref<SettingsSectionId>('appearance')
 const current = computed(() => settingsSections.find((t) => t.id === tab.value)!)
 /** Phone-sized touch screens leave out Shortcuts: keyboard shortcuts need a hardware keyboard. */
 const keyboardless = useMediaQuery('(max-width: 700px) and (pointer: coarse)')
-const listed = (id: SettingsSectionId) => !(keyboardless.value && id === 'shortcuts')
+const listed = (id: SettingsSectionId) =>
+  (nativeDevice || id !== 'device') && !(keyboardless.value && id === 'shortcuts')
 const allGroups = settingsGroups.map((group) => ({
   ...group,
   headingId: useId(),
@@ -443,7 +446,7 @@ function keydown(event: KeyboardEvent) {
           </div>
           <PrivacySettings v-else-if="tab === 'privacy'" />
           <EmoteSettings v-else-if="tab === 'emotes'" />
-          <!-- Devices and sessions are part of keeping the account secure. -->
+          <NotificationDevice v-else-if="nativeDevice && tab === 'device'" />
           <div
             v-else-if="tab === 'account'"
             class="contents"

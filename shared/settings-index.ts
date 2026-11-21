@@ -53,6 +53,7 @@ export const settingsSections = [
     tone: 'red',
     group: 'app',
   },
+  { id: 'device', name: 'settings.sections.device', icon: 'laptop', tone: 'blue', group: 'app' },
   {
     id: 'privacy',
     name: 'settings.sections.privacy',
@@ -87,10 +88,12 @@ export const scopeLabels = {
 
 /** What the current user and device can reach right now. */
 export interface SettingsAccess {
+  /** The app can show settings for native features on this device. */
+  nativeDevice: boolean
   /** This account can add server emoji. */
   emoteAdd: boolean
-  /** This device uses push notifications. */
-  push: boolean
+  /** The current delivery mode supports sending a test notification. */
+  notificationTest: boolean
   /** Quiet hours are switched on. */
   quietHours: boolean
   /** Settings offers installing IRCord as an app on this device. */
@@ -115,6 +118,7 @@ export interface SettingEntry {
    */
   requires?: Requirement
   fallback?: string
+  nativeSection?: SettingsSectionId
 }
 
 /** Catalog access for the index: the active locale's text, read at search time. */
@@ -181,16 +185,17 @@ export const settingsIndex: readonly SettingEntry[] = [
   { id: 'ignored-people', section: 'privacy' },
 
   // Notifications
-  { id: 'notifications-status', section: 'notifications' },
+  { id: 'notifications-status', section: 'notifications', nativeSection: 'device' },
   { id: 'install-app', section: 'notifications', requires: 'install' },
-  { id: 'notifications-device', section: 'notifications' },
+  { id: 'notifications-device', section: 'notifications', nativeSection: 'device' },
   {
     id: 'notifications-test',
     section: 'notifications',
-    requires: 'push',
+    nativeSection: 'device',
+    requires: 'notificationTest',
     fallback: 'notifications-device',
   },
-  { id: 'notification-sound', section: 'notifications' },
+  { id: 'notification-sound', section: 'notifications', nativeSection: 'device' },
   { id: 'notify-last-device', section: 'notifications' },
   { id: 'notify-all-devices', section: 'notifications' },
   { id: 'notify-reset', section: 'notifications' },
@@ -348,7 +353,9 @@ export function searchSettings(
   if (!words.length) return { results: [], total: 0 }
   const phrase = words.join(' ')
   const results: (SettingResult & { order: number })[] = []
-  index.forEach((entry, order) => {
+  index.forEach((item, order) => {
+    const section = settingSection(item, access)
+    const entry = item.section === section ? item : { ...item, section }
     const text = settingText(messages, entry)
     const missing = entry.requires && !access[entry.requires]
     if (missing && !text.unavailable) return
@@ -383,6 +390,10 @@ const retiredSections: Record<string, string> = {
   'read-aloud': 'read-aloud-device',
 }
 
+function settingSection(entry: SettingEntry, access: SettingsAccess): SettingsSectionId {
+  return (access.nativeDevice && entry.nativeSection) || entry.section
+}
+
 /**
  * Where a destination (a section id or a setting id) opens: its section, and the setting to
  * reveal there. An unavailable setting opens the control that enables it instead.
@@ -393,15 +404,15 @@ export function settingsDestination(
 ): { section: SettingsSectionId; setting?: string } {
   // Sections that were merged into others still open, at their first setting.
   const id = retiredSections[target] ?? target
-  const section = settingsSections.find((s) => s.id === id)
+  const section = settingsSections.find((s) => s.id === id && (id !== 'device' || access.nativeDevice))
   if (section) return { section: section.id }
   const entry = byId.get(id)
   if (!entry) return { section: 'appearance' }
   if (entry.requires && !access[entry.requires]) {
     const fallback = entry.fallback ? byId.get(entry.fallback) : undefined
     return fallback
-      ? { section: fallback.section, setting: fallback.id }
-      : { section: entry.section }
+      ? { section: settingSection(fallback, access), setting: fallback.id }
+      : { section: settingSection(entry, access) }
   }
-  return { section: entry.section, setting: entry.id }
+  return { section: settingSection(entry, access), setting: entry.id }
 }

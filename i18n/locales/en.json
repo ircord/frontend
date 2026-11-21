@@ -955,6 +955,7 @@
     },
     "signOutThis": {
       "body": "This is the device you’re using. Every IRCord tab in this browser signs out and you return to the sign-in screen.",
+      "desktopBody": "IRCord signs out on this device and returns to the sign-in screen.",
       "title": "Sign out this device?"
     },
     "signOutThisAria": "Sign out this device",
@@ -1032,6 +1033,7 @@
       "enable": "Enable notifications",
       "facts": {
         "delivery": "Delivery",
+        "nativePermission": "System permission",
         "permission": "Browser permission",
         "push": "Push"
       },
@@ -1051,6 +1053,7 @@
         "pushNote": "Push notifications, even when IRCord is closed."
       },
       "note": "These choices apply to this device. Manage your other devices and their notification settings under {link}. Account-wide settings are below.",
+      "nativeNote": "Manage your other devices under {link}.",
       "notifications": "Notifications",
       "permission": {
         "default": "Not asked yet",
@@ -1081,6 +1084,8 @@
       "summary": {
         "blocked": {
           "detail": "Allow notifications for this site in your browser or system settings, then come back here.",
+          "nativeDetail": "Allow IRCord notifications in your system settings, then come back here.",
+          "nativeTitle": "Blocked by your system settings",
           "title": "Blocked by your browser"
         },
         "checking": {
@@ -1388,6 +1393,7 @@
       "about": "About",
       "account": "Account",
       "appearance": "Appearance",
+      "device": "Device",
       "emotes": "Emotes",
       "messages": "Messages",
       "networks": "Networks",
@@ -1754,7 +1760,7 @@
         "keywords": ["test", "try", "push test"],
         "label": "Send a test notification",
         "title": "Send test",
-        "unavailable": "Available when this device uses push notifications."
+        "unavailable": "Choose Push on the web or While open in IRCord Desktop to send a test."
       },
       "password": {
         "group": "Password",

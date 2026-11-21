@@ -35,7 +35,7 @@ export function useMenus() {
 
   const copy = async (text: string, key: string) => {
     try {
-      await navigator.clipboard.writeText(text)
+      await usePlatform().copyText(text)
       chat.notify(t(key))
     } catch {
       chat.notify(t('workspaceUi.controls.copyFailed'))

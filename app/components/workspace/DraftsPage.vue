@@ -68,7 +68,7 @@ function undo() {
 }
 async function copy(text: string) {
   try {
-    await navigator.clipboard.writeText(text)
+    await usePlatform().copyText(text)
     notice.value = 'copied'
   } catch {
     notice.value = 'copyFailed'

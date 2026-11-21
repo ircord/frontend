@@ -22,6 +22,8 @@ const $t = t
 const queryCache = useQueryCache()
 const list = useQuery(devicesQuery)
 const chat = useChatStore()
+const { titleBar } = usePlatform()
+const desktopOS = titleBar && { macos: 'macOS', windows: 'Windows', linux: 'Linux' }[titleBar]
 let refreshTimer: ReturnType<typeof setTimeout> | undefined
 watch(
   () => chat.routingSnapshot?.revision,
@@ -36,9 +38,14 @@ watch(
 onScopeDispose(() => clearTimeout(refreshTimer))
 const translateDevice: DeviceTranslate = (key, values) => t(`mediaUi.devices.${key}`, values ?? {})
 const localizedDeviceName = (device: Device) => deviceName(device, translateDevice)
-const devices = computed(() => {
+const devices = computed<Device[]>(() => {
   const all = list.data.value?.devices ?? []
-  return [...all.filter((d) => d.current), ...all.filter((d) => !d.current)]
+  const current = all.find((device) => device.current)
+  if (!current) return all
+  return [
+    desktopOS ? { ...current, browser: 'IRCord Desktop', os: desktopOS, formFactor: 'desktop' } : current,
+    ...all.filter((device) => !device.current),
+  ]
 })
 // Relative times are rendered against this clock, ticked once a minute rather than per second.
 const now = ref(Date.now())
@@ -64,7 +71,7 @@ async function signOut(device: Device) {
     device.current
       ? {
           title: t('devices.signOutThis.title'),
-          body: t('devices.signOutThis.body'),
+          body: t(desktopOS ? 'devices.signOutThis.desktopBody' : 'devices.signOutThis.body'),
           confirm: t('common.signOut'),
           danger: true,
         }
@@ -185,7 +192,7 @@ async function signOut(device: Device) {
             · {{ notificationText(device, translateDevice) }}</small
           >
           <small v-if="device.focal">{{ $t('devices.selected') }}</small>
-          <small>{{
+          <small v-if="!device.current || !desktopOS || device.name">{{
             $t('devices.browserType', {
               browser:
                 [device.browser, device.os].filter(Boolean).join(' · ') || $t('devices.unknown'),
