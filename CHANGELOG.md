@@ -9,6 +9,7 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 - Sign in to a public or self-hosted IRCord server from the desktop app.
 - Set up and test desktop notifications from Settings → Device.
+- Typed emoticons such as :) :D :P and <3 turn into emoji when you finish the word. Press Backspace right away to keep the text.
 
 ### Improved
 

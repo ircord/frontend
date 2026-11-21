@@ -6,6 +6,7 @@ import { sharedListFormat } from '../../../shared/utils/intl'
 import { messagesQuery } from '../../queries/chat'
 import type { EmojiItem, GifItem } from '../../../shared/types/media'
 import { emojiText } from '../../../shared/utils/media'
+import { convertTrailingEmoticon } from '../../../shared/utils/emoticons'
 import { channelRights, stripFormatting } from '../../../shared/utils/irc'
 import { matchCommands, type CommandSpec } from '../../../shared/utils/commands'
 import {
@@ -233,7 +234,7 @@ function onInput(event: Event) {
     openTypedCommand(draft.value)
   )
     return
-  auto.onInput()
+  auto.onInput(typed)
   if (!rawMode.value && draft.value.trim() && !draft.value.startsWith('/'))
     chat.sendTyping('active')
   else chat.sendTyping('done')
@@ -269,7 +270,10 @@ const sayUnavailable = () => {
 }
 
 async function send() {
-  const text = draft.value
+  const typed = draft.value
+  // Sending finishes the last word, so an emoticon there (“see you :P”) becomes its emoji, as
+  // typing a space after it would. Raw server lines stay as typed.
+  const text = rawMode.value ? typed : convertTrailingEmoticon(typed)
   const files = uploads.pending.value.length
   if (!text.trim() && !files) return
   if (text.length > 4000) return chat.notify(t('workspaceUi.composer.tooLong'))
@@ -288,7 +292,7 @@ async function send() {
     const reply = props.replyTo
     const result = await run(text, { replyTo: reply })
     if (result === 'kept') return
-    if (result === 'handled') return spend(origin, text, reply)
+    if (result === 'handled') return spend(origin, typed, reply)
   }
   if (rawMode.value && text.trim()) {
     if (chat.raw(text.trim())) clear()
