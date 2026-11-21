@@ -10,6 +10,7 @@ import type { Ref, WritableComputedRef } from 'vue'
 import type { Member } from '../../../shared/types/chat'
 import type { EmojiItem } from '../../../shared/types/media'
 import { emojiText, rankEmoji, searchEmoji } from '../../../shared/utils/media'
+import { finishedEmoticon } from '../../../shared/utils/emoticons'
 import { commands, type CommandSpec } from './useCommands'
 import { channelListQuery } from '../../queries/chat'
 import { matchCommands } from '../../../shared/utils/commands'
@@ -27,7 +28,8 @@ interface Options {
 
 /**
  * Composer autocomplete: “/” commands, “:ke” emoji, “@ec” people and “#de” channels, plus
- * IRC-style Tab nick completion. “:joy:” turns into 😂 as the closing colon is typed.
+ * IRC-style Tab nick completion. “:joy:” turns into 😂 as the closing colon is typed, and “:) ”
+ * into “🙂 ” as the space after it is typed.
  */
 export function useComposerAutocomplete({ draft, input, rawMode, setDraft }: Options) {
   const { t } = useI18n()
@@ -254,6 +256,47 @@ export function useComposerAutocomplete({ draft, input, rawMode, setDraft }: Opt
     )
   }
 
+  /** The last emoticon conversion, so an immediate Backspace can put the typed text back. */
+  let converted: { start: number; typed: string; end: number; value: string } | null = null
+  /** Whitespace typed right after “:)” or “<3” turns it into its emoji, as in Discord. */
+  function convertEmoticon(event?: InputEvent) {
+    if (rawMode.value || !event || event.isComposing) return
+    const added =
+      event.inputType === 'insertLineBreak'
+        ? '\n'
+        : event.inputType === 'insertText'
+          ? event.data
+          : null
+    if (!added || !/^\s$/.test(added)) return
+    const match = finishedEmoticon(draft.value, caret.value)
+    if (!match) return
+    const item = media.emojis.find((emoji) => emoji.unicode === match.emoji)
+    if (item) library.useEmoji(item)
+    const end = match.start + match.emoji.length + added.length
+    const value =
+      draft.value.slice(0, match.start) + match.emoji + added + draft.value.slice(caret.value)
+    setDraft(value, end)
+    converted = { start: match.start, typed: match.text + added, end, value }
+  }
+  /** Backspace straight after a conversion restores the emoticon as it was typed. */
+  function revertEmoticon() {
+    const last = converted
+    converted = null
+    const field = input.value
+    if (
+      !last ||
+      draft.value !== last.value ||
+      field?.selectionStart !== last.end ||
+      field.selectionEnd !== last.end
+    )
+      return false
+    setDraft(
+      draft.value.slice(0, last.start) + last.typed + draft.value.slice(last.end),
+      last.start + last.typed.length,
+    )
+    return true
+  }
+
   // Tab completion: “ju⇥” → “@jules: ” at the start of a line, “@jules ” elsewhere. The “@”
   // makes it a mention: IRCord highlights a nick only after “@” (#209). Repeated Tab cycles
   // through matches.
@@ -286,13 +329,28 @@ export function useComposerAutocomplete({ draft, input, rawMode, setDraft }: Opt
   }
 
   /** Call on every input event. */
-  function onInput() {
+  function onInput(event?: InputEvent) {
     tabCycle = null
+    converted = null
     trackCaret()
     convertShortcode()
+    convertEmoticon(event)
   }
   /** Handles the keys autocomplete owns; returns true when the event was used. */
   function keydown(event: KeyboardEvent) {
+    if (
+      event.key === 'Backspace' &&
+      !event.isComposing &&
+      !event.shiftKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey &&
+      revertEmoticon()
+    ) {
+      event.preventDefault()
+      return true
+    }
+    if (event.key !== 'Shift') converted = null
     if (count.value && !event.isComposing) {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault()

@@ -6,6 +6,7 @@ import { sharedListFormat } from '../../../shared/utils/intl'
 import { messagesQuery } from '../../queries/chat'
 import type { EmojiItem, GifItem } from '../../../shared/types/media'
 import { emojiText } from '../../../shared/utils/media'
+import { convertTrailingEmoticon } from '../../../shared/utils/emoticons'
 import { channelRights, stripFormatting } from '../../../shared/utils/irc'
 import { matchCommands, type CommandSpec } from '../../../shared/utils/commands'
 import {
@@ -233,7 +234,7 @@ function onInput(event: Event) {
     openTypedCommand(draft.value)
   )
     return
-  auto.onInput()
+  auto.onInput(typed)
   if (!rawMode.value && draft.value.trim() && !draft.value.startsWith('/'))
     chat.sendTyping('active')
   else chat.sendTyping('done')
@@ -295,7 +296,10 @@ async function send() {
     return
   }
   // “//text” sends “/text” literally.
-  const message = text.trim().startsWith('//') ? text.trim().slice(1) : text
+  // A last emoticon such as “:)” is a finished word once the message is sent.
+  const message = convertTrailingEmoticon(
+    text.trim().startsWith('//') ? text.trim().slice(1) : text,
+  )
   const reply = props.replyTo
   if (message.trim() && !chat.send(message, props.replyTo)) return
   clear()
