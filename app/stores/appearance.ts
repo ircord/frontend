@@ -31,6 +31,15 @@ const readStored = (): LocalAppearance =>
     }
   })
 
+function themeStyle(id: string) {
+  const style = document.querySelector<HTMLStyleElement>(`style#${id}`) ?? document.createElement('style')
+  // Tauri's policy authorizes inline styles with the nonce on the bundled stylesheet.
+  const nonce = document.head.querySelector<HTMLStyleElement>('style[nonce]')?.nonce
+  if (nonce) style.nonce = nonce
+  style.id = id
+  return style
+}
+
 /**
  * Appearance is local-first: it applies instantly from this browser's copy, then reconciles with
  * the account copy on the server so one look follows the user to every device.
@@ -148,27 +157,19 @@ export const useAppearanceStore = defineStore('appearance', () => {
     for (const name of optionalAttributes) if (!(name in attrs)) root.removeAttribute(name)
     root.dataset.motion = reducedMotion.value ? 'reduced' : 'full'
     root.style.colorScheme = mode.value
-    let style = document.getElementById('ircord-theme')
-    if (!style) {
-      style = document.createElement('style')
-      style.id = 'ircord-theme'
-      document.head.appendChild(style)
-    }
-    style.textContent = css
+    const style = themeStyle('ircord-theme')
+    if (style.textContent !== css) style.textContent = css
+    if (!style.isConnected) document.head.appendChild(style)
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor)
   })
   // A personal theme's custom CSS: only ever the filtered output, after every app stylesheet.
   watchEffect(() => {
     const css = themes.userCss
-    let style = document.getElementById('ircord-user-css')
     if (!css) {
-      style?.remove()
+      document.getElementById('ircord-user-css')?.remove()
       return
     }
-    if (!style) {
-      style = document.createElement('style')
-      style.id = 'ircord-user-css'
-    }
+    const style = themeStyle('ircord-user-css')
     if (style.textContent !== css) style.textContent = css
     if (style !== document.head.lastElementChild) document.head.appendChild(style)
   })

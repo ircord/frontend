@@ -298,6 +298,8 @@ export default defineNuxtConfig({
       style: [
         {
           key: 'appearance-defaults',
+          // Tauri adds a nonce to this stylesheet. Place it before the inline script (priority 50).
+          tagPriority: 45,
           innerHTML: compileAppearance(defaultAppearance, 'dark').css.replace(
             ':root:root',
             ':root',

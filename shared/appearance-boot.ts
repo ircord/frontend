@@ -35,6 +35,8 @@ if(${safeModePattern}.test(location.search))t=null;
 var m=c.mode==='system'?(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'):c.mode;
 var v=(t&&t[m])||c[m];if(!v)return;var d=document.documentElement;
 for(var k in v.attrs)d.setAttribute(k,v.attrs[k]);d.style.colorScheme=m;
-var s=document.createElement('style');s.id='ircord-theme';s.textContent=v.css;document.head.appendChild(s);
-if(t&&t[m]&&t.userCss){s=document.createElement('style');s.id='ircord-user-css';s.textContent=t.userCss;document.head.appendChild(s)}
+var n=document.head.querySelector('style[nonce]');
+function apply(id,css){var s=document.createElement('style');s.id=id;if(n)s.nonce=n.nonce;s.textContent=css;document.head.appendChild(s)}
+apply('ircord-theme',v.css);
+if(t&&t[m]&&t.userCss)apply('ircord-user-css',t.userCss)
 }catch(e){}})()`
