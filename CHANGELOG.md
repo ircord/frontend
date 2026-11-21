@@ -9,6 +9,10 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 - Sign in to a public or self-hosted IRCord server from the desktop app.
 
+### Improved
+
+- The network tabs bar is shorter on desktop, so the tabs sit closer to the conversation.
+
 ## v0.7.4 — 2026-11-21
 
 ### Fixed

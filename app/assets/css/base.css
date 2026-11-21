@@ -5,6 +5,8 @@
 :root {
   --radius-small: calc(var(--radius) * 0.75);
   --header-height: calc(48px * var(--interface-scale, 1));
+  /* The network tabs bar hugs its 32px pills; coarse pointers and phones keep the header height. */
+  --workspace-bar-height: calc(40px * var(--interface-scale, 1));
   --row-height: calc(32px * var(--interface-scale, 1));
   --ui-text: calc(14px * var(--interface-scale, 1));
   --ui-small: calc(13px * var(--interface-scale, 1));
@@ -40,6 +42,7 @@
   :root[data-density='compact'] {
     --row-height: max(44px, calc(40px * var(--interface-scale, 1)));
     --header-height: max(48px, calc(48px * var(--interface-scale, 1)));
+    --workspace-bar-height: var(--header-height);
   }
 }
 /* Phones: shorter top bar and conversation header leave more height for messages. */
@@ -47,6 +50,7 @@
   :root,
   :root[data-density='compact'] {
     --header-height: max(40px, calc(40px * var(--interface-scale, 1)));
+    --workspace-bar-height: var(--header-height);
   }
 }
 

@@ -3,9 +3,11 @@
  * drawers, safe areas and viewport segments here; components own ordinary presentation. */
 .workspace {
   --workspace-gap: 8px;
+  /* The tabs bar already centres its pills, so the frame needs only a small gap below it. */
+  --workspace-top-gap: 5px;
   --workspace-radius: var(--radius-lg);
   grid-template-columns: var(--sidebar-w, 200px) minmax(0, 1fr);
-  grid-template-rows: var(--header-height) minmax(0, 1fr);
+  grid-template-rows: var(--workspace-bar-height) minmax(0, 1fr);
   background: var(--sidebar);
 }
 /* Unified shell chrome around the inset framed viewport. */
@@ -28,7 +30,7 @@
 }
 .chat-main {
   grid-area: 2 / 2 / 3 / 3;
-  margin: var(--workspace-gap) var(--workspace-gap) 0;
+  margin: var(--workspace-top-gap) var(--workspace-gap) 0;
   border-radius: var(--workspace-radius) var(--workspace-radius) 0 0;
   border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
   border-bottom: 0;
@@ -109,7 +111,7 @@
     width: var(--sidebar-expanded-w);
   }
   .workspace.nav-motion .conversation-sidebar {
-    clip-path: inset(var(--workspace-gap) calc(-1 * var(--workspace-gap) - 2px) 0 0);
+    clip-path: inset(var(--workspace-top-gap) calc(-1 * var(--workspace-gap) - 2px) 0 0);
   }
   .workspace.nav-motion .conversation-sidebar > .resize-handle {
     display: none;
@@ -118,7 +120,7 @@
   .conversation-sidebar > .resize-handle {
     left: 100%;
     right: auto;
-    top: var(--workspace-gap);
+    top: var(--workspace-top-gap);
     bottom: 0;
     width: var(--workspace-gap);
   }
@@ -181,7 +183,9 @@
     display: flex;
     position: fixed;
     right: 0;
-    top: calc(var(--native-titlebar-height, 0px) + var(--header-height) + env(safe-area-inset-top));
+    top: calc(
+      var(--native-titlebar-height, 0px) + var(--workspace-bar-height) + env(safe-area-inset-top)
+    );
     bottom: 0;
     width: min(300px, 85vw);
     margin: 0;
@@ -223,7 +227,9 @@
     display: flex;
     position: fixed;
     left: 0;
-    top: calc(var(--native-titlebar-height, 0px) + var(--header-height) + env(safe-area-inset-top));
+    top: calc(
+      var(--native-titlebar-height, 0px) + var(--workspace-bar-height) + env(safe-area-inset-top)
+    );
     bottom: 0;
     width: min(280px, calc(100vw - 48px));
     padding-left: env(safe-area-inset-left);
@@ -249,6 +255,7 @@
 @media (max-width: 700px) {
   .workspace {
     --workspace-gap: 0px;
+    --workspace-top-gap: 0px;
     --workspace-radius: 0px;
   }
   .chat-main {
@@ -322,7 +329,10 @@
   .member-sidebar {
     display: flex;
     position: fixed;
-    inset: calc(var(--native-titlebar-height, 0px) + var(--header-height) + env(safe-area-inset-top)) 0 0 auto;
+    inset: calc(
+        var(--native-titlebar-height, 0px) + var(--workspace-bar-height) + env(safe-area-inset-top)
+      )
+      0 0 auto;
     width: min(340px, env(viewport-segment-width 1 0));
     background: var(--main);
     z-index: 30;
@@ -395,8 +405,8 @@
       minmax(
         0,
         calc(
-          env(viewport-segment-bottom 0 0) - 2 * var(--header-height) - var(--workspace-gap) -
-            env(safe-area-inset-top)
+          env(viewport-segment-bottom 0 0) - var(--workspace-bar-height) - var(--header-height) -
+            var(--workspace-top-gap) - env(safe-area-inset-top)
         )
       )
       minmax(0, 1fr);
@@ -417,10 +427,10 @@
   .member-sidebar {
     display: flex;
     position: fixed;
-    inset: calc(var(--header-height) + env(safe-area-inset-top)) 0 auto auto;
+    inset: calc(var(--workspace-bar-height) + env(safe-area-inset-top)) 0 auto auto;
     width: min(340px, 85vw);
     height: calc(
-      env(viewport-segment-bottom 0 0) - var(--header-height) - env(safe-area-inset-top)
+      env(viewport-segment-bottom 0 0) - var(--workspace-bar-height) - env(safe-area-inset-top)
     );
     background: var(--main);
     z-index: 30;
@@ -453,7 +463,7 @@
   .conversation-sidebar,
   .chat-main:has(.workspace-page) {
     max-height: calc(
-      env(viewport-segment-bottom 0 0) - var(--header-height) - var(--workspace-gap) -
+      env(viewport-segment-bottom 0 0) - var(--workspace-bar-height) - var(--workspace-top-gap) -
         env(safe-area-inset-top)
     );
   }
