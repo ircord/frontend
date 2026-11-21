@@ -58,6 +58,7 @@ export interface UseEmbedInput {
 /** Centralizes selection, queue/cache ownership, deadlines and offline states; providers never fetch. */
 export function useEmbed(input: UseEmbedInput) {
   const auth = useAuthStore()
+  const mediaBase = usePlatform().serverOrigin || window.location.href
   const url = computed(() => toValue(input.url))
   const attachment = computed(
     () =>
@@ -69,7 +70,7 @@ export function useEmbed(input: UseEmbedInput) {
   )
   const upload = computed(() =>
     attachment.value
-      ? (attachmentMediaAsset(attachment.value, window.location.href) ?? undefined)
+      ? (attachmentMediaAsset(attachment.value, mediaBase) ?? undefined)
       : undefined,
   )
   const selection = computed(() =>
@@ -265,7 +266,7 @@ export function useEmbed(input: UseEmbedInput) {
     if (failed.value) return []
     if (uploads.value.length)
       return uploads.value
-        .map((attachment) => attachmentMediaAsset(attachment, window.location.href))
+        .map((attachment) => attachmentMediaAsset(attachment, mediaBase))
         .filter((asset) => asset !== null)
     if (offlineStatus.value.offline)
       return selection.value.provider.accepts.includes('media') && offlineAsset.value

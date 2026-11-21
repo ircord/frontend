@@ -76,6 +76,7 @@ mock.module('../app/utils/api.ts', () => ({
     throw new Error('This check must not contact an API')
   },
   errorStatus: (error) => error?.status,
+  instanceFetch: (...args) => globalThis.fetch(...args),
 }))
 const workers = []
 class ArchiveWorker {
@@ -118,10 +119,10 @@ const { useOfflineMedia } = await import('../app/composables/media/useOfflineMed
 offlineArchive.connection('disconnected')
 await offlineArchive.start('fixture-a', '/api/v1')
 const scopes = []
-const mount = (url, enabled = ref(true)) => {
+const mount = (url, enabled = ref(true), player) => {
   const scope = effectScope()
   scopes.push(scope)
-  const media = scope.run(() => useOfflineMedia(url, enabled))
+  const media = scope.run(() => useOfflineMedia(url, enabled, player))
   return { scope, media, enabled }
 }
 const callsFor = (worker, url) =>
@@ -130,7 +131,18 @@ const file = { blob, refs: [{ id: 'fixture-message', pinned: true }] }
 const url = 'https://files.invalid/a.png'
 const other = 'https://files.invalid/b.png'
 try {
-  const a = mount(url)
+  let activeSource
+  let detachedSource
+  const a = mount(url, undefined, {
+    getAttribute: () => activeSource,
+    pause() {},
+    removeAttribute() {
+      assert(liveURLs.has(activeSource), 'player must detach before the URL is revoked')
+      detachedSource = activeSource
+      activeSource = undefined
+    },
+    load() {},
+  })
   const b = mount(url)
   const unrelated = mount(other)
   const workerA = workers.at(-1)
@@ -245,10 +257,12 @@ try {
   await turn()
   assert(a.media.saved.value)
   const beforeDisable = a.media.source.value
+  activeSource = beforeDisable
   a.enabled.value = false
   assert.equal(a.media.loading.value, false)
   assert.equal(a.media.saved.value, false)
   assert(!liveURLs.has(beforeDisable), 'disabling releases owned bytes')
+  assert.equal(detachedSource, beforeDisable, 'disabling detaches the player')
   a.enabled.value = true
   assert.equal(a.media.loading.value, true)
   assert.equal(a.media.source.value, undefined, 'reenabling checks saved bytes before the original')

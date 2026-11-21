@@ -40,6 +40,8 @@ const messages = computed(() => {
 const preferences = usePreferencesStore()
 const appearance = useAppearanceStore()
 const notifications = useNotificationStore()
+// WKWebView can leave old selection paint on rows as they scroll back into view.
+const skipOffscreenRows = usePlatform().titleBar !== 'macos'
 /**
  * The scroll engine: follows the latest message until the reader scrolls away, keeps the reading
  * position when older history arrives above, and jumps to messages. Rows are in normal flow, so
@@ -254,6 +256,7 @@ watch(
 )
 let previousTop = 0
 let pageDirection: 'older' | 'newer' = 'older'
+let historyFrame: number | undefined
 const newerFailed = ref(false)
 // Read only from event callbacks: this flag needs no cached reactive subscription.
 const paging = () => chat.loadingOlder || chat.loadingNewer
@@ -261,17 +264,30 @@ function onScroll() {
   const el = scroller.value
   if (!el) return
   if (attract.value) scrollTick.value++
-  if (el.scrollTop !== previousTop) pageDirection = el.scrollTop < previousTop ? 'older' : 'newer'
-  previousTop = el.scrollTop
-  pageNearEdge()
+  const top = el.scrollTop
+  if (top !== previousTop) pageDirection = top < previousTop ? 'older' : 'newer'
+  previousTop = top
+  checkHistoryBeforePaint()
 }
+// Wheel and scroll events can arrive together. Read the timeline's bounds once per frame.
+function checkHistoryBeforePaint() {
+  if (historyFrame !== undefined) return
+  historyFrame = requestAnimationFrame(() => {
+    historyFrame = undefined
+    pageNearEdge()
+  })
+}
+onBeforeUnmount(() => {
+  if (historyFrame !== undefined) cancelAnimationFrame(historyFrame)
+})
 /** Both edges advance within retained history; the present button is only a shortcut. */
 function pageNearEdge() {
   const el = scroller.value
   if (!el || paging()) return
-  const distance = Math.max(600, el.clientHeight)
+  const height = el.clientHeight
+  const distance = Math.max(900, height * 1.5)
   const nearTop = el.scrollTop < distance
-  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < distance
+  const nearBottom = el.scrollHeight - el.scrollTop - height < distance
   if (
     nearBottom &&
     (!nearTop || pageDirection === 'newer') &&
@@ -292,7 +308,7 @@ async function older() {
   const loaded = await chat.loadOlder(id)
   if (loaded && id === chat.activeId) {
     fillUp()
-    nextTick(pageNearEdge)
+    checkHistoryBeforePaint()
   }
 }
 async function newer() {
@@ -303,7 +319,7 @@ async function newer() {
   if (loaded === false) newerFailed.value = true
   else if (loaded) {
     fillUp()
-    nextTick(pageNearEdge)
+    checkHistoryBeforePaint()
   }
 }
 /**
@@ -334,7 +350,7 @@ function pullHistory(event: WheelEvent | TouchEvent) {
   if ('touches' in event) touchY = event.touches[0]?.clientY ?? touchY
   if (!delta) return
   pageDirection = delta < 0 ? 'older' : 'newer'
-  pageNearEdge()
+  checkHistoryBeforePaint()
 }
 function pullHistoryKey(event: KeyboardEvent) {
   // Keys from a link or button in a row scroll the timeline too; typing in a field doesn't.
@@ -343,7 +359,7 @@ function pullHistoryKey(event: KeyboardEvent) {
   else if (['ArrowUp', 'PageUp', 'Home'].includes(event.key)) pageDirection = 'older'
   else return
   stopResume()
-  pageNearEdge()
+  checkHistoryBeforePaint()
 }
 function touchStart(event: TouchEvent) {
   stopResume()
@@ -724,8 +740,10 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
           :message-id="row.key"
           :data-index="index"
           class="timeline-row flow-root"
-          :class="{ '[content-visibility:auto]': !hasEmbeds(row) }"
-          :style="hasEmbeds(row) ? undefined : { containIntrinsicSize: 'auto 56px' }"
+          :class="{
+            '[content-visibility:auto] [contain-intrinsic-size:auto_56px]':
+              skipOffscreenRows && !hasEmbeds(row),
+          }"
         >
           <div
             v-if="row.kind === 'start'"

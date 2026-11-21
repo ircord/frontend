@@ -18,7 +18,9 @@ const props = defineProps<{
 const emit = defineEmits<{ open: []; load: []; error: [] }>()
 const { t, n } = useI18n()
 const appearance = useAppearanceStore()
-const { source } = useOfflineMedia(() => props.asset.url)
+const { videoPreviewPreload } = usePlatform()
+const player = useTemplateRef<HTMLVideoElement>('player')
+const { source } = useOfflineMedia(() => props.asset.url, true, player)
 /** Once a tile starts loading it keeps its media when it scrolls away. */
 const started = ref(props.nearby)
 watch(
@@ -145,12 +147,13 @@ function focus(event: FocusEvent) {
       <!-- A frame, not a player: the viewer plays it with sound and controls. -->
       <video
         v-else-if="asset.kind === 'video'"
+        ref="player"
         :key="`video:${source}-${attempt}`"
         class="absolute inset-0 size-full object-cover bg-black pointer-events-none"
         :src="source"
         muted
         playsinline
-        preload="metadata"
+        :preload="nearby ? videoPreviewPreload : 'metadata'"
         tabindex="-1"
         aria-hidden="true"
         @loadeddata="ready"

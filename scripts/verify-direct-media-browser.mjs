@@ -7,11 +7,14 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { chromium } from 'playwright'
+import { chromium, webkit } from 'playwright'
 
 const frontendDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const temporary = await mkdtemp(join(tmpdir(), 'ircord-media-fixture-'))
-const videoFile = join(temporary, 'fixture.webm')
+const desktopWebKit = process.argv.includes('--desktop-webkit')
+const videoName = desktopWebKit ? 'fixture.mp4' : 'fixture.webm'
+const videoType = desktopWebKit ? 'video/mp4' : 'video/webm'
+const videoFile = join(temporary, videoName)
 const audioFile = join(temporary, 'fixture.wav')
 function ffmpeg(args) {
   const result = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args], {
@@ -29,14 +32,9 @@ try {
     'lavfi',
     '-i',
     'sine=frequency=440:duration=25',
-    '-c:v',
-    'libvpx',
-    '-deadline',
-    'realtime',
-    '-cpu-used',
-    '8',
-    '-c:a',
-    'libopus',
+    ...(desktopWebKit
+      ? ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-c:a', 'aac']
+      : ['-c:v', 'libvpx', '-deadline', 'realtime', '-cpu-used', '8', '-c:a', 'libopus']),
     '-shortest',
     videoFile,
   ])
@@ -86,7 +84,7 @@ for (const stream of [frontend.stdout, frontend.stderr])
   })
 let browser
 let unblockVideo = () => {}
-try {
+verify: try {
   for (let attempt = 0; ; attempt++) {
     try {
       const app = await fetch(base)
@@ -100,10 +98,9 @@ try {
     assert(attempt < 180 && frontend.exitCode === null, `Demo did not start: ${serverLog}`)
     await new Promise((done) => setTimeout(done, 100))
   }
-  browser = await chromium.launch({
-    headless: true,
-    args: ['--autoplay-policy=no-user-gesture-required'],
-  })
+  browser = desktopWebKit
+    ? await webkit.launch()
+    : await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] })
   const context = await browser.newContext({
     serviceWorkers: 'block',
     viewport: { width: 1440, height: 900 },
@@ -112,11 +109,30 @@ try {
     data: { username: `media${Date.now().toString(36)}`, password: randomUUID() },
   })
   assert.equal(signup.status(), 201)
+  if (desktopWebKit) await context.addInitScript(() => {
+    window.__IRCordDesktop = { titleBar: 'macos' }
+    window.__TAURI__ = {
+      core: { invoke: async () => 'granted' },
+      event: { listen: async () => () => {} },
+    }
+  })
   const sourcePage = await (
     await context.request.get(`${base}/api/v1/conversations/general/messages?limit=40`)
   ).json()
   const sample = sourcePage.items.find((item) => item.kind === 'message')
   assert(sample)
+  const history = desktopWebKit
+    ? Array.from({ length: 40 }, (_, index) => ({
+        ...sample,
+        id: `fixture-history-${index}`,
+        clientId: undefined,
+        createdAt: new Date(Date.parse(sample.createdAt) - (40 - index) * 1000).toISOString(),
+        text: `Timeline history ${index + 1}`,
+        attachment: undefined,
+        attachments: [],
+        reactions: [],
+      }))
+    : []
   let selected = 'video'
   let holdVideo = true
   let videoRequested
@@ -138,13 +154,14 @@ try {
   await context.route('**/api/v1/conversations/general/messages?*', (route) => {
     const chosen =
       selected === 'video'
-        ? { text: 'Video fixture', attachments: [attachment('fixture.webm', 'video/webm')] }
+        ? { text: 'Video fixture', attachments: [attachment(videoName, videoType)] }
         : selected === 'audio'
           ? { text: 'Audio fixture', attachments: [attachment('fixture.wav', 'audio/wav')] }
           : { text: 'Card fixture https://example.invalid/post', attachments: [] }
     return route.fulfill({
       json: {
         items: [
+          ...history,
           {
             ...sample,
             ...chosen,
@@ -179,7 +196,7 @@ try {
   })
   await context.route('**/example.invalid/**', async (route) => {
     const request = route.request()
-    const video = request.url().includes('fixture.webm')
+    const video = request.url().includes(videoName)
     const bytes = video ? videoBytes : audioBytes
     if (video && holdVideo) {
       videoRequested()
@@ -192,7 +209,7 @@ try {
       .fulfill({
         status: range ? 206 : 200,
         headers: {
-          'Content-Type': video ? 'video/webm' : 'audio/wav',
+          'Content-Type': video ? videoType : 'audio/wav',
           'Accept-Ranges': 'bytes',
           'Access-Control-Allow-Origin': '*',
           ...(range ? { 'Content-Range': `bytes ${start}-${end}/${bytes.length}` } : {}),
@@ -235,6 +252,39 @@ try {
     await row.waitFor()
     await row.scrollIntoViewIfNeeded()
     return row
+  }
+  if (desktopWebKit) {
+    const row = await openFixture('video')
+    const video = row.locator('video')
+    await video.waitFor()
+    holdVideo = false
+    unblockVideo()
+    await page.waitForFunction(() => document.querySelector('video')?.readyState >= 2)
+    assert.equal(await video.getAttribute('preload'), 'auto')
+    assert(await video.evaluate((element) => element.paused && element.videoWidth > 0))
+    assert.deepEqual(await page.locator('.timeline-row').evaluateAll((rows) =>
+      Array.from(new Set(rows.map((element) => getComputedStyle(element).contentVisibility))),
+    ), ['visible'])
+    const text = row.getByText('Video fixture', { exact: true })
+    await text.evaluate((element) => {
+      const range = document.createRange()
+      range.selectNodeContents(element)
+      window.getSelection().addRange(range)
+    })
+    assert.equal(await page.evaluate(() => window.getSelection().toString()), 'Video fixture')
+    await text.click({ position: { x: 4, y: 4 } })
+    assert(await page.evaluate(() => window.getSelection().isCollapsed))
+    const viewport = page.locator('.timeline-scroll')
+    const previousTop = await viewport.evaluate((element) => element.scrollTop)
+    assert(previousTop > 200, 'Fixture has room to scroll back through history')
+    const bounds = await viewport.boundingBox()
+    await page.mouse.move(bounds.x + bounds.width - 20, bounds.y + bounds.height / 2)
+    await page.mouse.wheel(0, -400)
+    await page.waitForFunction((top) => document.querySelector('.timeline-scroll').scrollTop < top, previousTop)
+    assert(await page.evaluate(() => window.getSelection().isCollapsed))
+    assert.deepEqual(errors, [])
+    console.log('macOS timeline rows stay painted, text selection clears, and paused MP4 previews decode.')
+    break verify
   }
   const near = (actual, expected, label) =>
     assert(Math.abs(actual - expected) < 1, `${label}: ${actual} vs ${expected}`)

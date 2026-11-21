@@ -1,10 +1,12 @@
 // Existing frontend only; isolated signed-out browser, synthetic rows, no API mutations.
-import { chromium, firefox } from 'playwright'
+import { chromium, firefox, webkit } from 'playwright'
 import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const profile = await realpath(await mkdtemp('/tmp/ircord-history-check-'))
-const browserType = process.argv.includes('--firefox') ? firefox : chromium
+const browserType = process.argv.includes('--webkit')
+  ? webkit
+  : process.argv.includes('--firefox') ? firefox : chromium
 let context
 try {
   const appData = join(profile, 'app-data'),

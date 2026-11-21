@@ -17,6 +17,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ unavailable: []; ready: [ready: boolean]; viewing: [open: boolean] }>()
 const appearance = useAppearanceStore()
+const { videoPreviewPreload } = usePlatform()
 const root = ref<HTMLElement | null>(null)
 const player = ref<HTMLMediaElement | null>(null)
 const hovered = ref(false)
@@ -26,7 +27,7 @@ const expanded = ref(false)
 useViewHistory(`direct-media:${useId()}`, expanded)
 watch(expanded, (open) => emit('viewing', open))
 const { t } = useI18n()
-const { source, loading } = useOfflineMedia(() => publicMediaURL(props.asset.url))
+const { source, loading } = useOfflineMedia(() => publicMediaURL(props.asset.url), true, player)
 const displaySize = computed(() => {
   const { width, height } = props.asset
   if (!isUploadImageUrl(source.value))
@@ -396,7 +397,7 @@ onBeforeUnmount(() => {
         :src="source"
         muted
         playsinline
-        :preload="nearby ? 'metadata' : 'none'"
+        :preload="nearby ? videoPreviewPreload : 'none'"
         :aria-label="description || t('mediaUi.directMedia.linkedVideo')"
         @click="togglePlayback"
         @pointerdown="playback.takeControl"

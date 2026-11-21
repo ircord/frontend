@@ -32,6 +32,7 @@ const track = ref<HTMLElement | null>(null)
 const captionId = useId()
 const captionTruncated = ref(false)
 const { t, n } = useI18n()
+const { videoPreviewPreload } = usePlatform()
 function measureCaption() {
   if (caption.value && !captionExpanded.value)
     captionTruncated.value = caption.value.scrollHeight > caption.value.clientHeight + 1
@@ -361,7 +362,7 @@ function keys(event: KeyboardEvent) {
               :src="item.url"
               controls
               playsinline
-              preload="metadata"
+              :preload="nearby && i === index ? videoPreviewPreload : 'metadata'"
               :aria-label="label"
               @loadedmetadata="learnSize"
               @loadeddata="loaded"

@@ -11,6 +11,7 @@ import {
 export function useOfflineMedia(
   raw: MaybeRefOrGetter<string>,
   enabled: MaybeRefOrGetter<boolean> = true,
+  player?: MaybeRefOrGetter<HTMLMediaElement | null | undefined>,
 ) {
   const source = ref<string>()
   const saved = ref(false)
@@ -23,7 +24,15 @@ export function useOfflineMedia(
   let generation = 0
   const fileRevision = ref(0)
   const release = () => {
-    if (objectURL) URL.revokeObjectURL(objectURL)
+    if (!objectURL) return
+    const media = toValue(player)
+    // Stop pending media reads before revoking this URL, including on an account switch.
+    if (media?.getAttribute('src') === objectURL) {
+      media.pause()
+      media.removeAttribute('src')
+      media.load()
+    }
+    URL.revokeObjectURL(objectURL)
     objectURL = undefined
   }
   const clear = () => {

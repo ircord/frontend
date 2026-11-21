@@ -13,6 +13,12 @@ What changed for people using IRCord, newest release first. Each release lists w
 ### Improved
 
 - The network tabs bar is shorter on desktop, so the tabs sit closer to the conversation.
+- Fetch chat history earlier when you scroll toward either end of the loaded messages.
+
+### Fixed
+
+- Prevent stale selection highlights when scrolling chat history in the macOS app.
+- Show paused video previews in the macOS app.
 
 ## v0.7.4 — 2026-11-21
 

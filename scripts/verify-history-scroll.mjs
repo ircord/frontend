@@ -166,7 +166,7 @@ export async function verifyHistoryScroll() {
     }
     check(page.value.items[0].id === retained[0].id, 'Could not reach the retained beginning')
     // Exercise the timeline's actual edge-selection function with the production pager.
-    // At the bottom of an older window it must fetch the adjacent page, not hide the gap.
+    // Fetch the adjacent page while the reader still has history ahead to scroll through.
     const edgeStart = timelineSource.indexOf('function pageNearEdge() {')
     const edgeEnd = timelineSource.indexOf('\nasync function older()', edgeStart)
     check(edgeStart >= 0 && edgeEnd > edgeStart, 'Timeline edge selector was not found')
@@ -193,10 +193,10 @@ export async function verifyHistoryScroll() {
         throw new Error('Bottom edge selected older history')
       },
     )
-    await position(viewport.scrollHeight)
+    await position(viewport.scrollHeight - viewport.clientHeight - 800)
     const previousLast = page.value.items.at(-1).id
     pageNearEdge()
-    check(pendingNewer, 'The older window did not request newer history at its bottom')
+    check(pendingNewer, 'The older window did not request newer history before its bottom')
     check(await pendingNewer, 'The newer history request did not complete')
     await settle()
     check(page.value.items.at(-1).id > previousLast, 'Newer history did not advance')

@@ -29,7 +29,12 @@ function close() {
 }
 const unregister = useDialogStack().register(close)
 const item = computed(() => props.items[index.value])
-const { source: fileSource, loading } = useOfflineMedia(() => publicMediaURL(item.value?.url ?? ''))
+const player = useTemplateRef<HTMLVideoElement>('player')
+const { source: fileSource, loading } = useOfflineMedia(
+  () => publicMediaURL(item.value?.url ?? ''),
+  true,
+  player,
+)
 const many = computed(() => props.items.length > 1)
 const failed = reactive(new Set<string>())
 const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -387,6 +392,7 @@ function up(event: PointerEvent) {
           />
           <video
             v-else-if="item.kind === 'video'"
+            ref="player"
             :key="`video:${item.url}`"
             class="media-viewer-media block min-w-0 min-h-0 max-w-full max-h-full w-auto h-auto object-contain rounded-[6px] shadow-[0_12px_48px_rgb(0_0_0_/_50%)]"
             :src="fileSource"

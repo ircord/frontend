@@ -320,7 +320,7 @@ function findLastAnchor(elements: HTMLElement[]): HTMLElement | null {
   return null
 }
 
-function findFirstVisibleMessage({
+function findPrependAnchor({
   content,
   spacer,
   viewport,
@@ -328,23 +328,25 @@ function findFirstVisibleMessage({
   content: HTMLElement
   spacer: HTMLElement | null
   viewport: HTMLElement
-}): HTMLElement | null {
+}): PrependRestore | null {
   const viewportRect = viewport.getBoundingClientRect()
-  const children = getMessageChildren(content, spacer)
+  const children = content.children
   // Ordered, normal-flow rows let us find the first visible one in logarithmic reads.
   // Walking from the beginning made upward scrolling progressively more expensive.
   let start = 0
-  let end = children.length
+  const count = children.length - (content.lastElementChild === spacer && spacer ? 1 : 0)
+  let end = count
   while (start < end) {
     const middle = (start + end) >>> 1
     if (children[middle]!.getBoundingClientRect().bottom <= viewportRect.top) start = middle + 1
     else end = middle
   }
-  for (let i = start; i < children.length; i++) {
+  for (let i = start; i < count; i++) {
     const child = children[i]!
     const rect = child.getBoundingClientRect()
     if (rect.top >= viewportRect.bottom) break
-    if (child.dataset.messageId && rect.bottom > viewportRect.top) return child
+    if (child instanceof HTMLElement && child.dataset.messageId && rect.bottom > viewportRect.top)
+      return { element: child, viewportTop: rect.top - viewportRect.top }
   }
   return null
 }
@@ -468,11 +470,13 @@ function createEngine(props: MessageScrollerProviderProps) {
   let readerGap: number | null = null
 
   function noteEngineScroll() {
-    if (!viewport) return
+    if (!viewport) return null
     knownTop = viewport.scrollTop
     knownHeight = viewport.scrollHeight
-    knownRow = content ? findFirstVisibleMessage({ content, spacer, viewport }) : null
-    knownRowOffset = knownRow ? getElementOffsetTop(knownRow, viewport) : 0
+    const anchor = content ? findPrependAnchor({ content, spacer, viewport }) : null
+    knownRow = anchor?.element ?? null
+    knownRowOffset = anchor ? anchor.viewportTop + knownTop : 0
+    return anchor
   }
 
   function atPhysicalBottom() {
@@ -480,7 +484,7 @@ function createEngine(props: MessageScrollerProviderProps) {
   }
 
   function noteScroll() {
-    if (!viewport) return
+    if (!viewport) return null
     const top = viewport.scrollTop
     // Either estimate may see a shrink the other misses: the first row's own move catches rows
     // above shrinking while others grow below; the total height catches a shrink inside that
@@ -499,7 +503,7 @@ function createEngine(props: MessageScrollerProviderProps) {
       lastUserDirection = 'up'
     } else if (readerDown && autoScroll() && atPhysicalBottom()) readerDetached = false
     const moved = readerUp ? knownTop - top - shrunkAbove : readerDown ? knownTop - top : 0
-    noteEngineScroll()
+    const anchor = noteEngineScroll()
     // How far from the bottom the reader took the view: where they started plus their own moves,
     // leaving out messages that arrived meanwhile below.
     if (readerUp || readerDown) {
@@ -507,6 +511,7 @@ function createEngine(props: MessageScrollerProviderProps) {
       readerGap = Math.max(0, readerGap + moved)
     }
     if (readerUp) userScrollIntent()
+    return anchor
   }
 
   function commitScrollState() {
@@ -771,8 +776,7 @@ function createEngine(props: MessageScrollerProviderProps) {
       prependRestore = null
       return
     }
-    const element = findFirstVisibleMessage({ content, spacer, viewport })
-    prependRestore = element ? { element, viewportTop: getRelativeTop(element, viewport) } : null
+    prependRestore = findPrependAnchor({ content, spacer, viewport })
   }
 
   function schedulePrependFlush() {
@@ -1084,12 +1088,11 @@ function createEngine(props: MessageScrollerProviderProps) {
   }
 
   function syncAfterScroll() {
-    noteScroll()
+    prependRestore = noteScroll()
     if (pointerHeld) scrolledWhileHeld = true
     else if (userScrollTimeout !== null) userScrolled()
     scheduleStateCommit()
     scheduleVisibilitySync()
-    capturePrependAnchor()
   }
 
   function onAutoScrollChange() {

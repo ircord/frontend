@@ -178,6 +178,7 @@ export function createPlatform(window: ClientWindow) {
     kind: bridge ? ('tauri' as const) : ('web' as const),
     nativeDevice: !!bridge,
     titleBar,
+    videoPreviewPreload: titleBar === 'macos' ? ('auto' as const) : ('metadata' as const),
     serverOrigin,
     chooseServer: bridge
       ? async () => {
