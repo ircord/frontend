@@ -1,6 +1,9 @@
+import { createSharedComposable, useDocumentVisibility, useOnline } from '@vueuse/core'
 import { offlineStatus } from '../../utils/offline-archive'
 
 type ExpiringAsset = { url: string; expiresAt?: string }
+const usePreviewVisibility = createSharedComposable(useDocumentVisibility)
+const usePreviewConnectivity = createSharedComposable(useOnline)
 
 /** Media, downloads, and card thumbnails share one deadline and three bounded refresh attempts. */
 export function useLinkMediaExpiry(options: {
@@ -11,10 +14,14 @@ export function useLinkMediaExpiry(options: {
   refresh: () => Promise<unknown>
 }) {
   const expired = ref(false)
-  const visible = ref(typeof document !== 'undefined' && !document.hidden)
-  const online = ref(typeof navigator !== 'undefined' && navigator.onLine)
+  const visibility = usePreviewVisibility()
+  const online = usePreviewConnectivity()
   const active = computed(
-    () => toValue(options.enabled) && visible.value && online.value && !offlineStatus.value.offline,
+    () =>
+      toValue(options.enabled) &&
+      visibility.value === 'visible' &&
+      online.value &&
+      !offlineStatus.value.offline,
   )
   const snapshot = computed(() => {
     const resources = toValue(options.assets)
@@ -107,25 +114,9 @@ export function useLinkMediaExpiry(options: {
     },
     { immediate: true, flush: 'post' },
   )
-  function visibility() {
-    visible.value = !document.hidden
-  }
-  function connectivity() {
-    online.value = navigator.onLine
-  }
-  onMounted(() => {
-    document.addEventListener('visibilitychange', visibility)
-    window.addEventListener('online', connectivity)
-    window.addEventListener('offline', connectivity)
-    visibility()
-    connectivity()
-  })
   onBeforeUnmount(() => {
     disposed = true
     clearTimer()
-    document.removeEventListener('visibilitychange', visibility)
-    window.removeEventListener('online', connectivity)
-    window.removeEventListener('offline', connectivity)
   })
   return { expired }
 }

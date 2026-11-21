@@ -13,9 +13,12 @@ import {
   publicMediaURL,
 } from '../../../shared/utils/link-media'
 import { selectEmbed } from '../../utils/embed'
-import { useMessageActions } from '../../composables/chat/useMessageActions'
+import type { useMessageActions } from '../../composables/chat/useMessageActions'
+import type { useMenus } from '../../composables/workspace/useMenus'
 const props = defineProps<{
   message: Message
+  messageActions: ReturnType<typeof useMessageActions>
+  menus: ReturnType<typeof useMenus>
   grouped?: boolean
   highlighted?: boolean
   /** /attract: shine across this row, sparkle on its avatar, or both. */
@@ -34,6 +37,7 @@ const library = useLibraryStore()
 const nameStyle = useNameStyle()
 const { time, full } = useTimeFormat()
 const reacting = ref(false)
+const returningReactionFocus = ref(false)
 // Computed once per effect: re-renders must not move a running animation's delay.
 const attractStyle = computed(() =>
   props.attract && props.attractStartedAt ? attractClock(props.attractStartedAt) : undefined,
@@ -56,27 +60,50 @@ const mentionsMe = computed(() => {
 const irc = computed(() => appearance.settings.messageLayout === 'irc')
 const action = computed(() => props.message.kind === 'action')
 /** URL presentation is known before paint; stored text still drives copy, export and editing. */
-const presentedLinks = computed(() => {
+const mediaLinks = computed(() =>
+  props.message.deleted ? [] : messageMediaLinks(props.message.text),
+)
+const { serverOrigin } = usePlatform()
+const presentedText = computed(() => {
   const message = props.message
+  if (!mediaLinks.value.length) return message.text
   const attachments = messageAttachments(message)
-  if (message.deleted) return new Set<string>()
   const uploadURLs = new Set(
     attachments
-      .map((attachment) => attachmentMediaAsset(attachment, window.location.href)?.url)
+      .map(
+        (attachment) => attachmentMediaAsset(attachment, serverOrigin || window.location.href)?.url,
+      )
       .filter(Boolean),
   )
-  return new Set(
-    messageMediaLinks(message.text).filter((url) =>
-      attachments.length ? uploadURLs.has(publicMediaURL(url)) : selectEmbed(url).provider.hideUrl,
+  return messageMediaText(
+    message.text,
+    new Set(
+      mediaLinks.value.filter((url) =>
+        attachments.length
+          ? uploadURLs.has(publicMediaURL(url))
+          : selectEmbed(url).provider.hideUrl,
+      ),
     ),
   )
 })
-const presentedText = computed(() => messageMediaText(props.message.text, presentedLinks.value))
+const hasExtras = computed(() => {
+  const message = props.message
+  return (
+    !message.deleted &&
+    !!(
+      mediaLinks.value.length ||
+      message.attachment ||
+      message.attachments?.length ||
+      message.reactions.length ||
+      message.delivery ||
+      message.unconfirmed
+    )
+  )
+})
 const showText = computed(() => !!stripFormatting(presentedText.value).trim())
 /** The three most recently used emoji (defaults until there is history). */
 const quickReactions = computed(() => library.quickReactions.slice(0, 3))
-const menus = useMenus()
-const messageActions = useMessageActions()
+const { menus, messageActions } = props
 const saved = useSavedStore()
 const isSaved = computed(() => saved.isSaved(props.message.id))
 const saveChange = computed(() => saved.pendingChange(props.message.id))
@@ -117,8 +144,13 @@ watch(
     unregisterReactions?.()
     unregisterReactions = value
       ? dialogs.register(() => {
+          returningReactionFocus.value = true
           reacting.value = false
-          nextTick(() => reactButton.value?.focus({ preventScroll: true }))
+          nextTick(() => {
+            const button = reactButton.value ?? moreButton.value
+            button?.focus({ preventScroll: true })
+            returningReactionFocus.value = false
+          })
         })
       : undefined
   },
@@ -192,6 +224,10 @@ const moreTitle = computed(() => {
 const shift = useShiftHeld()
 const hovered = ref(false)
 const focus = ref<'none' | 'row' | 'toolbar'>('none')
+// Keep a focusable More button on quiet rows. Populate the rest when the reader uses the row.
+const toolbarActive = computed(
+  () => hovered.value || focus.value !== 'none' || reacting.value || returningReactionFocus.value,
+)
 function trackFocus(event: FocusEvent) {
   // Focus moving within the message keeps the current mode until its focusin arrives;
   // a render in between must not see “no focus” and swap the toolbar under the move.
@@ -217,21 +253,20 @@ watch(
 // toolbar pattern). Buttons come and go with Shift and capabilities, so the roving tabindex is
 // reapplied after each render. Disabled buttons are skipped, as the browser skips them anyway.
 const toolbar = ref<HTMLElement | null>(null)
-const toolIndex = ref(0)
+let currentTool: HTMLButtonElement | undefined
 const tools = () =>
   [...(toolbar.value?.querySelectorAll<HTMLButtonElement>('button') ?? [])].filter(
     (button) => !button.disabled,
   )
 function rove() {
   const list = tools()
-  const current = list[Math.min(toolIndex.value, list.length - 1)]
-  for (const button of list) button.tabIndex = button === current ? 0 : -1
+  if (!currentTool || !list.includes(currentTool)) currentTool = list[0]
+  for (const button of list) button.tabIndex = button === currentTool ? 0 : -1
 }
 onMounted(rove)
 onUpdated(rove)
 function toolbarFocus(event: FocusEvent) {
-  const index = tools().indexOf(event.target as HTMLButtonElement)
-  if (index >= 0) toolIndex.value = index
+  if (event.target instanceof HTMLButtonElement) currentTool = event.target
   rove()
 }
 function toolbarKeys(event: KeyboardEvent) {
@@ -239,14 +274,13 @@ function toolbarKeys(event: KeyboardEvent) {
   if (!list.length || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
   event.preventDefault()
   const index = list.indexOf(document.activeElement as HTMLButtonElement)
-  toolIndex.value =
+  const next =
     event.key === 'Home'
       ? 0
       : event.key === 'End'
         ? list.length - 1
         : (index + (event.key === 'ArrowRight' ? 1 : -1) + list.length) % list.length
-  rove()
-  list[toolIndex.value]?.focus()
+  list[next]?.focus()
 }
 /** The article's name: author and time, plus states the row shows only as tint or opacity. */
 const rowLabel = computed(() =>
@@ -453,15 +487,17 @@ function react(item: EmojiItem) {
           />
         </div>
         <MessageExtras
-          v-if="!message.deleted"
+          v-if="hasExtras"
           :message="message"
+          :media-links="mediaLinks"
         />
       </div>
     </div>
 
     <MessageExtras
-      v-if="irc && !message.deleted"
+      v-if="irc && hasExtras"
       :message="message"
+      :media-links="mediaLinks"
     />
 
     <ol
@@ -512,7 +548,7 @@ function react(item: EmojiItem) {
       @focusin="toolbarFocus"
       @keydown="toolbarKeys"
     >
-      <template v-if="!alternate">
+      <template v-if="toolbarActive && !alternate">
         <template v-if="reactionSupported">
           <UiButton
             v-for="item in quickReactions"
@@ -600,7 +636,7 @@ function react(item: EmojiItem) {
           />
         </UiButton>
       </template>
-      <template v-else>
+      <template v-else-if="toolbarActive">
         <UiButton
           v-if="unreadable"
           variant="ghost"

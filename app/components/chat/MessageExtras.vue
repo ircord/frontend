@@ -1,7 +1,7 @@
 <script setup vapor lang="ts">
 import type { Message } from '../../../shared/types/chat'
 /** Link content, file downloads, reactions and delivery state under a message. */
-const props = defineProps<{ message: Message }>()
+const props = defineProps<{ message: Message; mediaLinks: string[] }>()
 const emit = defineEmits<{ mediaReady: [url: string, ready: boolean] }>()
 const chat = useChatStore()
 const { t: $t, n: $n } = useI18n()
@@ -11,7 +11,9 @@ const reactionReason = computed(() => chat.messageActionReason(props.message, 'r
 <template>
   <div class="message-extras pl-13.5 empty:hidden">
     <MessageLinks
+      v-if="mediaLinks.length && !message.attachment && !message.attachments?.length"
       :message="message"
+      :urls="mediaLinks"
       @media-ready="(url, ready) => emit('mediaReady', url, ready)"
     />
     <MessageAttachments

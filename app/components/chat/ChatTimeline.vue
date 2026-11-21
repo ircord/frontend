@@ -40,6 +40,8 @@ const messages = computed(() => {
 const preferences = usePreferencesStore()
 const appearance = useAppearanceStore()
 const notifications = useNotificationStore()
+const messageActions = useMessageActions()
+const menus = useMenus(messageActions)
 // WKWebView can leave old selection paint on rows as they scroll back into view.
 const skipOffscreenRows = usePlatform().titleBar !== 'macos'
 /**
@@ -842,6 +844,8 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
             <MessageItem
               v-if="row.kind === 'message'"
               :message="row.message"
+              :menus="menus"
+              :message-actions="messageActions"
               :grouped="grouped(index)"
               :highlighted="row.message.id === highlightId"
               :attract="attractOf(index)"

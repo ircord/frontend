@@ -132,6 +132,7 @@ export function publicMediaURL(raw: string) {
 
 /** Only actual links in prose resolve; code and repeated URLs stay quiet. */
 export function messageMediaLinks(text: string) {
+  if (!text.includes('http')) return []
   const urls = new Set<string>()
   // eslint-disable-next-line no-control-regex -- control characters end a URL in IRC text
   for (const match of textOutsideCode(text).matchAll(/https?:\/\/[^\s<>"'\x00-\x1f]+/g)) {

@@ -1,7 +1,11 @@
 // Busy-channel performance run (#13). Needs a demo-mode server:
 //   bun run build && NUXT_DEMO=true PORT=4174 bun run preview
 //   bun scripts/perf-busy.mjs             (BASE=http://127.0.0.1:4174 by default)
+//   CHROME_CHANNEL=chrome bun scripts/perf-busy.mjs  (installed Google Chrome)
 // Load is configurable: MEMBERS, HISTORY, RATE, CHURN, SECONDS, plus FLOOD (seconds measured).
+// Set EMBEDS=1 for local image and video attachments. The video fixture uses FFmpeg.
+import { spawnSync } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
 import { chromium } from 'playwright'
 
 const base = process.env.BASE ?? 'http://127.0.0.1:4174'
@@ -13,10 +17,17 @@ const load = {
   seconds: Number(process.env.SECONDS ?? 120),
 }
 const flood = Number(process.env.FLOOD ?? 15)
+const withEmbeds = process.env.EMBEDS === '1'
+const mediaRequests = { image: 0, video: 0 }
 
-const browser = await chromium.launch({ args: ['--enable-precise-memory-info'] })
+const browser = await chromium.launch({
+  channel: process.env.CHROME_CHANNEL,
+  args: ['--enable-precise-memory-info'],
+})
+console.log('Browser', browser.version())
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
 const cdp = await page.context().newCDPSession(page)
+const browserCDP = await browser.newBrowserCDPSession()
 await cdp.send('Performance.enable')
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
@@ -24,6 +35,95 @@ page.on('pageerror', (e) => errors.push(e.message))
 async function metrics() {
   const { metrics } = await cdp.send('Performance.getMetrics')
   return Object.fromEntries(metrics.map((m) => [m.name, m.value]))
+}
+async function rendererRSS() {
+  if (process.platform === 'win32') return undefined
+  const { processInfo } = await browserCDP.send('SystemInfo.getProcessInfo')
+  const pids = processInfo
+    .filter((process) => process.type === 'renderer')
+    .map((process) => process.id)
+  if (!pids.length) return undefined
+  const result = spawnSync('ps', ['-o', 'rss=', '-p', pids.join(',')], { encoding: 'utf8' })
+  if (result.status !== 0) return undefined
+  return Math.round(
+    result.stdout
+      .trim()
+      .split(/\s+/)
+      .reduce((sum, value) => sum + Number(value), 0) / 1024,
+  )
+}
+
+async function addMediaFixtures() {
+  const fixture = spawnSync('ffmpeg', [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-f',
+    'lavfi',
+    '-i',
+    'testsrc2=s=640x360:r=15:d=2',
+    '-an',
+    '-c:v',
+    'libvpx',
+    '-deadline',
+    'realtime',
+    '-f',
+    'webm',
+    'pipe:1',
+  ])
+  if (fixture.status !== 0)
+    throw new Error(fixture.stderr?.toString() || 'Could not make the video fixture')
+  const image = await readFile(new URL('../public/icons/icon-512.png', import.meta.url))
+  await page.route(`${base}/__perf_media/*`, async (route) => {
+    const video = route.request().url().endsWith('.webm')
+    mediaRequests[video ? 'video' : 'image']++
+    const bytes = video ? fixture.stdout : image
+    const range = route
+      .request()
+      .headers()
+      .range?.match(/^bytes=(\d+)-(\d*)$/)
+    const start = range ? Number(range[1]) : 0
+    const end = range && range[2] ? Math.min(Number(range[2]), bytes.length - 1) : bytes.length - 1
+    await route.fulfill({
+      status: range ? 206 : 200,
+      headers: {
+        'Content-Type': video ? 'video/webm' : 'image/png',
+        'Accept-Ranges': 'bytes',
+        ...(range ? { 'Content-Range': `bytes ${start}-${end}/${bytes.length}` } : {}),
+      },
+      body: bytes.subarray(start, end + 1),
+    })
+  })
+  await page.route('**/api/v1/bootstrap**', async (route) => {
+    const response = await route.fetch()
+    if (!response.ok()) return route.fulfill({ response })
+    const bootstrap = await response.json()
+    const channel = bootstrap.conversations.find((conversation) => conversation.id === 'busy')
+    if (channel) channel.channelSettings = { ...channel.channelSettings, nsfw: false }
+    await route.fulfill({ response, json: bootstrap })
+  })
+  await page.route('**/api/v1/conversations/busy/messages?*', async (route) => {
+    const response = await route.fetch()
+    if (!response.ok()) return route.fulfill({ response })
+    const history = await response.json()
+    for (const message of history.items) {
+      const kind = Math.floor(Date.parse(message.createdAt) / 2000) % 8
+      if (kind > 1 || !Number.isFinite(kind)) continue
+      const video = kind === 0
+      const name = video ? 'fixture.webm' : 'fixture.png'
+      message.text = video ? 'Video preview fixture' : 'Image preview fixture'
+      message.attachments = [
+        {
+          name,
+          url: `${base}/__perf_media/${message.id}-${name}`,
+          contentType: video ? 'video/webm' : 'image/png',
+          width: video ? 640 : 512,
+          height: video ? 360 : 512,
+        },
+      ]
+    }
+    await route.fulfill({ response, json: history })
+  })
 }
 /** Collects frame times and long tasks in the page while `run` executes. */
 async function measure(label, run) {
@@ -84,13 +184,22 @@ await page.goto(base)
 await page.getByRole('button', { name: 'Create an account' }).click()
 const username = `perf${Date.now().toString(36)}`
 await page.getByLabel('Username', { exact: true }).fill(username)
-await page.getByText(`${username} is available`).waitFor()
+await page
+  .locator('#signup-username-help')
+  .filter({ hasText: `${username} is available` })
+  .waitFor()
 await page.getByLabel('Password', { exact: true }).fill('perf-test-password')
 await page.getByRole('button', { name: 'Create account', exact: true }).click()
 await page.getByRole('textbox', { name: 'Message #general' }).waitFor()
 const started = await page.request.post(`${base}/api/v1/_demo/busy`, { data: load })
+if (!started.ok()) throw new Error(`Could not seed the busy channel (${started.status()})`)
 console.log('load', await started.json())
-const busyLink = page.locator('.conversation-link').filter({ hasText: /^busy/ })
+if (withEmbeds) await addMediaFixtures()
+// Seeded conversations are in the bootstrap snapshot.
+await page.reload()
+const conversation = (name) =>
+  page.locator('.conversation-link').filter({ has: page.getByText(name, { exact: true }) })
+const busyLink = conversation('busy')
 await busyLink.waitFor({ timeout: 30_000 })
 
 // ---- Opening the channel -----------------------------------------------------------------------
@@ -115,6 +224,12 @@ await measure('scroll history', async () => {
   }
 })
 const rows = await page.locator('.message-row').count()
+if (withEmbeds && (!mediaRequests.image || !mediaRequests.video))
+  throw new Error('The scroll workload did not load both media fixtures')
+await cdp.send('HeapProfiler.collectGarbage')
+const scrollSettled = await metrics()
+const scrollRSS = await rendererRSS()
+const mediaNodes = await page.locator('.timeline-scroll video, .timeline-scroll iframe').count()
 
 // ---- Member list -------------------------------------------------------------------------------
 await measure('scroll members', async () => {
@@ -131,11 +246,7 @@ const memberRows = await page
   .count()
 
 // ---- Switching away and back -------------------------------------------------------------------
-await page
-  .locator('.conversation-link')
-  .filter({ hasText: /^general/ })
-  .first()
-  .click()
+await conversation('general').first().click()
 await page.getByRole('textbox', { name: 'Message #general' }).waitFor()
 t = Date.now()
 await busyLink.click()
@@ -156,6 +267,11 @@ console.log({
   'message rows in DOM': rows,
   'member rows in DOM': memberRows,
   'heap after flood MB': +(heapAfterFlood / 1048576).toFixed(1),
+  'history heap after GC MB': +(scrollSettled.JSHeapUsedSize / 1048576).toFixed(1),
+  'history DOM nodes': scrollSettled.Nodes,
+  'history renderer RSS MB': scrollRSS,
+  'history active video and iframe nodes': mediaNodes,
+  ...(withEmbeds ? { 'fixture media requests': mediaRequests } : {}),
   'heap after GC MB': +(settled.JSHeapUsedSize / 1048576).toFixed(1),
   'DOM nodes': settled.Nodes,
   'page errors': errors,

@@ -169,28 +169,36 @@ export function useEmbed(input: UseEmbedInput) {
       nearby.value &&
       !offlineStatus.value.offline,
   )
-  const query = useQuery(() => linkMediaQuery({ ...identity.value, enabled: enabled.value }))
-  const queryCache = useQueryCache()
-  let releasePreview: (() => void) | undefined
-  watch(
-    [enabled, widgetKey],
-    ([active]) => {
-      releasePreview?.()
-      releasePreview = undefined
-      if (!active) return
-      const key = linkMediaKey(identity.value)
-      releasePreview = retainPreview(key, () => {
-        void queryCache.cancelQueries({ key, exact: true })
-      })
-    },
-    { immediate: true, flush: 'sync' },
-  )
-  onBeforeUnmount(() => releasePreview?.())
+  // Attachments already include their own source and dimensions. They never resolve a link.
+  const query =
+    input.attachment || input.attachments
+      ? undefined
+      : useQuery(() => linkMediaQuery({ ...identity.value, enabled: enabled.value }))
+  if (query) {
+    const queryCache = useQueryCache()
+    let releasePreview: (() => void) | undefined
+    watch(
+      [enabled, widgetKey],
+      ([active]) => {
+        releasePreview?.()
+        releasePreview = undefined
+        if (!active) return
+        const key = linkMediaKey(identity.value)
+        releasePreview = retainPreview(key, () => {
+          void queryCache.cancelQueries({ key, exact: true })
+        })
+      },
+      { immediate: true, flush: 'sync' },
+    )
+    onBeforeUnmount(() => releasePreview?.())
+  }
   const pending = computed(
-    () => delivery.value === 'pending' || query.asyncStatus.value === 'loading',
+    () => delivery.value === 'pending' || query?.asyncStatus.value === 'loading',
   )
+  const resolved = computed(() => query?.data.value)
+  const resolutionError = computed(() => query?.error.value)
   const content = computed(() => {
-    const value = query.data.value
+    const value = resolved.value
     const provider = selection.value.provider
     // A late response cannot change the selected layout, adapter, or response family.
     if (
@@ -229,7 +237,7 @@ export function useEmbed(input: UseEmbedInput) {
       imageSize.value = undefined
       if (!selection.value.provider.imageSizing) return
       const hint = toValue(input.message)?.embedGeometry?.find((hint) => hint.url === url.value)
-      const value = query.data.value
+      const value = resolved.value
       const asset =
         value?.url === url.value &&
         value.kind === 'media' &&
@@ -245,13 +253,15 @@ export function useEmbed(input: UseEmbedInput) {
     },
     { immediate: true, flush: 'sync' },
   )
-  const { expired } = useLinkMediaExpiry({
-    key: widgetKey,
-    assets: () => linkMediaExpirations(query.data.value),
-    enabled,
-    pending,
-    refresh: () => query.refetch(),
-  })
+  const expired = query
+    ? useLinkMediaExpiry({
+        key: widgetKey,
+        assets: () => linkMediaExpirations(resolved.value),
+        enabled,
+        pending,
+        refresh: () => query.refetch(),
+      }).expired
+    : shallowRef(false)
   const saved = useOfflineMedia(
     url,
     () => active.value && selection.value.provider.accepts.includes('media'),
@@ -288,19 +298,19 @@ export function useEmbed(input: UseEmbedInput) {
     () =>
       attachment.value?.alt ||
       attachment.value?.name ||
-      query.data.value?.file?.name ||
-      query.data.value?.title ||
+      resolved.value?.file?.name ||
+      resolved.value?.title ||
       host.value,
   )
   const card = computed<components['schemas']['LinkMediaCard']>(() => ({
     site: host.value,
     title: title.value,
-    description: query.data.value?.description || query.data.value?.file?.contentType,
-    ...query.data.value?.card,
+    description: resolved.value?.description || resolved.value?.file?.contentType,
+    ...resolved.value?.card,
     reason:
-      failed.value || query.error.value
+      failed.value || resolutionError.value
         ? 'fetch_failed'
-        : query.data.value?.card?.reason || query.data.value?.file?.reason,
+        : resolved.value?.card?.reason || resolved.value?.file?.reason,
   }))
   function ready(value: boolean) {
     isReady.value = !blocked.value && value
@@ -349,7 +359,7 @@ export function useEmbed(input: UseEmbedInput) {
     content: content.value,
     assets: assets.value,
     widget:
-      !query.error.value && !offlineStatus.value.offline && content.value?.kind === 'widget'
+      !resolutionError.value && !offlineStatus.value.offline && content.value?.kind === 'widget'
         ? content.value.widget
         : undefined,
     file:
@@ -375,7 +385,7 @@ export function useEmbed(input: UseEmbedInput) {
     pending: pending.value,
     expired: expired.value,
     offline: offlineStatus.value.offline,
-    failed: delivery.value === 'failed' || failed.value || !!query.error.value,
+    failed: delivery.value === 'failed' || failed.value || !!resolutionError.value,
     widgetKey: widgetKey.value,
     ready,
     unavailable,

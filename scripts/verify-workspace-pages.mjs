@@ -170,6 +170,32 @@ try {
   console.log('Per-server channel restore and the startup preference pass.')
 
   const composer = page.getByRole('textbox', { name: 'Message #general', exact: true })
+  const toolbar = page.locator('.message-row [role="toolbar"]').last()
+  await page.mouse.move(0, 0)
+  await toolbar.getByRole('button').focus()
+  await page.waitForFunction(() => {
+    const toolbar = document.activeElement?.closest('[role="toolbar"]')
+    return toolbar && toolbar.querySelectorAll('button').length > 1
+  })
+  await page.keyboard.press('Home')
+  assert(
+    await toolbar.evaluate(
+      (el) => document.activeElement === el.querySelector('button:not(:disabled)'),
+    ),
+  )
+  await page.keyboard.press('End')
+  assert(
+    await toolbar.evaluate(
+      (el) => document.activeElement === el.querySelector('button:last-child'),
+    ),
+  )
+  assert.equal(await toolbar.locator('button[tabindex="0"]').count(), 1)
+  await composer.focus()
+  await page.waitForFunction(() =>
+    Array.from(document.querySelectorAll('.message-row [role="toolbar"]')).every(
+      (el) => el.querySelectorAll('button').length === 1,
+    ),
+  )
   const draft = 'Keep this draft while browsing workspace pages'
   await composer.fill(draft)
   const scripts = () =>

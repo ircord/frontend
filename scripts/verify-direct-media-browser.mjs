@@ -521,10 +521,9 @@ verify: try {
   near((await card.boundingBox()).height, 150, 'fallback link card height')
   const graphic = card.locator('.satori-link-graphic')
   await graphic.waitFor()
-  await page.waitForFunction(() =>
-    getComputedStyle(document.querySelector('.satori-link-graphic')).backgroundImage.includes(
-      'data:image/svg+xml',
-    ),
+  await page.waitForFunction(
+    (element) => decodeURIComponent(getComputedStyle(element).backgroundImage).includes('<path'),
+    await graphic.elementHandle(),
   )
   const art = await graphic.evaluate((element) =>
     decodeURIComponent(getComputedStyle(element).backgroundImage),

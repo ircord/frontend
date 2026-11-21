@@ -13,7 +13,7 @@ import { errorText } from '../../utils/api'
 import { networkPeople, peopleOutside } from '../../../shared/utils/people'
 
 /** Right-click menus for people, conversations, networks and messages. */
-export function useMenus() {
+export function useMenus(messageActions = useMessageActions()) {
   const { t, locale } = useI18n()
   const instanceOrigin = useInstanceOrigin()
   const chat = useChatStore()
@@ -22,8 +22,7 @@ export function useMenus() {
   const notifications = useNotificationStore()
   const actions = useWorkspaceActions()
   const messageEditing = useMessageEditing()
-  const { deletion, editing, deleteMessage, reactWith, unreadable, copyMessage } =
-    useMessageActions()
+  const { deletion, editing, deleteMessage, reactWith, unreadable, copyMessage } = messageActions
   const markRead = useMarkRead()
   const order = useSidebarOrder()
   const { open, close, state } = useContextMenu()

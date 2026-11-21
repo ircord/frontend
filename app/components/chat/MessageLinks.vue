@@ -1,16 +1,12 @@
 <script setup vapor lang="ts">
 import type { Message } from '../../../shared/types/chat'
-import { messageMediaLinks } from '../../../shared/utils/link-media'
 import { parseMessageLink } from '../../../shared/utils/message-links'
-const props = defineProps<{ message: Message }>()
+const props = defineProps<{ message: Message; urls: string[] }>()
 const emit = defineEmits<{ mediaReady: [url: string, ready: boolean] }>()
 const instanceOrigin = useInstanceOrigin()
 /** Links to messages in this app show the message itself; they never unfurl as sites. */
 const links = computed(() =>
-  (props.message.deleted || props.message.attachment || props.message.attachments?.length
-    ? []
-    : messageMediaLinks(props.message.text)
-  ).map((url) => ({ url, message: parseMessageLink(url, instanceOrigin()) })),
+  props.urls.map((url) => ({ url, message: parseMessageLink(url, instanceOrigin()) })),
 )
 </script>
 <template>
