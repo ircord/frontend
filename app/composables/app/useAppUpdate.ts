@@ -41,7 +41,7 @@ function unsavedInput() {
 export function useAppUpdate() {
   // Nuxt context is read once on first use (the chat store's setup); the listeners, hook and
   // timers below run outside any setup context.
-  if (!build && import.meta.client) {
+  if (!build && import.meta.client && usePlatform().kind === 'web') {
     const config = useRuntimeConfig().app
     build = {
       id: config.buildId,

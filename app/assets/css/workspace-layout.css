@@ -14,7 +14,7 @@
   background: var(--sidebar);
 }
 .desktop-window {
-  --native-titlebar-height: 24px;
+  --native-titlebar-height: 28px;
   display: grid;
   height: 100%;
   grid-template-rows: var(--native-titlebar-height) minmax(0, 1fr);

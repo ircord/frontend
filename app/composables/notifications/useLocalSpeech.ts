@@ -2,6 +2,7 @@ import {
   defaultLocalVoice,
   formatDownloadSize,
   localSpeechCache,
+  localSpeechBase,
   localSpeechCachePrefix,
   localSpeechInfoStorage,
   localSpeechModel,
@@ -9,6 +10,7 @@ import {
   localSpeechPace,
   localSpeechRequest,
   localSpeechSampleRate,
+  localSpeechShardUrl,
   localSpeechSpeedStorage,
   localSpeechStorage,
   localSpeechSupport,
@@ -81,6 +83,29 @@ const shardUrls = () =>
       size: s.size,
     })),
   )
+
+async function desktopShards() {
+  const { client, serverOrigin } = usePlatform()
+  if (!client || !serverOrigin) return
+  if (stored.value === 'stored') return {}
+  const entries = await Promise.all(
+    Object.entries(localSpeechModel.shards).flatMap(([model, shards]) =>
+      shards.map(async ({ name }) => {
+        const path = `${localSpeechModelsPath}${model}/${name}`
+        const expected = localSpeechShardUrl(path.slice('/speech/'.length))
+        const response = await client.fetch(new Request(new URL(`/api/v1/app${path}`, serverOrigin), {
+          method: 'HEAD',
+          credentials: 'omit',
+          redirect: 'manual',
+          signal: AbortSignal.timeout(8000),
+        })).catch(() => undefined)
+        if (response?.status === 302 && expected && response.headers.get('Location') === expected)
+          return [new URL(path, location.href).href, expected] as const
+      }),
+    ),
+  )
+  return Object.fromEntries(entries.filter((entry) => entry !== undefined))
+}
 
 /** Whether this device can run the model; asks the browser for a graphics adapter once. */
 function checkSupport() {
@@ -253,6 +278,8 @@ async function start(
     // Ask the browser not to evict the model under storage pressure; it may say no.
     void navigator.storage?.persist?.().catch(() => false)
   }
+  const redirects = await desktopShards()
+  current()
   const owner = await holdLock()
   if (token !== loadSeq) {
     // Switched off while waiting for the lock: give it back.
@@ -289,6 +316,8 @@ async function start(
       // A line being read reports it itself.
       if (!linesInFlight) fatalNotice?.(message)
     },
+    localSpeechBase,
+    redirects,
   )
   engine = created
   try {

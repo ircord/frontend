@@ -24,6 +24,7 @@ const emit = defineEmits<{ retry: [] }>()
           :size="16"
         />{{ $t('common.tryAgain') }}
       </UiButton>
+      <DesktopServerLink class="max-w-80" />
     </template>
     <template v-else>
       <BrandMark class="brand-mark block h-12 w-12 flex-none" />

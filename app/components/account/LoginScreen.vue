@@ -319,6 +319,7 @@ const createAccount = () =>
       >
         {{ error }}
       </UiAlert>
+      <DesktopServerLink />
     </div>
   </main>
 </template>

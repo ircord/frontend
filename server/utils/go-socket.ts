@@ -1,6 +1,5 @@
 import WebSocket from 'ws'
 import type { Peer } from 'crossws'
-import { desktopUpstreamOrigin } from './desktop'
 
 /** One upstream socket per browser socket; authorization remains entirely in Go. */
 export class GoSocket {
@@ -18,7 +17,7 @@ export class GoSocket {
     this.socket = new WebSocket(url, {
       headers: {
         Cookie: request.headers.get('cookie') ?? '',
-        Origin: desktopUpstreamOrigin(backend) ?? request.headers.get('origin') ?? '',
+        Origin: request.headers.get('origin') ?? '',
       },
       handshakeTimeout: 5000,
       maxPayload: 1 << 20,

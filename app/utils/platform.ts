@@ -175,6 +175,11 @@ export function createPlatform(window: ClientWindow) {
     kind: bridge ? ('tauri' as const) : ('web' as const),
     titleBar,
     serverOrigin,
+    chooseServer: bridge
+      ? async () => {
+          await bridge.core.invoke('choose_server')
+        }
+      : undefined,
     client: bridge && serverOrigin ? createDesktopClient(bridge.core, serverOrigin) : undefined,
     windowControls,
     dragWindow(event: MouseEvent) {

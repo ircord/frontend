@@ -525,7 +525,9 @@
     "partial": "Some history has not finished downloading."
   },
   "app": {
-    "couldNotReach": "Couldn’t reach IRCord"
+    "couldNotReach": "Couldn’t reach IRCord",
+    "chooseDesktopServer": "Change IRCord server",
+    "chooseDesktopServerFailed": "Couldn’t open the server chooser. Try again."
   },
   "appearance": {
     "accent": "Accent",

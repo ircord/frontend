@@ -22,6 +22,8 @@ const collaboratorsFile = new URL('./COLLABORATORS.md', import.meta.url)
 const collaborators = existsSync(collaboratorsFile)
   ? parseCollaborators(readFileSync(collaboratorsFile, 'utf8'))
   : []
+const desktopOutput = process.env.IRCORD_DESKTOP_BUILD_DIR
+const desktopBuildDir = process.env.IRCORD_DESKTOP_DEV_DIR
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-11-01',
@@ -30,7 +32,7 @@ export default defineNuxtConfig({
   ssr: false,
   pages: true,
   devtools: { enabled: false },
-  ...(process.env.IRCORD_DESKTOP_DEV_DIR && { buildDir: process.env.IRCORD_DESKTOP_DEV_DIR }),
+  ...(desktopBuildDir && { buildDir: desktopBuildDir }),
   // Feature folders organize ownership without changing public component names.
   // Keep the fallback scan last for the existing embed, UI and scroller names.
   components: [
@@ -147,23 +149,23 @@ export default defineNuxtConfig({
     },
   },
   nitro: {
-    preset: 'bun',
-    experimental: { websocket: true },
+    preset: desktopOutput ? 'static' : 'bun',
+    experimental: { websocket: !desktopOutput },
     compressPublicAssets: true,
-    ...(process.env.IRCORD_DESKTOP_BUILD_DIR && {
-      output: { dir: process.env.IRCORD_DESKTOP_BUILD_DIR },
+    ...(desktopOutput && {
+      output: { dir: desktopOutput },
     }),
   },
   // The production server passes each request's peer address on and sets its own timeouts and
   // body cap (see the file). Development keeps Nitro's dev server.
-  $production: {
+  $production: desktopOutput ? {} : {
     nitro: { entry: fileURLToPath(new URL('./server/entry.bun.ts', import.meta.url)) },
   },
   // Nuxt polls /_nuxt/builds/latest.json for a newer build (default hourly). useAppUpdate also
   // checks on every WebSocket reconnect; this poll covers tabs whose socket never dropped.
   experimental: {
     asyncEntry: false,
-    checkOutdatedBuildInterval: 5 * 60_000,
+    checkOutdatedBuildInterval: desktopOutput || desktopBuildDir ? false : 5 * 60_000,
     // Existing proxy, storage and WebSocket routes use Nitro 2's H3 helpers.
     nitroAutoImports: true,
     // Keep profiling opt-in instead of accumulating hook measurements during long sessions.
@@ -275,8 +277,10 @@ export default defineNuxtConfig({
       title: 'IRCord',
       // viewport-fit=cover lets the layout use safe-area insets (notches, home indicator);
       // resizes-content keeps the composer above the on-screen keyboard.
-      viewport:
-        'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content',
+      viewport: [
+        'width=device-width, initial-scale=1, viewport-fit=cover',
+        ...(!desktopOutput && !desktopBuildDir ? ['interactive-widget=resizes-content'] : []),
+      ].join(', '),
       meta: [
         { name: 'robots', content: 'noindex, nofollow' },
         { name: 'theme-color', content: '#1b1b21' },

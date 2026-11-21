@@ -57,9 +57,13 @@ export class LocalSpeechEngine {
     /** A failure after loading, such as a lost GPU device. The engine is closed by then. */
     private readonly onFatal: (message: string) => void,
     files = localSpeechBase,
+    shardRedirects?: Record<string, string>,
   ) {
     this.ready = new Promise<void>((resolve, reject) => (this.settle = { resolve, reject }))
-    this.worker = new Worker(`${files}worker.js`, { type: 'module', name: 'ircord-voice-model' })
+    this.worker = new Worker(`${files}${shardRedirects ? 'desktop-worker.js' : 'worker.js'}`, {
+      type: 'module',
+      name: 'ircord-voice-model',
+    })
     this.codec = new Worker(`${files}codec-worker.js`, {
       type: 'module',
       name: 'ircord-voice-codec',
@@ -74,7 +78,7 @@ export class LocalSpeechEngine {
     const base = new URL(localSpeechModelsPath, location.href).href
     // No voice clips: the shipped embeddings and codes are all read-aloud needs.
     this.worker.postMessage(
-      { type: 'init', base, cache: true, voicesPcm: {}, codecPort: channel.port1 },
+      { type: 'init', base, cache: true, voicesPcm: {}, codecPort: channel.port1, shardRedirects },
       [channel.port1],
     )
   }

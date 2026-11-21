@@ -5,10 +5,13 @@ import { statusShowing } from '../../../shared/utils/profile'
 import { awayLabel } from '../../../shared/utils/commands'
 
 const chat = useChatStore()
+const { chooseServer } = usePlatform()
 const auth = useAuthStore()
 const actions = useWorkspaceActions()
 const menus = useMenus()
 const { t } = useI18n()
+const openServerChooser = () =>
+  chooseServer?.().catch(() => chat.notify(t('app.chooseDesktopServerFailed')))
 const menuOpen = ref(false)
 /** Phones get the menu as a sheet from the bottom. */
 const phone = useMediaQuery('(max-width: 700px)')
@@ -247,6 +250,9 @@ async function toggleAway() {
               />{{ t('selfMenu.accountSettings') }}</UiDropdownMenuItem
             >
             <UiDropdownMenuSeparator />
+            <UiDropdownMenuItem v-if="chooseServer" @select="run(() => void openServerChooser())">
+              <AppIcon name="terminal" :size="16" />{{ t('app.chooseDesktopServer') }}
+            </UiDropdownMenuItem>
             <UiDropdownMenuItem
               variant="destructive"
               @select="run(() => void auth.confirmLogout())"
@@ -330,6 +336,12 @@ async function toggleAway() {
             />
           </div>
           <div class="sheet-card">
+            <SheetItem
+              v-if="chooseServer"
+              :label="t('app.chooseDesktopServer')"
+              icon="terminal"
+              @click="run(() => void openServerChooser())"
+            />
             <SheetItem
               :label="t('common.logOut')"
               icon="logout"
