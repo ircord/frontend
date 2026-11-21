@@ -2,6 +2,12 @@ name: Publish frontend container
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      frontend_tag:
+        description: Published frontend tag to dispatch to the desktop release workflow.
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -12,7 +18,7 @@ concurrency:
 
 jobs:
   check:
-    if: github.event.deleted == false
+    if: github.event_name == 'push' && github.event.deleted == false
     uses: ./.github/workflows/check.yaml
 
   publish:
@@ -77,13 +83,14 @@ jobs:
   desktop:
     name: Trigger desktop release
     needs: publish
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.publish.result == 'success') }}
     runs-on: ubuntu-latest
     permissions: {}
     steps:
       - name: Dispatch the published frontend tag
         env:
           GH_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
-          FRONTEND_TAG: ${{ github.ref_name }}
+          FRONTEND_TAG: ${{ inputs.frontend_tag || github.ref_name }}
         run: |
           if [[ ! "$FRONTEND_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             exit 0

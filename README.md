@@ -24,3 +24,4 @@ tag in this repository to build and publish `ghcr.io/ircord/ircord-frontend`.
 
 After a stable frontend release publishes, its workflow dispatches the desktop release with the same tag.
 Set the `DESKTOP_RELEASE_TOKEN` repository secret to a credential with Actions write access to `ircord/desktop`.
+Run the publish workflow manually with an existing tag to retry the desktop dispatch.
