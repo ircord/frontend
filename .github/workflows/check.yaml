@@ -1,5 +1,9 @@
 name: Frontend checks
-on: [push, pull_request]
+on:
+  workflow_call:
+  push:
+    branches: [main]
+  pull_request:
 
 permissions:
   contents: read

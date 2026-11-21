@@ -1,5 +1,5 @@
 /** Where IRCord's source, issues, releases and license live. */
-export const PROJECT_URL = 'https://github.com/karbowiak/ircord'
+export const PROJECT_URL = 'https://github.com/ircord/frontend'
 
 /** IRCord's public website. */
 export const WEBSITE_URL = 'https://ircord.com'

@@ -18,3 +18,6 @@ Run lint, type checking, unit tests, and the build with `bun run lint`,
 Run `bun run api:generate` when the backend contract changes. It reads
 `../backend/openapi.json` by default. Set `IRCORD_OPENAPI` to the absolute path
 of a different OpenAPI file.
+
+Update `CHANGELOG.md` for changes people using the app can see. Push a version
+tag in this repository to build and publish `ghcr.io/ircord/ircord-frontend`.

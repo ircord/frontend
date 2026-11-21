@@ -1,4 +1,5 @@
 <script setup vapor lang="ts">
+import type { components } from '../../../shared/generated/api'
 import { compareVersions, parseVersion, releaseLabel } from '../../../shared/utils/changelog'
 
 /**
@@ -12,6 +13,24 @@ const { t } = useI18n()
 const $t = t
 const changelog = useChangelog()
 const update = useAppUpdate()
+const config = useRuntimeConfig()
+const {
+  data: backend,
+  status: backendStatus,
+  refresh: refreshBackend,
+} = useFetch<components['schemas']['BackendChangelog']>(`${config.public.apiBase}/changelog`, {
+  server: false,
+  lazy: true,
+  cache: 'no-store',
+  retry: 0,
+  transform(value) {
+    if (typeof value?.version !== 'string' || !Array.isArray(value.releases)) {
+      throw new Error('Invalid backend release notes')
+    }
+    return value
+  },
+})
+const backendReleases = computed(() => backend.value?.releases ?? [])
 onMounted(() => {
   void changelog.load()
   void update.check()
@@ -59,69 +78,134 @@ const badges = computed<Record<string, string>>(() => ({
     >
       {{ $t('release.history') }}
     </h4>
-    <SettingsDescription role="status">
-      <i18n-t
-        v-if="running"
-        keypath="release.running"
-      >
-        <template #version
-          ><strong>{{ running }}</strong></template
-        >
-      </i18n-t>
-      <template v-else>{{ $t('release.runningDevelopment') }}</template>
-      <template v-if="rollback">
-        {{ ' ' }}
-        <i18n-t keypath="release.rolledBackSwitch">
-          <template #deployed
-            ><strong>{{ deployed }}</strong></template
-          >
-        </i18n-t>
-      </template>
-      <template v-else-if="offered && deployed && deployed !== running">
-        {{ ' ' }}
-        <i18n-t keypath="release.available">
-          <template #deployed
-            ><strong>{{ deployed }}</strong></template
-          >
-        </i18n-t>
-      </template>
-      <template v-else-if="offered">{{ ' ' }}{{ $t('release.newerAvailable') }}</template>
-    </SettingsDescription>
-    <UiButton
-      v-if="offered"
-      size="sm"
-      :variant="rollback ? 'secondary' : 'default'"
-      @click="update.reload()"
+    <UiTabs
+      class="grid gap-3 w-full min-w-0"
+      default-value="frontend"
     >
-      {{ rollback ? $t('release.switchTo', { version: deployed }) : $t('common.reloadNow') }}
-    </UiButton>
-    <SettingsDescription v-if="changelog.status.value === 'loading' && !data">
-      {{ $t('release.loading') }}
-    </SettingsDescription>
-    <template v-else-if="changelog.status.value === 'failed'">
-      <SettingsDescription>{{ $t('release.failed') }}</SettingsDescription>
-      <UiButton
-        variant="secondary"
-        size="sm"
-        @click="changelog.load()"
+      <UiTabsList
+        class="grid grid-cols-2 items-stretch gap-2 border-b border-border"
+        :aria-label="$t('release.history')"
       >
-        {{ $t('common.tryAgain') }}
-      </UiButton>
-    </template>
-    <SettingsDescription v-else-if="!data?.releases.length">
-      {{ $t('release.noNotesForBuild') }}
-    </SettingsDescription>
-    <template v-else>
-      <SettingsDescription v-if="runningMissing">
-        {{ $t('release.runningMissing', { version: running }) }}
-      </SettingsDescription>
-      <ReleaseEntry
-        v-for="release in data.releases"
-        :key="release.version"
-        :release="release"
-        :level="5"
-        :badge="badges[releaseLabel(release.version, running, deployed)]"
-      />
-    </template>
+        <UiTabsTrigger
+          class="min-w-0 flex-wrap justify-center whitespace-normal px-2 wrap-anywhere"
+          value="frontend"
+        >
+          {{ $t('release.frontend') }}
+          <span>{{ running || $t('about.development') }}</span>
+        </UiTabsTrigger>
+        <UiTabsTrigger
+          class="min-w-0 flex-wrap justify-center whitespace-normal px-2 wrap-anywhere"
+          value="backend"
+        >
+          {{ $t('release.backend') }}
+          <span v-if="backend?.version">
+            {{ backend.version === 'dev' ? $t('about.development') : backend.version }}
+          </span>
+          <span v-else-if="backendStatus === 'error'">{{ $t('about.unknown') }}</span>
+        </UiTabsTrigger>
+      </UiTabsList>
+      <UiTabsContent
+        class="grid gap-3 justify-items-start min-w-0"
+        value="frontend"
+      >
+        <SettingsDescription role="status">
+          <i18n-t
+            v-if="running"
+            keypath="release.running"
+          >
+            <template #version
+              ><strong>{{ running }}</strong></template
+            >
+          </i18n-t>
+          <template v-else>{{ $t('release.runningDevelopment') }}</template>
+          <template v-if="rollback">
+            {{ ' ' }}
+            <i18n-t keypath="release.rolledBackSwitch">
+              <template #deployed
+                ><strong>{{ deployed }}</strong></template
+              >
+            </i18n-t>
+          </template>
+          <template v-else-if="offered && deployed && deployed !== running">
+            {{ ' ' }}
+            <i18n-t keypath="release.available">
+              <template #deployed
+                ><strong>{{ deployed }}</strong></template
+              >
+            </i18n-t>
+          </template>
+          <template v-else-if="offered">{{ ' ' }}{{ $t('release.newerAvailable') }}</template>
+        </SettingsDescription>
+        <UiButton
+          v-if="offered"
+          size="sm"
+          :variant="rollback ? 'secondary' : 'default'"
+          @click="update.reload()"
+        >
+          {{ rollback ? $t('release.switchTo', { version: deployed }) : $t('common.reloadNow') }}
+        </UiButton>
+        <SettingsDescription v-if="changelog.status.value === 'loading' && !data">
+          {{ $t('release.loading') }}
+        </SettingsDescription>
+        <template v-else-if="changelog.status.value === 'failed'">
+          <SettingsDescription>{{ $t('release.failed') }}</SettingsDescription>
+          <UiButton
+            variant="secondary"
+            size="sm"
+            @click="changelog.load()"
+          >
+            {{ $t('common.tryAgain') }}
+          </UiButton>
+        </template>
+        <SettingsDescription v-else-if="!data?.releases.length">
+          {{ $t('release.noNotesForBuild') }}
+        </SettingsDescription>
+        <template v-else>
+          <SettingsDescription v-if="runningMissing">
+            {{ $t('release.runningMissing', { version: running }) }}
+          </SettingsDescription>
+          <ReleaseEntry
+            v-for="release in data.releases"
+            :key="release.version"
+            :release="release"
+            :level="5"
+            :badge="badges[releaseLabel(release.version, running, deployed)]"
+          />
+        </template>
+      </UiTabsContent>
+      <UiTabsContent
+        class="grid gap-3 justify-items-start min-w-0"
+        value="backend"
+      >
+        <SettingsDescription
+          v-if="backendStatus === 'pending' || backendStatus === 'idle'"
+          role="status"
+        >
+          {{ $t('release.loading') }}
+        </SettingsDescription>
+        <template v-else-if="backendStatus === 'error'">
+          <SettingsDescription role="status">{{ $t('release.backendFailed') }}</SettingsDescription>
+          <UiButton
+            variant="secondary"
+            size="sm"
+            @click="refreshBackend()"
+          >
+            {{ $t('common.tryAgain') }}
+          </UiButton>
+        </template>
+        <SettingsDescription v-else-if="!backendReleases.length">
+          {{ $t('release.noNotesForBuild') }}
+        </SettingsDescription>
+        <template v-else>
+          <ReleaseEntry
+            v-for="release in backendReleases"
+            :key="release.version"
+            :release="{ ...release, name: release.version }"
+            :level="5"
+            :badge="release.version === backend?.version ? badges.running : ''"
+          />
+        </template>
+      </UiTabsContent>
+    </UiTabs>
   </section>
 </template>

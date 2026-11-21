@@ -2,7 +2,7 @@ import type { Changelog } from '../../../shared/utils/changelog'
 
 /**
  * Release notes for the build this server runs, baked into the image at release time
- * by the development workspace. Public: they are the project's published releases. The
+ * by the frontend release workflow. Public: they are the project's published releases. The
  * build id lets a client match the notes to the build the manifest announced.
  */
 export default defineEventHandler(async (event): Promise<Changelog> => {

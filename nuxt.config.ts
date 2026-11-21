@@ -14,12 +14,9 @@ if (process.platform === 'darwin' && process.versions.bun) {
   process.env.CHOKIDAR_USEPOLLING ??= 'true'
   process.env.CHOKIDAR_INTERVAL ??= '250'
 }
-// Release builds supply the file in this directory. The development workspace keeps it one level up.
-const collaboratorsFile = [
-  new URL('./COLLABORATORS.md', import.meta.url),
-  new URL('../COLLABORATORS.md', import.meta.url),
-].find((file) => existsSync(file))
-const collaborators = collaboratorsFile
+// Read the contributor credits from this repository during the build.
+const collaboratorsFile = new URL('./COLLABORATORS.md', import.meta.url)
+const collaborators = existsSync(collaboratorsFile)
   ? parseCollaborators(readFileSync(collaboratorsFile, 'utf8'))
   : []
 

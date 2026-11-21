@@ -19,7 +19,11 @@ const blocks = computed((): NoteBlock[] => {
 })
 const date = computed(() => {
   const time = Date.parse(props.release.date)
-  return Number.isNaN(time) ? '' : d(new Date(time), { dateStyle: 'medium' })
+  if (Number.isNaN(time)) return ''
+  return d(new Date(time), {
+    dateStyle: 'medium',
+    ...(/^\d{4}-\d{2}-\d{2}$/.test(props.release.date) && { timeZone: 'UTC' }),
+  })
 })
 const title = computed(() =>
   props.release.name && props.release.name !== props.release.version

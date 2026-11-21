@@ -1326,6 +1326,8 @@
   },
   "release": {
     "available": "{deployed} is available; reload to update.",
+    "backend": "Backend",
+    "backendFailed": "Couldn’t load the backend version or release notes.",
     "badge": {
       "available": "Available",
       "new": "Not installed yet",
@@ -1333,6 +1335,7 @@
     },
     "developmentBuild": "a development build",
     "failed": "Couldn’t load the release notes.",
+    "frontend": "Frontend",
     "history": "Release notes",
     "includesReleases": "That includes {count} release | That includes {count} releases.",
     "loading": "Loading release notes…",

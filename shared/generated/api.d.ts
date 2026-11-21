@@ -680,6 +680,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/changelog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get API v1 changelog */
+        get: operations["get-api-v1-changelog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/commands/{clientId}": {
         parameters: {
             query?: never;
@@ -2399,6 +2416,18 @@ export interface components {
             /** @enum {string} */
             method: "none" | "sasl-plain" | "sasl-external" | "server-password" | "nickserv";
             password?: string;
+        };
+        BackendChangelog: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/BackendChangelog.json
+             */
+            readonly $schema?: string;
+            /** @description Release notes embedded in this backend build, newest first. */
+            releases: components["schemas"]["Release"][] | null;
+            /** @description Version of the backend serving this request. */
+            version: string;
         };
         BrowserSubscription: {
             endpoint: string;
@@ -4866,6 +4895,11 @@ export interface components {
             readonly $schema?: string;
             registrationEnabled: boolean;
             registrationKeyRequired: boolean;
+        };
+        Release: {
+            date: string;
+            notes: string;
+            version: string;
         };
         Removal: {
             /**
@@ -11082,6 +11116,134 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Snapshot"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-api-v1-changelog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackendChangelog"];
                 };
             };
             /** @description Request failed; see the problem detail. */
