@@ -34,7 +34,7 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   ...(desktopBuildDir && { buildDir: desktopBuildDir }),
   // Feature folders organize ownership without changing public component names.
-  // Keep the fallback scan last for the existing embed, UI and scroller names.
+  // Keep the fallback scan last for the existing embed and scroller names.
   components: [
     ...[
       'account',
@@ -47,21 +47,20 @@ export default defineNuxtConfig({
       'shared',
       'workspace',
     ].map((feature) => ({ path: `~/components/${feature}`, pathPrefix: false })),
-    '~/components',
+    { path: '~/components/ui', prefix: 'Ui', pathPrefix: false, extensions: ['vue'] },
+    { path: '~/components', ignore: ['ui/**'] },
   ],
   imports: { dirs: ['composables/**'] },
   modules: [
     './nuxt-modules/embeds',
     '@pinia/nuxt',
     '@pinia/colada-nuxt',
-    'shadcn-nuxt',
     '@nuxt/fonts',
     '@nuxt/image',
     '@vueuse/nuxt',
     '@nuxtjs/i18n',
     '@nuxt/eslint',
   ],
-  shadcn: { prefix: 'Ui', componentDir: '@/components/ui' },
   fonts: {
     // Its legacy DevTools adapter imports H3 v2 APIs into our Nitro 2/H3 v1 app.
     devtools: false,

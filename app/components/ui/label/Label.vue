@@ -1,25 +1,25 @@
-<script setup lang="ts">
-import type { LabelProps } from 'reka-ui'
+<script setup vapor lang="ts">
+import { cn } from '../../../utils/cn'
 import type { HTMLAttributes } from 'vue'
-import { reactiveOmit } from '@vueuse/core'
-import { Label } from 'reka-ui'
+const props = defineProps<{ for?: string; class?: HTMLAttributes['class'] }>()
 
-const props = defineProps<LabelProps & { class?: HTMLAttributes['class'] }>()
-
-const delegatedProps = reactiveOmit(props, 'class')
+function preserveSingleClick(event: MouseEvent) {
+  if (!event.defaultPrevented && event.detail > 1) event.preventDefault()
+}
 </script>
 
 <template>
-  <Label
+  <label
     data-slot="label"
-    v-bind="delegatedProps"
+    :for="props.for"
     :class="
       cn(
         'block text-[length:var(--ui-small)] font-[600] text-muted-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-55',
         props.class,
       )
     "
+    @mousedown="preserveSingleClick"
   >
     <slot />
-  </Label>
+  </label>
 </template>

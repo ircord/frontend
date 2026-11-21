@@ -1,6 +1,5 @@
 // Browser-only disposable fixture. Uses the existing app context without changing preferences.
 import { createVNode, nextTick, render } from 'vue'
-import { TooltipProvider } from 'reka-ui'
 import LinkWidget from '../app/components/media/LinkWidget.vue'
 
 const assert = (condition, message) => {
@@ -17,7 +16,7 @@ export async function verifyEmbedLoading() {
     zIndex: '2147483645',
   })
   document.body.append(host)
-  const widget = createVNode(LinkWidget, {
+  const vnode = createVNode(LinkWidget, {
     widget: {
       external: true,
       url: 'https://www.youtube.com/embed/jNQXAC9IVRw',
@@ -31,7 +30,6 @@ export async function verifyEmbedLoading() {
     frames: [{ hosts: ['www.youtube.com'], paths: ['/embed/*'] }],
     fill: true,
   })
-  const vnode = createVNode(TooltipProvider, null, { default: () => widget })
   vnode.appContext = document.querySelector('#__nuxt').__vue_app__._context
   try {
     render(vnode, host)

@@ -1,30 +1,42 @@
-<script setup lang="ts">
-import type { RadioGroupItemEmits, RadioGroupItemProps } from 'reka-ui'
+<script setup vapor lang="ts">
+import { cn } from '../../../utils/cn'
 import type { HTMLAttributes } from 'vue'
 import { CircleIcon } from '@lucide/vue'
-import { reactiveOmit } from '@vueuse/core'
-import { RadioGroupIndicator, RadioGroupItem, useForwardPropsEmits } from 'reka-ui'
+import { radioGroupKey, type RadioValue } from './context'
 
 const props = withDefaults(
-  defineProps<
-    RadioGroupItemProps & {
-      class?: HTMLAttributes['class']
-      variant?: 'default' | 'segment' | 'card' | 'swatch'
-    }
-  >(),
+  defineProps<{
+    value: RadioValue
+    disabled?: boolean
+    class?: HTMLAttributes['class']
+    variant?: 'default' | 'segment' | 'card' | 'swatch'
+  }>(),
   { variant: 'default' },
 )
-const emits = defineEmits<RadioGroupItemEmits>()
+const emit = defineEmits<{ select: [event: MouseEvent] }>()
+const group = inject(radioGroupKey)!
+const checked = computed(() => group.value.value === props.value)
+const disabled = computed(() => !!props.disabled || group.disabled())
+const choice = { checked, disabled }
+onScopeDispose(group.register(choice))
 
-const delegatedProps = reactiveOmit(props, 'class', 'variant')
-
-const forwardedProps = useForwardPropsEmits(delegatedProps, emits)
+function select(event: MouseEvent) {
+  if (disabled.value) return
+  emit('select', event)
+  if (!event.defaultPrevented) group.select(props.value)
+}
 </script>
 
 <template>
-  <RadioGroupItem
+  <button
+    type="button"
+    role="radio"
+    :aria-checked="checked"
+    :disabled="disabled"
+    :tabindex="group.tabStop.value === choice ? 0 : -1"
     data-slot="radio-group-item"
-    v-bind="forwardedProps"
+    :data-state="checked ? 'checked' : 'unchecked'"
+    :data-disabled="disabled ? '' : undefined"
     :class="
       cn(
         'disabled:cursor-not-allowed disabled:opacity-45',
@@ -37,16 +49,19 @@ const forwardedProps = useForwardPropsEmits(delegatedProps, emits)
         props.class,
       )
     "
+    @keydown.enter.prevent
+    @click.stop="select"
   >
-    <RadioGroupIndicator
-      v-if="variant === 'default'"
+    <span
+      v-if="variant === 'default' && checked"
       data-slot="radio-group-indicator"
       class="relative flex items-center justify-center"
+      aria-hidden="true"
     >
       <CircleIcon
         class="fill-primary absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2"
       />
-    </RadioGroupIndicator>
-    <slot v-else />
-  </RadioGroupItem>
+    </span>
+    <slot v-if="variant !== 'default'" />
+  </button>
 </template>

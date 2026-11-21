@@ -1,4 +1,4 @@
-/* Semantic tokens shared by Tailwind and shadcn. Runtime palette, fonts, sizes and corners
+/* Semantic tokens for Tailwind and the app's controls. Runtime palette, fonts, sizes and corners
  * come from shared/appearance.ts; never add a second light/dark palette here. */
 @theme inline {
   /* Spacing, like the --ui-* text sizes, follows Appearance → Interface scale. */

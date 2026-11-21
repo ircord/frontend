@@ -23,6 +23,7 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 - Prevent stale selection highlights when scrolling chat history in the macOS app.
 - Show paused video previews in the macOS app.
+- Show toolbar tooltips on hover and keyboard focus.
 
 ## v0.7.4 — 2026-11-21
 

@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { PrimitiveProps } from 'reka-ui'
+import { cn } from '../../../utils/cn'
 import type { HTMLAttributes } from 'vue'
 import type { ButtonVariants } from '.'
-import { Primitive } from 'reka-ui'
 import { buttonVariants } from '.'
 
-interface Props extends PrimitiveProps {
+interface Props {
+  as?: 'button' | 'a'
   variant?: ButtonVariants['variant']
   size?: ButtonVariants['size']
   class?: HTMLAttributes['class']
@@ -21,7 +21,7 @@ const classes = computed(() =>
 
 <template>
   <button
-    v-if="as === 'button' && !asChild"
+    v-if="as === 'button'"
     data-slot="button"
     :data-variant="variant"
     :data-size="size"
@@ -29,15 +29,13 @@ const classes = computed(() =>
   >
     <slot />
   </button>
-  <Primitive
+  <a
     v-else
     data-slot="button"
     :data-variant="variant"
     :data-size="size"
-    :as="as"
-    :as-child="asChild"
     :class="classes"
   >
     <slot />
-  </Primitive>
+  </a>
 </template>

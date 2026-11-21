@@ -248,15 +248,8 @@ try {
   assert.equal(await settings.getByLabel('Manage :owned:').count(), 1)
   assert.equal(await settings.getByLabel('Manage :other:').count(), 0)
   await settings.getByLabel('Manage :owned:').click()
-  assert.equal(await settings.getByRole('button', { name: 'Rename' }).count(), 1)
-  assert.equal(
-    await settings
-      .locator('.emote-row')
-      .filter({ hasText: ':other:' })
-      .getByRole('button', { name: 'Rename' })
-      .count(),
-    0,
-  )
+  await page.getByRole('menuitem', { name: 'Rename…', exact: true }).waitFor()
+  await page.keyboard.press('Escape')
   const refreshCatalog = () =>
     page.evaluate(() =>
       document

@@ -1,13 +1,12 @@
-<script setup lang="ts">
-import type { PrimitiveProps } from 'reka-ui'
+<script setup vapor lang="ts">
+import { cn } from '../../../utils/cn'
 import type { HTMLAttributes } from 'vue'
 import type { AlertVariants } from '.'
-import { Primitive } from 'reka-ui'
 import { alertVariants } from '.'
 
 const props = withDefaults(
   defineProps<{
-    as?: PrimitiveProps['as']
+    as?: keyof HTMLElementTagNameMap
     class?: HTMLAttributes['class']
     variant?: AlertVariants['variant']
     presentation?: AlertVariants['presentation']
@@ -28,12 +27,12 @@ const role = computed(() => {
 </script>
 
 <template>
-  <Primitive
-    :as="as"
+  <component
+    :is="as"
     data-slot="alert"
     :role="role"
     :class="cn(alertVariants({ variant, presentation }), props.class)"
   >
     <slot />
-  </Primitive>
+  </component>
 </template>

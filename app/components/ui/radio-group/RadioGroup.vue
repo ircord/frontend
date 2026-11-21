@@ -1,52 +1,67 @@
-<script setup lang="ts">
-import type { RadioGroupRootEmits, RadioGroupRootProps } from 'reka-ui'
+<script setup vapor lang="ts">
+import { cn } from '../../../utils/cn'
 import type { HTMLAttributes } from 'vue'
-import { reactiveOmit } from '@vueuse/core'
-import { RadioGroupRoot, useForwardPropsEmits } from 'reka-ui'
+import { radioGroupKey, type RadioChoice, type RadioValue } from './context'
 
-const props = defineProps<RadioGroupRootProps & { class?: HTMLAttributes['class'] }>()
-const emits = defineEmits<RadioGroupRootEmits>()
+const props = defineProps<{ disabled?: boolean; name?: string; class?: HTMLAttributes['class'] }>()
+const value = defineModel<RadioValue>()
+const choices = shallowReactive(new Set<RadioChoice>())
+const tabStop = computed(() => {
+  const enabled = [...choices].filter((choice) => !choice.disabled.value)
+  return enabled.find((choice) => choice.checked.value) ?? enabled[0]
+})
+provide(radioGroupKey, {
+  value,
+  disabled: () => !!props.disabled,
+  tabStop,
+  register(choice) {
+    choices.add(choice)
+    return () => choices.delete(choice)
+  },
+  select(next) {
+    if (!props.disabled && next !== value.value) value.value = next
+  },
+})
 
-const delegatedProps = reactiveOmit(props, 'class')
-
-const forwarded = useForwardPropsEmits(delegatedProps, emits)
-
-function update(value: RadioGroupRootProps['modelValue']) {
-  if (value !== undefined && value !== props.modelValue) emits('update:modelValue', value)
-}
-
-/**
- * Reka moves focus with its roving-focus group. Its deferred radio selection can miss a quick
- * key-up, so complete that selection only if the newly focused radio remains unchecked.
- */
 function navigate(event: KeyboardEvent) {
-  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key))
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.defaultPrevented)
     return
+  const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End']
+  if (!keys.includes(event.key)) return
   const root = event.currentTarget as HTMLElement
-  const previous = document.activeElement
-  if (!(event.target instanceof Element) || !event.target.closest('[role="radio"]')) return
-  requestAnimationFrame(() => {
-    const focused = document.activeElement
-    if (
-      focused instanceof HTMLElement &&
-      focused !== previous &&
-      root.contains(focused) &&
-      focused.matches('[role="radio"]:not(:disabled)') &&
-      focused.getAttribute('aria-checked') !== 'true'
-    )
-      focused.click()
-  })
+  const radios = [
+    ...root.querySelectorAll<HTMLButtonElement>('button[role="radio"]:enabled'),
+  ].filter((button) => button.closest('[role="radiogroup"]') === root)
+  const index = radios.indexOf(event.target as HTMLButtonElement)
+  if (index < 0) return
+  event.preventDefault()
+  const rtl = getComputedStyle(root).direction === 'rtl'
+  const backwards = event.key === 'ArrowUp' || event.key === (rtl ? 'ArrowRight' : 'ArrowLeft')
+  const next =
+    event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? radios.length - 1
+        : (index + (backwards ? -1 : 1) + radios.length) % radios.length
+  radios[next]?.focus()
+  if (next !== index && radios[next]?.getAttribute('aria-checked') !== 'true') radios[next]?.click()
 }
 </script>
 
 <template>
-  <RadioGroupRoot
-    v-slot="slotProps"
+  <div
+    role="radiogroup"
+    :aria-disabled="disabled || undefined"
     data-slot="radio-group"
     :class="cn('grid gap-3', props.class)"
-    v-bind="{ ...forwarded, 'onUpdate:modelValue': update }"
-    @keydown.capture="navigate"
+    @keydown="navigate"
   >
-    <slot v-bind="slotProps" />
-  </RadioGroupRoot>
+    <slot />
+    <input
+      v-if="name && value !== undefined && !disabled"
+      type="hidden"
+      :name="name"
+      :value="value"
+    />
+  </div>
 </template>

@@ -1,5 +1,4 @@
 <script setup vapor lang="ts" generic="T extends string | number">
-import type { AcceptableValue } from 'reka-ui'
 /**
  * A small set of mutually exclusive choices shown side by side: a radio group. Arrow keys move
  * between choices and select them; only the chosen one is in the tab order.
@@ -25,7 +24,7 @@ const props = withDefaults(
 const model = defineModel<T>({ required: true })
 const emit = defineEmits<{ change: [value: T] }>()
 const describedBy = useSettingDescription()
-function choose(value: AcceptableValue) {
+function choose(value: string | number | undefined) {
   const option = props.options.find((option) => option.value === value)
   if (!option || option.disabled || props.disabled || option.value === model.value) return
   model.value = option.value

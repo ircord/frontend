@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { cn } from '../../../utils/cn'
 import type { TabsTriggerProps } from 'reka-ui'
 import type { HTMLAttributes } from 'vue'
 import type { TabsTriggerVariants } from '.'
