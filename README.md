@@ -21,3 +21,6 @@ of a different OpenAPI file.
 
 Update `CHANGELOG.md` for changes people using the app can see. Push a version
 tag in this repository to build and publish `ghcr.io/ircord/ircord-frontend`.
+
+After a stable frontend release publishes, its workflow dispatches the desktop release with the same tag.
+Set the `DESKTOP_RELEASE_TOKEN` repository secret to a credential with Actions write access to `ircord/desktop`.
