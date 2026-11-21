@@ -57,7 +57,12 @@ interface DesktopWindow {
 
 type ClientWindow = Window &
   typeof globalThis & {
-    __IRCordDesktop?: { titleBar: TitleBar; serverOrigin?: string }
+    __IRCordDesktop?: {
+      titleBar: TitleBar
+      serverOrigin?: string
+      version?: string
+      canCheckForUpdates?: boolean
+    }
     __TAURI__?: DesktopBridge
   }
 
@@ -180,6 +185,12 @@ export function createPlatform(window: ClientWindow) {
     titleBar,
     videoPreviewPreload: titleBar === 'macos' ? ('auto' as const) : ('metadata' as const),
     serverOrigin,
+    desktopVersion: bridge ? desktop?.version : undefined,
+    checkForUpdates: bridge && desktop?.canCheckForUpdates
+      ? async () => {
+          await bridge.core.invoke('check_for_updates')
+        }
+      : undefined,
     chooseServer: bridge
       ? async () => {
           await bridge.core.invoke('choose_server')

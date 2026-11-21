@@ -1,23 +1,32 @@
 <script setup vapor lang="ts">
 import { aboutBuild, ISSUES_URL, PROJECT_URL, WEBSITE_URL } from '../../../shared/utils/about'
 
-/**
- * Settings → About: what IRCord is, which build this page runs, where the source, issues, license
- * and release notes live, and the release history from the changelog (ReleaseHistory).
- *
- * Only public build facts are shown: the release tag the image was built from and Nuxt's build id,
- * both already served to every visitor. Pressing the logo five times opens Hash Field, a small
- * game; the page is complete without it.
- */
 const chat = useChatStore()
 const config = useRuntimeConfig()
 const build = aboutBuild(useAppConfig().release.version, config.app.buildId)
+const { desktopVersion, serverOrigin, checkForUpdates } = usePlatform()
 const demo = computed(() => !!chat.data?.demo)
 /** The people in the repository's COLLABORATORS.md, bundled at build time. */
 const collaborators: string[] = useAppConfig().collaborators ?? []
 
 const { t } = useI18n()
 const $t = t
+const checkingForUpdates = ref(false)
+const updateCheckFailed = ref(false)
+
+async function checkUpdates() {
+  if (!checkForUpdates || checkingForUpdates.value) return
+  checkingForUpdates.value = true
+  updateCheckFailed.value = false
+  try {
+    await checkForUpdates()
+  } catch {
+    updateCheckFailed.value = true
+  } finally {
+    checkingForUpdates.value = false
+  }
+}
+
 // Brand, file and licence names are not translated; only the labels around them are.
 const links = computed(() => [
   { label: t('about.links.website'), detail: 'ircord.com', href: WEBSITE_URL },
@@ -98,7 +107,8 @@ onBeforeUnmount(() => clearTimeout(pressTimer))
         <p
           class="about-version m-0 flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground"
         >
-          <template v-if="build.release">{{
+          <template v-if="desktopVersion">{{ $t('about.version', { version: desktopVersion }) }}</template>
+          <template v-else-if="build.release">{{
             $t('about.version', { version: build.release })
           }}</template>
           <template v-else>{{ $t('about.development') }}</template>
@@ -112,7 +122,7 @@ onBeforeUnmount(() => clearTimeout(pressTimer))
     </div>
 
     <SettingsDescription>
-      {{ $t('about.description') }}
+      {{ $t(desktopVersion ? 'about.desktopDescription' : 'about.description') }}
     </SettingsDescription>
     <p
       v-if="demo"
@@ -123,7 +133,16 @@ onBeforeUnmount(() => clearTimeout(pressTimer))
 
     <dl
       class="about-facts grid [grid-template-columns:repeat(auto-fit,_minmax(150px,_1fr))] gap-2 w-full [&>div]:min-w-0 [&>div]:rounded-sm [&>div]:bg-card [&>div]:px-3 [&>div]:py-2.5 [&_code]:font-code [&_code]:text-[12px] [&_dd]:ms-0 [&_dd]:mt-[3px] [&_dd]:text-[13px] [&_dd]:text-foreground [&_dd]:wrap-anywhere [&_dt]:text-[11px] [&_dt]:font-[650] [&_dt]:uppercase [&_dt]:tracking-[0.04em] [&_dt]:text-faint"
+      :class="{ 'desktop-facts': desktopVersion }"
     >
+      <div v-if="desktopVersion">
+        <dt>{{ $t('about.frontendVersion') }}</dt>
+        <dd>{{ build.release || $t('about.development') }}</dd>
+      </div>
+      <div v-if="serverOrigin">
+        <dt>{{ $t('about.selectedServer') }}</dt>
+        <dd>{{ serverOrigin }}</dd>
+      </div>
       <div>
         <dt>{{ $t('about.build') }}</dt>
         <dd>
@@ -135,6 +154,24 @@ onBeforeUnmount(() => clearTimeout(pressTimer))
         <dd>{{ $t('about.licenseText') }}</dd>
       </div>
     </dl>
+
+    <template v-if="checkForUpdates">
+      <UiButton
+        type="button"
+        variant="outline"
+        :disabled="checkingForUpdates"
+        @click="checkUpdates"
+      >
+        {{ $t(checkingForUpdates ? 'about.checkingForUpdates' : 'about.checkForUpdates') }}
+      </UiButton>
+      <p
+        v-if="updateCheckFailed"
+        class="m-0 text-[13px] text-destructive"
+        role="status"
+      >
+        {{ $t('about.updateCheckFailed') }}
+      </p>
+    </template>
 
     <nav
       class="about-links grid [grid-template-columns:repeat(auto-fit,_minmax(200px,_1fr))] gap-1.5 w-full [&>*]:flex [&>*]:min-w-0 [&>*]:items-center [&>*]:gap-2 [&>*]:rounded-sm [&>*]:px-3 [&>*]:py-2.5 [&>*]:text-start [&>*]:text-[13px] [&>*]:font-[550] [&>*]:text-foreground [&>*]:no-underline [&>*]:shadow-[inset_0_0_0_1px_var(--border)] [&>*:hover]:bg-accent [&_small]:ms-auto [&_small]:text-[12px] [&_small]:font-[450] [&_small]:text-faint [&_svg]:flex-none [&_svg]:text-faint"
@@ -194,3 +231,9 @@ onBeforeUnmount(() => clearTimeout(pressTimer))
     <ReleaseHistory />
   </div>
 </template>
+
+<style scoped>
+.desktop-facts {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+</style>

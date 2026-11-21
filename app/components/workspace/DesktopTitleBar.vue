@@ -106,18 +106,18 @@ const maximizeLabel = computed(() =>
   display: grid;
   place-items: center;
   width: 44px;
-  color: var(--muted-foreground);
+  color: var(--muted);
 }
 .window-button:hover {
-  background: var(--accent);
-  color: var(--foreground);
+  background: var(--hover);
+  color: var(--text);
 }
 .window-button:focus-visible {
   outline-offset: -2px;
 }
 .window-close:hover {
   background: var(--danger);
-  color: var(--danger-foreground, white);
+  color: var(--danger-ink);
 }
 .window-resize {
   position: fixed;

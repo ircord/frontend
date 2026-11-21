@@ -5,6 +5,14 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+### Improved
+
+- See the desktop version, bundled frontend, and selected server under Settings → About.
+
+### Fixed
+
+- Make the Windows and Linux window controls use the active theme colors.
+
 ## v0.8.2 — 2026-11-21
 
 ### Fixed

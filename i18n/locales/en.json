@@ -619,11 +619,15 @@
   },
   "about": {
     "build": "Build",
+    "checkForUpdates": "Check for updates",
+    "checkingForUpdates": "Checking for updates…",
     "credits": "Built with Nuxt, Vue and Go. Icons by Lucide, emoji data by Emojibase.",
     "demo": "Demo",
     "demoNote": "This is a demo: no IRC network is connected, the people and messages are examples, and Echo repeats what you send.",
     "description": "IRCord is a persistent, multi-network IRC client for the web. It stays connected to your networks while you are away, keeps the history, and speaks plain IRC, using IRCv3 features where a network supports them.",
+    "desktopDescription": "IRCord keeps your networks connected while you are away and saves your chat history. It supports IRCv3 features where available.",
     "development": "Development build",
+    "frontendVersion": "Bundled frontend",
     "licenseLabel": "License",
     "licenseText": "MIT · © 2026 Michael Karbowiak",
     "links": {
@@ -637,7 +641,9 @@
       "website": "Website"
     },
     "linksLabel": "IRCord links",
+    "selectedServer": "IRCord server",
     "unknown": "unknown",
+    "updateCheckFailed": "Could not check for an update. Try again later.",
     "version": "Version {version}"
   },
   "account": {
