@@ -553,7 +553,15 @@ export function createIRCordClient(apiBase: string, options: ClientOptions = {})
           params: { query: { networkId } },
           body: { file },
           bodySerializer: () => form,
-          fetch: onProgress ? uploadFetch(form, onProgress) : undefined,
+          fetch: onProgress
+            ? options.fetch
+              ? async (request) => {
+                  const response = await options.fetch!(request)
+                  if (response.ok) onProgress(1)
+                  return response
+                }
+              : uploadFetch(form, onProgress)
+            : undefined,
           signal,
         }),
       )

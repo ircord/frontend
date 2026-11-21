@@ -1,3 +1,5 @@
+import type { RealtimeSocket } from './desktop-client'
+
 export type RecoveryStatus = 'connecting' | 'syncing' | 'connected' | 'reconnecting' | 'offline'
 
 export const RECOVERY = {
@@ -59,8 +61,8 @@ export function createRealtimeRecovery<Snapshot>(options: {
   enabled: () => boolean
   online: () => boolean
   visible: () => boolean
-  open: () => WebSocket
-  socket: (socket: WebSocket | undefined) => void
+  open: () => RealtimeSocket
+  socket: (socket: RealtimeSocket | undefined) => void
   receive: (raw: string) => void
   snapshot: (signal: AbortSignal) => Promise<Snapshot>
   invalidate: () => void
@@ -72,7 +74,7 @@ export function createRealtimeRecovery<Snapshot>(options: {
   lost: () => void
   synced: (resumed: boolean) => void
 }) {
-  let current: WebSocket | undefined
+  let current: RealtimeSocket | undefined
   let generation = 0
   let stopped = false
   let started = false

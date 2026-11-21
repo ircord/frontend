@@ -5,6 +5,7 @@ import { memberStatusLabel } from '../../utils/member-status'
 defineProps<{ title?: string; membersVisible: boolean; searching: boolean }>()
 const emit = defineEmits<{ openNav: []; toggleMembers: []; toggleSearch: [] }>()
 const { t, n: $n } = useI18n()
+const { dragWindow } = usePlatform()
 const $t = t
 const chat = useChatStore()
 const statusNow = useNow({ interval: 1000 })
@@ -51,6 +52,7 @@ function openDetails() {
   <header
     class="chat-header relative flex h-[var(--header-height)] min-w-0 shrink-0 items-center gap-2 px-4 after:pointer-events-none after:absolute after:inset-x-4 after:bottom-0 after:h-px after:[background:linear-gradient(90deg,transparent,color-mix(in_srgb,var(--border)_45%,transparent)_20%,color-mix(in_srgb,var(--border)_45%,transparent)_80%,transparent)] max-[700px]:px-1.5"
     @contextmenu="contextMenu"
+    @mousedown="dragWindow"
   >
     <UiButton
       variant="ghost"

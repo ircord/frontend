@@ -1,13 +1,13 @@
 /** Persist a coherent device checkpoint, including on mobile page suspension. */
 import { offlineArchive } from '../../utils/offline-archive'
 import { createCheckpointSchedule } from '../../utils/checkpoint-schedule'
+import { instanceApiBase } from '../../utils/api'
 export function useOfflineSnapshot() {
   const { t, locale } = useI18n()
   offlineArchive.setTranslator((key) => t(key))
   watch(locale, () => offlineArchive.refreshError())
   const chat = useChatStore()
   const auth = useAuthStore()
-  const config = useRuntimeConfig().public
   watch(
     () => chat.status,
     (status) => offlineArchive.connection(status),
@@ -16,7 +16,7 @@ export function useOfflineSnapshot() {
   watch(
     () => [auth.account?.id, chat.data?.demo, !!chat.data] as const,
     ([owner, demo, loaded]) => {
-      if (owner && loaded && !demo) void offlineArchive.start(owner, config.apiBase)
+      if (owner && loaded && !demo) void offlineArchive.start(owner, instanceApiBase())
     },
     { immediate: true, flush: 'sync' },
   )

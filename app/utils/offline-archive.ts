@@ -8,7 +8,7 @@ import type {
 } from '../../shared/types/chat'
 import type { SearchFilters } from '../../shared/utils/search-filter'
 import type { OfflineFile, OfflineStatus } from '../../shared/offline'
-import { apiClient, errorStatus } from './api'
+import { apiClient, errorStatus, instanceFetch } from './api'
 import { boundaryMessage } from '../../shared/utils/history-cursor'
 import { createOfflineFileReads } from './offline-file-reads'
 import {
@@ -481,7 +481,7 @@ class OfflineArchive {
       messageId: file.messageId,
       url: file.url,
     }).toString()
-    const response = await fetch(url, { credentials: 'include', signal: this.controller?.signal })
+    const response = await instanceFetch(url, { credentials: 'include', signal: this.controller?.signal })
     if (!response.ok) throw new Error(this.message('offlineFileFailed'))
     const blob = await response.blob()
     if (epoch === this.epoch) {

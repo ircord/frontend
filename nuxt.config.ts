@@ -30,6 +30,7 @@ export default defineNuxtConfig({
   ssr: false,
   pages: true,
   devtools: { enabled: false },
+  ...(process.env.IRCORD_DESKTOP_DEV_DIR && { buildDir: process.env.IRCORD_DESKTOP_DEV_DIR }),
   // Feature folders organize ownership without changing public component names.
   // Keep the fallback scan last for the existing embed, UI and scroller names.
   components: [
@@ -234,6 +235,12 @@ export default defineNuxtConfig({
     'nitro:config'(nitro) {
       const dir = resolve(nitro.buildDir ?? '.nuxt', 'build-info')
       nitro.publicAssets = [...(nitro.publicAssets ?? []), { dir, baseURL: '/build-info' }]
+      if (nitro.dev && process.env.IRCORD_DESKTOP_DEV_DIR) {
+        const setup =
+          process.env.IRCORD_DESKTOP_SETUP_DIR ??
+          fileURLToPath(new URL('../desktop/setup', import.meta.url))
+        nitro.publicAssets.push({ dir: setup, baseURL: '/desktop-setup' })
+      }
     },
     async 'nitro:build:before'({ options }) {
       const directory = options.publicAssets.find((asset) => asset.baseURL === '/build-info')!.dir

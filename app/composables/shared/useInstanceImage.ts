@@ -7,10 +7,11 @@ import { DEFAULT_AVATAR_PATH } from '../../../shared/utils/default-avatars'
  */
 export function useInstanceImage() {
   const config = useRuntimeConfig().public
+  const server = usePlatform().serverOrigin || config.instanceUrl
   const origins = () => {
     if (typeof window === 'undefined') return []
     const page = window.location.origin
-    const own = [config.apiBase, config.appApiBase, config.instanceUrl]
+    const own = [config.apiBase, config.appApiBase, server]
       .filter((value): value is string => typeof value === 'string' && !!value)
       .map((value) => {
         try {
@@ -23,10 +24,11 @@ export function useInstanceImage() {
   }
   return (value: string | null | undefined) => {
     const src = instanceImageUrl(value, origins())
-    if (src && config.instanceUrl && typeof window !== 'undefined') {
-      const url = new URL(src, window.location.origin)
-      if (url.origin === config.instanceUrl && url.pathname.startsWith(DEFAULT_AVATAR_PATH))
+    if (src && server && typeof window !== 'undefined') {
+      const url = new URL(src, server)
+      if (url.origin === server && url.pathname.startsWith(DEFAULT_AVATAR_PATH))
         return url.pathname
+      if (usePlatform().serverOrigin) return url.href
     }
     return src
   }

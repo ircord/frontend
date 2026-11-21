@@ -1,3 +1,5 @@
+import { createDesktopClient, type DesktopCore } from './desktop-client'
+
 export type PlatformPermission = NotificationPermission | 'unsupported'
 
 export interface NotificationTarget {
@@ -29,9 +31,7 @@ interface PlatformNotifications {
 }
 
 interface DesktopBridge {
-  core: {
-    invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>
-  }
+  core: DesktopCore
   event: {
     listen<T>(event: string, callback: (event: { payload: T }) => void): Promise<Unlisten>
   }
@@ -41,9 +41,11 @@ interface DesktopBridge {
 }
 
 type TitleBar = 'macos' | 'windows' | 'linux'
-export type ResizeEdge = 'North' | 'NorthEast' | 'East' | 'SouthEast' | 'South' | 'SouthWest' | 'West' | 'NorthWest'
+export type ResizeEdge =
+  'North' | 'NorthEast' | 'East' | 'SouthEast' | 'South' | 'SouthWest' | 'West' | 'NorthWest'
 
 interface DesktopWindow {
+  startDragging(): Promise<void>
   minimize(): Promise<void>
   toggleMaximize(): Promise<void>
   close(): Promise<void>
@@ -52,10 +54,11 @@ interface DesktopWindow {
   startResizeDragging(direction: ResizeEdge): Promise<void>
 }
 
-type ClientWindow = Window & typeof globalThis & {
-  __IRCordDesktop?: { titleBar: TitleBar }
-  __TAURI__?: DesktopBridge
-}
+type ClientWindow = Window &
+  typeof globalThis & {
+    __IRCordDesktop?: { titleBar: TitleBar; serverOrigin?: string }
+    __TAURI__?: DesktopBridge
+  }
 
 function webNotifications(window: ClientWindow): PlatformNotifications {
   const { navigator } = window
@@ -66,7 +69,8 @@ function webNotifications(window: ClientWindow): PlatformNotifications {
   return {
     supported,
     webPush: !!serviceWorker && 'PushManager' in window,
-    requiresHomeScreen: /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    requiresHomeScreen:
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
     async getPermission() {
       return supported ? window.Notification.permission : 'unsupported'
@@ -77,11 +81,14 @@ function webNotifications(window: ClientWindow): PlatformNotifications {
     onPermissionChange(callback) {
       let disposed = false
       let status: PermissionStatus | undefined
-      void navigator.permissions?.query({ name: 'notifications' }).then((permission) => {
-        if (disposed) return
-        status = permission
-        status.addEventListener('change', callback)
-      }).catch(() => {})
+      void navigator.permissions
+        ?.query({ name: 'notifications' })
+        .then((permission) => {
+          if (disposed) return
+          status = permission
+          status.addEventListener('change', callback)
+        })
+        .catch(() => {})
       return () => {
         disposed = true
         status?.removeEventListener('change', callback)
@@ -140,12 +147,15 @@ function desktopNotifications(bridge: DesktopBridge): PlatformNotifications {
     onActivate(callback) {
       let disposed = false
       let unlisten: Unlisten | undefined
-      void bridge.event.listen<NotificationTarget>('ircord-notification-activated', ({ payload }) => {
-        if (!disposed) callback(payload)
-      }).then((stop) => {
-        if (disposed) stop()
-        else unlisten = stop
-      }).catch(() => {})
+      void bridge.event
+        .listen<NotificationTarget>('ircord-notification-activated', ({ payload }) => {
+          if (!disposed) callback(payload)
+        })
+        .then((stop) => {
+          if (disposed) stop()
+          else unlisten = stop
+        })
+        .catch(() => {})
       return () => {
         disposed = true
         unlisten?.()
@@ -159,10 +169,26 @@ export function createPlatform(window: ClientWindow) {
   const desktop = window.__IRCordDesktop
   const bridge = desktop && window.__TAURI__
   const titleBar = bridge ? desktop?.titleBar : undefined
+  const serverOrigin = bridge ? desktop?.serverOrigin : undefined
+  const windowControls = bridge?.window?.getCurrentWindow()
   return {
-    kind: bridge ? 'tauri' as const : 'web' as const,
+    kind: bridge ? ('tauri' as const) : ('web' as const),
     titleBar,
-    windowControls: titleBar !== 'macos' ? bridge?.window?.getCurrentWindow() : undefined,
+    serverOrigin,
+    client: bridge && serverOrigin ? createDesktopClient(bridge.core, serverOrigin) : undefined,
+    windowControls,
+    dragWindow(event: MouseEvent) {
+      if (!windowControls || event.button !== 0 || event.defaultPrevented) return
+      if (
+        event.target instanceof Element &&
+        event.target.closest(
+          'button, a, input, select, textarea, [role="button"], [contenteditable], [data-no-window-drag]',
+        )
+      )
+        return
+      if (event.detail === 2) void windowControls.toggleMaximize().catch(() => {})
+      else void windowControls.startDragging().catch(() => {})
+    },
     notifications: bridge ? desktopNotifications(bridge) : webNotifications(window),
     async focus() {
       if (bridge) await bridge.core.invoke('focus_notification_window')

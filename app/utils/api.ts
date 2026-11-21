@@ -23,9 +23,22 @@ function base() {
 }
 
 let client: ReturnType<typeof createIRCordClient> | undefined
+
+export function instanceApiBase() {
+  const { serverOrigin } = usePlatform()
+  return serverOrigin ? `${serverOrigin}/api/v1` : base().api
+}
+
+export function instanceFetch(input: RequestInfo | URL, init?: RequestInit) {
+  const { client: native } = usePlatform()
+  return native ? native.fetch(new Request(input, init)) : fetch(input, init)
+}
+
 /** The generated Go contract. Callers never assert their own response type. */
 export function apiClient() {
-  return (client ??= createIRCordClient(base().api, {
+  const platform = usePlatform()
+  return (client ??= createIRCordClient(instanceApiBase(), {
+    fetch: platform.client?.fetch,
     transform: normalizeTransport,
     memberId: transportMemberId,
     onUnauthorized: () => window.dispatchEvent(new Event('ircord:session-expired')),
@@ -40,7 +53,7 @@ function appRequest<T extends object>(
   body?: object,
 ): Promise<T> {
   const config = base()
-  if (!config.demo) return go()
+  if (!config.demo || usePlatform().kind === 'tauri') return go()
   return $fetch<object>(`${config.app}${path}`, {
     credentials: 'include',
     method,

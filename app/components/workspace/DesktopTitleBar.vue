@@ -6,13 +6,22 @@ const { t: $t } = useI18n()
 const maximized = ref(false)
 const fullscreen = ref(false)
 const resizeEdges: ResizeEdge[] = [
-  'North', 'NorthEast', 'East', 'SouthEast', 'South', 'SouthWest', 'West', 'NorthWest',
+  'North',
+  'NorthEast',
+  'East',
+  'SouthEast',
+  'South',
+  'SouthWest',
+  'West',
+  'NorthWest',
 ]
 
 async function refresh() {
   if (!windowControls) return
-  const state = await Promise.all([windowControls.isMaximized(), windowControls.isFullscreen()])
-    .catch(() => undefined)
+  const state = await Promise.all([
+    windowControls.isMaximized(),
+    windowControls.isFullscreen(),
+  ]).catch(() => undefined)
   if (state) [maximized.value, fullscreen.value] = state
 }
 
@@ -20,16 +29,19 @@ onMounted(refresh)
 useEventListener(window, 'resize', refresh)
 
 function toggleMaximize() {
-  void windowControls?.toggleMaximize().then(refresh).catch(() => {})
+  void windowControls
+    ?.toggleMaximize()
+    .then(refresh)
+    .catch(() => {})
 }
 
 function resize(event: PointerEvent, edge: ResizeEdge) {
   if (event.button === 0) void windowControls?.startResizeDragging(edge).catch(() => {})
 }
 
-const maximizeLabel = computed(() => $t(
-  maximized.value ? 'workspaceUi.shell.restoreWindow' : 'workspaceUi.shell.maximizeWindow',
-))
+const maximizeLabel = computed(() =>
+  $t(maximized.value ? 'workspaceUi.shell.restoreWindow' : 'workspaceUi.shell.maximizeWindow'),
+)
 </script>
 
 <template>
@@ -37,28 +49,43 @@ const maximizeLabel = computed(() => $t(
     class="desktop-titlebar flex justify-end select-none"
     data-tauri-drag-region
   >
-    <template v-if="windowControls">
+    <template v-if="titleBar !== 'macos' && windowControls">
       <button
         type="button"
         class="window-button"
         :aria-label="$t('workspaceUi.shell.minimizeWindow')"
         :title="$t('workspaceUi.shell.minimizeWindow')"
         @click="windowControls.minimize().catch(() => {})"
-      ><AppIcon name="windowMinimize" :size="13" /></button>
+      >
+        <AppIcon
+          name="windowMinimize"
+          :size="13"
+        />
+      </button>
       <button
         type="button"
         class="window-button"
         :aria-label="maximizeLabel"
         :title="maximizeLabel"
         @click="toggleMaximize"
-      ><AppIcon :name="maximized ? 'copy' : 'windowMaximize'" :size="13" /></button>
+      >
+        <AppIcon
+          :name="maximized ? 'copy' : 'windowMaximize'"
+          :size="13"
+        />
+      </button>
       <button
         type="button"
         class="window-button window-close"
         :aria-label="$t('workspaceUi.shell.closeWindow')"
         :title="$t('workspaceUi.shell.closeWindow')"
         @click="windowControls.close().catch(() => {})"
-      ><AppIcon name="close" :size="15" /></button>
+      >
+        <AppIcon
+          name="close"
+          :size="15"
+        />
+      </button>
     </template>
     <!-- Some Linux window managers leave resizing to the app for undecorated windows. -->
     <template v-if="titleBar === 'linux' && !maximized && !fullscreen">
@@ -85,7 +112,9 @@ const maximizeLabel = computed(() => $t(
   background: var(--accent);
   color: var(--foreground);
 }
-.window-button:focus-visible { outline-offset: -2px; }
+.window-button:focus-visible {
+  outline-offset: -2px;
+}
 .window-close:hover {
   background: var(--danger);
   color: var(--danger-foreground, white);
@@ -116,13 +145,31 @@ const maximizeLabel = computed(() => $t(
   width: var(--resize-width);
   cursor: ew-resize;
 }
-.window-resize-NorthEast, .window-resize-SouthEast,
-.window-resize-SouthWest, .window-resize-NorthWest {
+.window-resize-NorthEast,
+.window-resize-SouthEast,
+.window-resize-SouthWest,
+.window-resize-NorthWest {
   width: var(--resize-corner);
   height: var(--resize-corner);
 }
-.window-resize-NorthEast { top: 0; right: 0; cursor: nesw-resize; }
-.window-resize-SouthEast { bottom: 0; right: 0; cursor: nwse-resize; }
-.window-resize-SouthWest { bottom: 0; left: 0; cursor: nesw-resize; }
-.window-resize-NorthWest { top: 0; left: 0; cursor: nwse-resize; }
+.window-resize-NorthEast {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+.window-resize-SouthEast {
+  bottom: 0;
+  right: 0;
+  cursor: nwse-resize;
+}
+.window-resize-SouthWest {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+.window-resize-NorthWest {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
 </style>

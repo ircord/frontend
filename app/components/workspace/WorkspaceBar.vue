@@ -2,6 +2,7 @@
 import { useQuery } from '@pinia/colada'
 import { administrationAccessQuery } from '../../queries/administration'
 const { t: $t } = useI18n()
+const { dragWindow } = usePlatform()
 // Search and Inbox live in the conversation list; search within a conversation is in its header.
 const actions = useWorkspaceActions()
 const shortcutKeys = useShortcuts()
@@ -20,7 +21,7 @@ const loadingModel = computed(
 )
 </script>
 <template>
-  <header class="workspace-bar flex min-w-0 items-center gap-2 pr-2">
+  <header class="workspace-bar flex min-w-0 items-center gap-2 pr-2" @mousedown="dragWindow">
     <NetworkRail @add="actions.addNetwork()" />
     <div class="workspace-tools ml-auto flex shrink-0 items-center gap-1.5 pr-1">
       <AppTooltip

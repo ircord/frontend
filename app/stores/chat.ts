@@ -2,6 +2,8 @@ import { recipientIn } from '../../shared/group-mentions'
 import { isConversationPath } from '../../shared/utils/workspace-routes'
 import { guardedSelectionResult, type GuardedSelection } from '../../shared/utils/guarded-selection'
 import { normalizeTransport, realtimeUrl, setTransportSelf } from '../utils/transport'
+import type { RealtimeSocket } from '../utils/desktop-client'
+import { instanceApiBase, instanceFetch } from '../utils/api'
 import { acceptHMRUpdate, defineStore } from 'pinia'
 import type { ShallowRef } from 'vue'
 import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
@@ -111,7 +113,7 @@ export const useChatStore = defineStore('chat', () => {
         )
       : $i18n.t(key)
   const config = useRuntimeConfig().public
-  const readThroughDiscovery = createReadThroughDiscovery(config.apiBase)
+  const readThroughDiscovery = createReadThroughDiscovery(instanceApiBase(), instanceFetch)
   const readThroughSent = new Map<string, string>()
   const readThroughPending = new Set<string>()
   const appUpdate = useAppUpdate()
@@ -680,7 +682,7 @@ export const useChatStore = defineStore('chat', () => {
 
   // ---- Realtime -------------------------------------------------------------------------------
 
-  let socket: WebSocket | undefined
+  let socket: RealtimeSocket | undefined
   const cursor = ref(0)
   const pendingReads = ref(0)
   const checkpointTrusted = ref(true)
@@ -1197,9 +1199,10 @@ export const useChatStore = defineStore('chat', () => {
     online: () => navigator.onLine,
     visible: () => document.visibilityState === 'visible',
     open: () => {
-      const url = new URL(realtimeUrl(config.apiBase, config.websocketUrl, location))
+      const platform = usePlatform()
+      const url = new URL(realtimeUrl(instanceApiBase(), platform.client ? '' : config.websocketUrl, location))
       url.searchParams.set('sync', '1')
-      return new WebSocket(url)
+      return platform.client?.openSocket(url) ?? new WebSocket(url)
     },
     socket: (current) => {
       socket = current
