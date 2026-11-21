@@ -3,7 +3,6 @@ import { matchingPeople } from '../../../shared/utils/people'
 
 const { t: $t } = useI18n()
 const { current, settle } = usePrompt()
-const nameStyle = useNameStyle()
 const value = ref('')
 const input = ref<HTMLInputElement | null>(null)
 const picker = ref<{ focus: () => void } | null>(null)
@@ -87,22 +86,8 @@ function submit() {
               <span
                 v-if="person(option.key)"
                 class="flex items-center gap-2.5 [&_.presence]:border-field"
-                :data-person="person(option.key)!.nick"
-              >
-                <UserAvatar
-                  :member="person(option.key)!"
-                  size="tiny"
-                  presence
-                />
-                <span
-                  class="min-w-0 flex-1 truncate text-foreground"
-                  :style="nameStyle(person(option.key)!)"
-                  >{{ person(option.key)!.displayName || person(option.key)!.nick }}</span
-                >
-                <span class="shrink-0 text-[length:var(--ui-caption)] text-faint"
-                  >@{{ person(option.key)!.nick }}</span
-                >
-              </span>
+                ><PersonOption :member="person(option.key)!"
+              /></span>
             </template>
           </PeopleCombobox>
           <UiInput

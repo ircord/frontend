@@ -25,7 +25,6 @@ const chat = useChatStore()
 const media = useMediaStore()
 const library = useLibraryStore()
 const notifications = useNotificationStore()
-const nameStyle = useNameStyle()
 const { t } = useI18n()
 const values = reactive<Record<string, string>>({ ...props.initial })
 const initialChanged = (except: string) =>
@@ -242,27 +241,15 @@ defineExpose({ focus, suggestionsOpen })
             role="option"
             :aria-selected="index === active"
             class="flex min-h-9 cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-[length:var(--ui-small)] hover:bg-accent aria-selected:bg-accent [&_.presence]:border-card [&[aria-selected=true]_.presence]:border-accent"
-            :data-person="item.member ? item.member.nick : undefined"
             @pointerdown.prevent
             @mousemove="active = index"
             @click="choose(item)"
           >
             <!-- People look the same as in the message box's @ list. -->
-            <template v-if="item.member">
-              <UserAvatar
-                :member="item.member"
-                size="tiny"
-                presence
-              />
-              <span
-                class="min-w-0 flex-1 truncate text-foreground"
-                :style="nameStyle(item.member)"
-                >{{ item.member.displayName || item.member.nick }}</span
-              >
-              <span class="shrink-0 text-[length:var(--ui-caption)] text-faint"
-                >@{{ item.member.nick }}</span
-              >
-            </template>
+            <PersonOption
+              v-if="item.member"
+              :member="item.member"
+            />
             <template v-else>
               <span
                 v-if="item.emoji"
