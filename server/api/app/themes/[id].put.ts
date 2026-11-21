@@ -50,6 +50,5 @@ export default defineEventHandler(async (event) => {
         })
       else library.themes.push(incoming)
     },
-    event,
   )
 })

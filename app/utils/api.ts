@@ -32,22 +32,15 @@ export function apiClient() {
   }))
 }
 
-// Demo builds use their fixture routes. An older backend returns 404 for an unregistered
-// operation. Other failures from Go are returned to the caller.
-async function appRequest<T extends object>(
+// Demo builds use their own account fixtures.
+function appRequest<T extends object>(
   go: () => Promise<T>,
   path: string,
   method: 'GET' | 'PUT' | 'PATCH' | 'POST' | 'DELETE' = 'GET',
   body?: object,
 ): Promise<T> {
   const config = base()
-  if (!config.demo) {
-    try {
-      return await go()
-    } catch (error) {
-      if (errorStatus(error) !== 404) throw error
-    }
-  }
+  if (!config.demo) return go()
   return $fetch<object>(`${config.app}${path}`, {
     credentials: 'include',
     method,
@@ -116,15 +109,8 @@ export const appClient = {
       `/library/gifs/${encodeURIComponent(id)}`,
       'DELETE',
     ),
-  async emojiCatalog(): Promise<EmojiCatalog> {
-    try {
-      return await appRequest(() => apiClient().appEmojiCatalog(), '/emoji/catalog')
-    } catch (error) {
-      // Older Go versions require a session on unknown API paths.
-      if (errorStatus(error) !== 401) throw error
-      return $fetch<EmojiCatalog>(`${base().app}/emoji/catalog`)
-    }
-  },
+  emojiCatalog: () =>
+    appRequest<EmojiCatalog>(() => apiClient().appEmojiCatalog(), '/emoji/catalog'),
   themes: async () =>
     sanitizeThemeLibrary(await appRequest(() => apiClient().appThemes(), '/themes')),
   /** `expected` is the version the edit started from. A concurrent edit returns 412. */

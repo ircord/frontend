@@ -7,28 +7,23 @@ import { chromium } from 'playwright'
 const base = process.env.BASE ?? 'http://127.0.0.1:4174'
 const live = process.env.MODE === 'live'
 const origin = process.env.PUBLIC_ORIGIN ?? base
+const appBase = live ? '/api/v1/app' : '/api/app'
 let calls = 0
 let writes = 0
-let library = null
+let library = { gifs: [] }
 const backend =
   live &&
   createServer(async (req, res) => {
     calls++
     const path = new URL(req.url, 'http://localhost').pathname
-    if (path === '/api/v1/auth/session')
-      return res
-        .writeHead(200, { 'content-type': 'application/json' })
-        .end(JSON.stringify({ account: { id: 'fixture' } }))
-    if (path === '/api/v1/app-data/library') {
-      if (req.method === 'PUT') {
+    if (path === '/api/v1/app/library' || path === '/api/v1/app/library/gifs') {
+      if (req.method === 'POST') {
         writes++
         let body = ''
         for await (const chunk of req) body += chunk
-        library = JSON.parse(body).data
+        library = { gifs: [JSON.parse(body)] }
       }
-      return res
-        .writeHead(200, { 'content-type': 'application/json' })
-        .end(JSON.stringify({ data: library, revision: writes }))
+      return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(library))
     }
     if (req.method !== 'GET') writes++
     res.writeHead(200, { 'content-type': 'text/plain' }).end('fixture')
@@ -84,15 +79,15 @@ try {
   ]
   for (const headers of blocked) {
     const before = calls
-    const res = await request('/api/app/library/gifs', 'POST', headers, gifBody())
+    const res = await request(`${appBase}/library/gifs`, 'POST', headers, gifBody())
     assert.equal(res.status, 403)
     assert.equal(calls, before, 'blocked write reached backend')
   }
   for (const [path, method] of [
-    ['/api/app/appearance', 'PUT'],
-    ['/api/app/preferences', 'PUT'],
-    ['/api/app/library', 'PATCH'],
-    ['/api/app/library/gifs/example', 'DELETE'],
+    [`${appBase}/appearance`, 'PUT'],
+    [`${appBase}/preferences`, 'PUT'],
+    [`${appBase}/library`, 'PATCH'],
+    [`${appBase}/library/gifs/example`, 'DELETE'],
     ['/api/v1/push/subscriptions', 'POST'],
     ['/api/v1/auth/login', 'POST'],
   ]) {
@@ -100,7 +95,7 @@ try {
     assert.equal((await request(path, method, { origin: 'https://foreign.example' })).status, 403)
     assert.equal(calls, before, 'blocked request reached backend')
   }
-  const beforeWrite = await request('/api/app/library', 'GET')
+  const beforeWrite = await request(`${appBase}/library`, 'GET')
   assert.equal(beforeWrite.status, 200)
   assert.ok(
     !(await beforeWrite.json()).gifs.some((item) => item.id === gif.id),
@@ -164,7 +159,7 @@ try {
   assert.equal(
     (
       await request(
-        '/api/app/library/gifs',
+        `${appBase}/library/gifs`,
         'POST',
         { origin, 'sec-fetch-site': 'same-origin' },
         gifBody(),
@@ -172,7 +167,7 @@ try {
     ).status,
     200,
   )
-  const saved = await request('/api/app/library', 'GET', {
+  const saved = await request(`${appBase}/library`, 'GET', {
     origin: 'null',
     'sec-fetch-site': 'cross-site',
   })
@@ -200,7 +195,7 @@ try {
       200,
     )
   }
-  assert.equal((await request('/api/app/library/gifs', 'POST', {}, gifBody())).status, 200)
+  assert.equal((await request(`${appBase}/library/gifs`, 'POST', {}, gifBody())).status, 200)
   console.log(`${live ? 'Live proxy' : 'Demo'} request-origin integration passed`)
 } finally {
   if (backend) await new Promise((resolve) => backend.close(resolve))

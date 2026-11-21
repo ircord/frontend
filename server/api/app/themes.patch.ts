@@ -6,5 +6,5 @@ export default defineEventHandler(async (event) => {
   if (typeof body?.customCss !== 'boolean')
     throw createError({ statusCode: 400, statusMessage: 'Send whether to use custom CSS.' })
   const customCss = body.customCss
-  return updateThemes(account, (library) => void (library.customCss = customCss), event)
+  return updateThemes(account, (library) => void (library.customCss = customCss))
 })

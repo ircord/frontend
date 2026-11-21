@@ -1,5 +1,5 @@
 import { getCookie, type H3Event } from 'h3'
-import { goApiBase, backendAccount, backendDocument, changeBackendDocument } from './backend'
+import { backendPreferences } from './backend'
 import { emptyLibrary, sanitizeLibrary, type PickerLibrary } from '../../shared/library'
 import { sanitizeAppearance, type StoredAppearance } from '../../shared/appearance'
 import { sanitizePreferences, type StoredPreferences } from '../../shared/preferences'
@@ -12,24 +12,17 @@ import {
 } from '../../shared/themes'
 import { speechOrigin } from '../../shared/speech-service'
 
-/**
- * Frontend-owned data (appearance, picker library, preferences, themes) is keyed by account. The mock
- * resolves the account from its own key login (server/utils/auth.ts). With the Go service,
- * call its `GET /api/v1/auth/session` with the browser's cookie here; nothing else changes.
- */
+/** Demo fixtures resolve the account through the demo session. */
 export async function accountId(event: H3Event) {
-  return (goApiBase(event) ? await backendAccount(event) : await requireAccount(event)).id
+  return (await requireAccount(event)).id
 }
 
 // Nitro's `data` mount is durable on disk (.data/kv) in development and node deployments.
 const storage = () => useStorage('data')
 const key = (account: string, name: string) => `accounts:${account}:${name}`
 
-export async function readAppearance(account: string, event?: H3Event): Promise<StoredAppearance> {
-  const stored =
-    event && goApiBase(event)
-      ? (await backendDocument(event, 'appearance')).data
-      : await storage().getItem<StoredAppearance>(key(account, 'appearance'))
+export async function readAppearance(account: string): Promise<StoredAppearance> {
+  const stored = await storage().getItem<StoredAppearance>(key(account, 'appearance'))
   return stored && typeof stored === 'object' && 'settings' in stored && stored.settings
     ? {
         settings: sanitizeAppearance(stored.settings),
@@ -38,35 +31,20 @@ export async function readAppearance(account: string, event?: H3Event): Promise<
       }
     : { settings: null, updatedAt: null }
 }
-export async function writeAppearance(account: string, settings: unknown, event?: H3Event) {
+export async function writeAppearance(account: string, settings: unknown) {
   const value = { settings: sanitizeAppearance(settings), updatedAt: new Date().toISOString() }
-  if (event && goApiBase(event))
-    return changeBackendDocument<StoredAppearance>(event, 'appearance', () => value)
   await storage().setItem(key(account, 'appearance'), value)
   return value
 }
 
-export async function readLibrary(account: string, event?: H3Event): Promise<PickerLibrary> {
-  const stored =
-    event && goApiBase(event)
-      ? (await backendDocument(event, 'library')).data
-      : await storage().getItem(key(account, 'library'))
+export async function readLibrary(account: string): Promise<PickerLibrary> {
+  const stored = await storage().getItem(key(account, 'library'))
   return stored ? sanitizeLibrary(stored) : emptyLibrary()
 }
 
 // Serialise read-modify-write per account so concurrent requests from two tabs do not drop edits.
 const queues = new Map<string, Promise<unknown>>()
-export function updateLibrary(
-  account: string,
-  change: (library: PickerLibrary) => void,
-  event?: H3Event,
-) {
-  if (event && goApiBase(event))
-    return changeBackendDocument<PickerLibrary>(event, 'library', (stored) => {
-      const library = stored ? sanitizeLibrary(stored) : emptyLibrary()
-      change(library)
-      return sanitizeLibrary({ ...library, updatedAt: new Date().toISOString() })
-    })
+export function updateLibrary(account: string, change: (library: PickerLibrary) => void) {
   const previous = queues.get(account) ?? Promise.resolve()
   const next = previous
     .catch(() => {})
@@ -82,24 +60,16 @@ export function updateLibrary(
   return next
 }
 
-export async function readThemes(account: string, event?: H3Event): Promise<ThemeLibrary> {
-  const stored =
-    event && goApiBase(event)
-      ? (await backendDocument(event, 'themes')).data
-      : await storage().getItem(key(account, 'themes'))
+export async function readThemes(account: string): Promise<ThemeLibrary> {
+  const stored = await storage().getItem(key(account, 'themes'))
   return stored ? sanitizeThemeLibrary(stored) : emptyThemeLibrary()
 }
 
 /**
- * Changes the account's theme library in one read-modify-write: compare-and-swap against the Go
- * service, or serialised per account in the demo's own storage. `change` may throw an H3 error
- * to refuse the change; nothing is written then.
+ * Serialises theme changes per account in the demo store.
+ * A refused change leaves the stored library intact.
  */
-export function updateThemes(
-  account: string,
-  change: (library: ThemeLibrary) => void,
-  event?: H3Event,
-) {
+export function updateThemes(account: string, change: (library: ThemeLibrary) => void) {
   const next = (stored: unknown) => {
     const library = stored ? sanitizeThemeLibrary(stored) : emptyThemeLibrary()
     change(library)
@@ -112,7 +82,6 @@ export function updateThemes(
       })
     return saved
   }
-  if (event && goApiBase(event)) return changeBackendDocument<ThemeLibrary>(event, 'themes', next)
   const queue = `${account}:themes`
   const previous = queues.get(queue) ?? Promise.resolve()
   const result = previous
@@ -133,14 +102,8 @@ export function noStore(event: H3Event) {
   setHeader(event, 'Cache-Control', 'private, no-store')
 }
 
-export async function readPreferences(
-  account: string,
-  event?: H3Event,
-): Promise<StoredPreferences> {
-  const stored =
-    event && goApiBase(event)
-      ? (await backendDocument(event, 'preferences')).data
-      : await storage().getItem<StoredPreferences>(key(account, 'preferences'))
+export async function readPreferences(account: string): Promise<StoredPreferences> {
+  const stored = await storage().getItem<StoredPreferences>(key(account, 'preferences'))
   return stored && typeof stored === 'object' && 'preferences' in stored && stored.preferences
     ? {
         preferences: sanitizePreferences(stored.preferences),
@@ -149,13 +112,11 @@ export async function readPreferences(
       }
     : { preferences: null, updatedAt: null }
 }
-export async function writePreferences(account: string, preferences: unknown, event?: H3Event) {
+export async function writePreferences(account: string, preferences: unknown) {
   const value = {
     preferences: sanitizePreferences(preferences),
     updatedAt: new Date().toISOString(),
   }
-  if (event && goApiBase(event))
-    return changeBackendDocument<StoredPreferences>(event, 'preferences', () => value)
   await storage().setItem(key(account, 'preferences'), value)
   return value
 }
@@ -169,9 +130,10 @@ export async function writePreferences(account: string, preferences: unknown, ev
 export async function pageSpeechOrigin(event: H3Event) {
   if (!getCookie(event, 'ircord_session')) return ''
   const lookup = (async () => {
-    const account = goApiBase(event) ? '' : await accountId(event)
-    const stored = await readPreferences(account, event)
-    return speechOrigin(stored.preferences?.speech.baseUrl ?? '')
+    const stored = useRuntimeConfig(event).demo
+      ? await readPreferences(await accountId(event))
+      : await backendPreferences(event)
+    return speechOrigin(stored.preferences?.speech?.baseUrl ?? '')
   })().catch(() => '')
   // A slow backend never holds the page back: without an answer, the page simply has no origin
   // and read-aloud asks for a reload.

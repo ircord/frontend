@@ -2,8 +2,6 @@ import createClient from 'openapi-fetch'
 import type { components, paths } from '../generated/api'
 
 type Schema = components['schemas']
-/** Legacy account document keys, also used by older web builds and demo fixtures. */
-export type AppDocumentKind = 'appearance' | 'library' | 'preferences' | 'themes'
 export type Body<P extends keyof paths, M extends keyof paths[P]> = paths[P][M] extends {
   requestBody: { content: { 'application/json': infer T } }
 }
@@ -602,10 +600,6 @@ export function createIRCordClient(apiBase: string, options: ClientOptions = {})
     hashFieldScores: () => read(client.GET('/api/v1/hash-field/scores')),
     submitHashFieldScore: (body: Body<'/api/v1/hash-field/scores', 'post'>) =>
       read(client.POST('/api/v1/hash-field/scores', { body })),
-    document: (kind: AppDocumentKind) =>
-      read(client.GET('/api/v1/app-data/{kind}', { params: { path: { kind } } })),
-    saveDocument: (kind: AppDocumentKind, body: Schema['AppDocument']) =>
-      read(client.PUT('/api/v1/app-data/{kind}', { params: { path: { kind } }, body })),
   }
 }
 

@@ -1,6 +1,5 @@
 import type { H3Event } from 'h3'
-import type { Account } from '../../shared/types/chat'
-import { createIRCordClient, type AppDocumentKind as Kind } from '../../shared/api/client'
+import { createIRCordClient } from '../../shared/api/client'
 
 const client = (event: H3Event) =>
   createIRCordClient(goApiBase(event), {
@@ -56,30 +55,4 @@ export function goApiBase(event: H3Event) {
   const base = config.public.apiBase
   return /^https?:\/\//.test(base) ? base.replace(/\/$/, '') : ''
 }
-export async function backendAccount(event: H3Event): Promise<Account> {
-  const result = await client(event).session()
-  if (!result.account) throw createError({ statusCode: 401, statusMessage: 'Sign in to continue.' })
-  return result.account
-}
-export const backendDocument = (event: H3Event, kind: Kind) => client(event).document(kind)
-/** Compare-and-swap retries keep two devices or Nitro replicas from losing library edits. */
-export async function changeBackendDocument<T>(
-  event: H3Event,
-  kind: Kind,
-  change: (data: unknown) => T,
-) {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const saved = await backendDocument(event, kind)
-    try {
-      const data = change(saved.data)
-      await client(event).saveDocument(kind, { data, revision: saved.revision })
-      return data
-    } catch (error) {
-      if ((error as { status?: number }).status !== 409 || attempt === 4) throw error
-    }
-  }
-  throw createError({
-    statusCode: 409,
-    statusMessage: 'Saved data changed on another device. Try again.',
-  })
-}
+export const backendPreferences = (event: H3Event) => client(event).appPreferences()

@@ -21,6 +21,5 @@ export default defineEventHandler(async (event) => {
       if (body?.skinTone !== undefined)
         library.skinTone = sanitizeLibrary({ skinTone: body.skinTone }).skinTone
     },
-    event,
   )
 })

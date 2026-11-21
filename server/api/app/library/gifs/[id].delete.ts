@@ -6,6 +6,5 @@ export default defineEventHandler(async (event) => {
     (library) => {
       library.gifs = library.gifs.filter((item) => item.id !== id)
     },
-    event,
   )
 })

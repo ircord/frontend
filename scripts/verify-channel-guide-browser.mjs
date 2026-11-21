@@ -110,22 +110,18 @@ const json = (route, body, status = 200) =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
 
 async function install(context, state) {
-  await context.route('**/api/app/**', async (route) => {
-    const req = route.request()
-    const { pathname } = new URL(req.url())
-    if (pathname === '/api/app/preferences' && req.method() === 'GET')
-      return json(route, { preferences: state.preferences, updatedAt: null })
-    if (pathname === '/api/app/preferences' && req.method() === 'PUT') {
-      state.preferences = req.postDataJSON().preferences
-      return json(route, { preferences: state.preferences, updatedAt: new Date().toISOString() })
-    }
-    return json(route, {})
-  })
   await context.route('**/api/v1/**', async (route) => {
     const req = route.request()
     const { pathname } = new URL(req.url())
     const method = req.method()
     const record = (body) => state.calls.push({ method, pathname, body })
+    if (pathname === '/api/v1/app/preferences' && method === 'GET')
+      return json(route, { preferences: state.preferences, updatedAt: null })
+    if (pathname === '/api/v1/app/preferences' && method === 'PUT') {
+      state.preferences = req.postDataJSON().preferences
+      return json(route, { preferences: state.preferences, updatedAt: new Date().toISOString() })
+    }
+    if (pathname.startsWith('/api/v1/app/')) return json(route, {})
     if (pathname === '/api/v1/auth/session')
       return json(route, {
         account: {

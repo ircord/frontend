@@ -55,6 +55,47 @@ try {
     data: { username, password },
   })
   assert.equal(login.status(), 200)
+  const updatedAt = '2026-11-21T12:00:00.000Z'
+  if (label !== 'before') {
+    // Write the same account documents the released Nuxt settings handlers wrote.
+    const stored = {
+      appearance: { settings: { mode: 'light' }, updatedAt },
+      preferences: {
+        preferences: { events: 'show', speech: { baseUrl: 'https://speech.example.invalid/v1' } },
+        updatedAt,
+      },
+      library: {
+        gifs: [
+          {
+            id: 'saved-wave',
+            slug: 'wave',
+            title: 'Wave',
+            provider: 'klipy',
+            url: 'https://static.klipy.com/wave.gif',
+            previewUrl: 'https://static.klipy.com/wave.webp',
+            stillUrl: 'https://static.klipy.com/wave.png',
+            width: 100,
+            height: 100,
+            savedAt: updatedAt,
+          },
+        ],
+        emojiUsage: [{ id: '1F44D', count: 12, lastUsed: updatedAt }],
+        skinTone: '3',
+        updatedAt,
+      },
+      themes: {
+        format: 1,
+        customCss: false,
+        themes: [{ id: 'saved-theme', name: 'Saved theme', updatedAt }],
+        updatedAt,
+      },
+    }
+    for (const [kind, data] of Object.entries(stored)) {
+      const url = `${ui}/api/v1/app-data/${kind}`
+      const { revision } = await (await context.request.get(url)).json()
+      assert.equal((await context.request.put(url, { data: { data, revision } })).status(), 200)
+    }
+  }
   await context.addInitScript(
     ({ owner }) => {
       if (!new URL(location.href).searchParams.has('checkpoint'))
@@ -217,6 +258,21 @@ try {
   if (label !== 'before') {
     for (const kind of ['appearance', 'preferences', 'library', 'themes'])
       assert.equal(appResponses.get(`/api/v1/app/${kind}`), 200, `read ${kind} from Go`)
+
+    const read = async (kind) => (await context.request.get(`${ui}/api/v1/app/${kind}`)).json()
+    assert.equal((await read('appearance')).settings.mode, 'light')
+    assert.equal((await read('preferences')).preferences.events, 'show')
+    const library = await read('library')
+    assert.equal(library.gifs[0].id, 'saved-wave')
+    assert.equal(library.emojiUsage[0].count, 12)
+    assert.equal(library.skinTone, '3')
+    const themes = await read('themes')
+    assert.equal(themes.themes[0].name, 'Saved theme')
+    assert.equal(themes.customCss, false)
+    await page
+      .locator('meta[name="ircord-speech-origin"][content="https://speech.example.invalid"]')
+      .waitFor({ state: 'attached' })
+    assert.equal((await context.request.get(`${ui}/api/app/appearance`)).status(), 404)
 
     const appearance = page.waitForResponse(
       (response) =>

@@ -9,6 +9,5 @@ export default defineEventHandler(async (event) => {
   return updateThemes(
     account,
     (library) => void (library.themes = library.themes.filter((theme) => theme.id !== id)),
-    event,
   )
 })

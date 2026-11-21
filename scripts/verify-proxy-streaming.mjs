@@ -32,7 +32,7 @@ const within = (promise, ms, what) => {
   ]).finally(() => clearTimeout(timer))
 }
 
-let sessionCalls = 0
+let appCalls = 0
 const backend = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost')
   if (url.pathname === '/files/held') {
@@ -66,8 +66,8 @@ const backend = createServer(async (req, res) => {
       }),
     )
   }
-  if (url.pathname === '/api/v1/auth/session') {
-    sessionCalls++
+  if (url.pathname === '/api/v1/app/preferences' || url.pathname === '/api/v1/app/appearance') {
+    appCalls++
     return res
       .writeHead(401, { 'content-type': 'application/json' })
       .end(JSON.stringify({ title: 'Unauthorized' }))
@@ -182,7 +182,7 @@ try {
       },
     })
     const response = await within(
-      fetch(`${base}/api/app/preferences`, {
+      fetch(`${base}/api/v1/app/preferences`, {
         method: 'PUT',
         headers: { origin: base, 'content-type': 'application/json' },
         body,
@@ -193,19 +193,21 @@ try {
     )
     assert.equal(response.status, 401)
     assert.ok(!ended, 'the request body was read before the account check')
-    assert.ok(sessionCalls > 0)
+    assert.equal(appCalls, 1)
   }
 
-  // The account check still happens before a body that has arrived is read.
+  // Live settings requests go through Go. The demo route is unavailable.
   {
-    const before = sessionCalls
-    const response = await fetch(`${base}/api/app/appearance`, {
+    const before = appCalls
+    const response = await fetch(`${base}/api/v1/app/appearance`, {
       method: 'PUT',
       headers: { origin: base, 'content-type': 'application/json' },
       body: JSON.stringify({ settings: {} }),
     })
     assert.equal(response.status, 401)
-    assert.equal(sessionCalls, before + 1)
+    assert.equal(appCalls, before + 1)
+    assert.equal((await fetch(`${base}/api/app/appearance`)).status, 404)
+    assert.equal(appCalls, before + 1)
   }
 
   // Statuses, ranges, cookies and errors pass through unchanged.

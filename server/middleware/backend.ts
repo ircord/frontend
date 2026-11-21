@@ -7,6 +7,8 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
   // Give the client the same mode the proxy uses so demo builds go straight to their fixtures.
   config.public.demo = Boolean(config.demo)
+  if (path.startsWith('/api/app/') && !config.demo)
+    throw createError({ statusCode: 404, statusMessage: 'Not Found' })
   if (
     (path.startsWith('/api/app/') || path.startsWith('/api/v1/')) &&
     !['GET', 'HEAD', 'OPTIONS'].includes(event.method)

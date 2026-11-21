@@ -15,6 +15,5 @@ export default defineEventHandler(async (event) => {
         libraryLimits.gifs,
       )
     },
-    event,
   )
 })

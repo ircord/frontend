@@ -215,7 +215,7 @@ export default defineNuxtConfig({
     public: {
       // Go/Huma contract (chat, networks, history, realtime).
       apiBase: '/api/v1',
-      // Demo and older-backend routes for account settings and the picker library.
+      // Demo fixture routes for account settings and the picker library.
       appApiBase: '/api/app',
       demo: false,
       websocketUrl: '',
