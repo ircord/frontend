@@ -74,6 +74,7 @@ try {
       )
   })
   let holdBarrier = false
+  let rejectReplay = false
   await context.routeWebSocket(/\/api\/v1\/events\?/, (route) => {
     const record = { route, openedAt: performance.now(), closed: false }
     sockets.push(record)
@@ -87,6 +88,11 @@ try {
       record.resumedAt = performance.now()
       record.complete = () =>
         route.send(JSON.stringify({ v: 1, type: 'session.synced', cursor: event.after }))
+      if (rejectReplay) {
+        rejectReplay = false
+        route.send('{')
+        return
+      }
       if (!holdBarrier) record.complete()
     })
     route.send(
@@ -97,6 +103,10 @@ try {
   page.setDefaultTimeout(10_000)
   page.on('pageerror', (error) => errors.push(error.message))
   const reads = []
+  let inboxReads = 0
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/v1/inbox/summary') inboxReads++
+  })
   page.on('requestfinished', (request) => {
     const path = new URL(request.url()).pathname
     if (path === '/api/v1/auth/session' || path === '/api/v1/bootstrap')
@@ -121,9 +131,13 @@ try {
     )
   const coldStart = performance.now()
   phase = 'cold connect'
+  const firstInbox = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/api/v1/inbox/summary',
+  )
   await page.goto(base)
   await connected()
   await page.locator('.message-row').first().waitFor()
+  assert((await firstInbox).ok())
   samples.push({
     scenario: 'cold demo load',
     connectedMs: performance.now() - coldStart,
@@ -230,6 +244,37 @@ try {
     initialBootstrapReads,
     'Warm lifecycle recovery does not bootstrap again',
   )
+
+  phase = 'rejected replacement replay'
+  const initialInboxReads = inboxReads
+  holdBarrier = true
+  rejectReplay = true
+  sockets.at(-1).route.send(JSON.stringify({ v: 1, type: 'session.resync', reason: 'Test replay' }))
+  for (let i = 0; !sockets[3]?.closed && i < 200; i++) await delay(25)
+  assert(sockets[3]?.closed, 'the malformed frame closes the replacement stream')
+  assert.equal(sockets.length, 4, 'failed replay waits before requesting another bootstrap')
+  assert.equal(inboxReads, initialInboxReads, 'an unconfirmed snapshot does not refresh the inbox')
+
+  phase = 'snapshot retry completes'
+  for (let i = 0; !sockets[4]?.complete && i < 200; i++) await delay(25)
+  assert.equal(sockets.length, 5)
+  assert(sockets[4].complete, 'the delayed retry opens a new stream and resumes replay')
+  assert.equal(inboxReads, initialInboxReads, 'the inbox waits for the replay barrier')
+  const inboxRefreshed = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/api/v1/inbox/summary',
+  )
+  sockets.at(-1).complete()
+  await connected()
+  assert((await inboxRefreshed).ok())
+  assert.equal(inboxReads - initialInboxReads, 1, 'successful recovery refreshes the inbox once')
+  const replacementReads = reads.filter((r) => r.phase === 'bootstrap').length - initialBootstrapReads
+  assert.equal(replacementReads, 2, 'one initial replacement and one delayed retry')
+  samples.push({
+    scenario: 'rejected replacement replay',
+    bootstrapReads: replacementReads,
+    inboxReads: inboxReads - initialInboxReads,
+    retryDelayMs: sockets[4].openedAt - sockets[3].resumedAt,
+  })
   assert.equal(sockets.filter((s) => !s.closed).length, 1)
   assert.deepEqual(errors, [])
   console.log(

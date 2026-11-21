@@ -462,6 +462,35 @@ try {
   }
   {
     const f = fixture()
+    f.synced()
+    f.receive('resync')
+    await flush()
+    assert.equal(f.snapshots.length, 1, 'the first resync replaces the snapshot immediately')
+
+    // A bad frame can arrive during replay or just after its completion marker.
+    for (const [index, delay] of [800, 1600, 3200, 6400, 12_800, 15_000, 15_000].entries()) {
+      if (index > 0) f.synced()
+      f.receive('invalid frame')
+      await advance(delay - 1)
+      assert.equal(f.snapshots.length, index + 1, 'a repeated resync waits for backoff')
+      f.recovery.resume()
+      await advance(1)
+      assert.equal(f.snapshots.length, index + 2, 'the scheduled retry still takes a snapshot')
+    }
+    assert.equal(f.sessionSignals.length, 0, 'stream resyncs do not need session checks')
+
+    f.synced()
+    await advance(RECOVERY.snapshotStability)
+    f.receive('resync')
+    await flush()
+    assert.equal(f.snapshots.length, 9, 'a later resync can replace state immediately again')
+    f.receive('invalid frame')
+    await advance(800)
+    assert.equal(f.snapshots.length, 10, 'a later recovery starts with the initial delay')
+    f.stop()
+  }
+  {
+    const f = fixture()
     f.snapshot = async () => {
       throw new Error('Synthetic HTTP 503')
     }

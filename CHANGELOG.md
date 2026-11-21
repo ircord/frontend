@@ -5,6 +5,10 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+### Fixed
+
+- Wait between attempts when chat repeatedly fails to reconnect.
+
 ## v0.8.4 — 2026-11-21
 
 ### Fixed

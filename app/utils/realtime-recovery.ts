@@ -7,6 +7,7 @@ export const RECOVERY = {
   replayIdle: 12_000,
   replayTotal: 45_000,
   snapshot: 15_000,
+  snapshotStability: 30_000,
   session: 5000,
   history: 15_000,
   grace: 18_000,
@@ -72,7 +73,7 @@ export function createRealtimeRecovery<Snapshot>(options: {
   status: (status: RecoveryStatus) => void
   failure: (failed: boolean) => void
   lost: () => void
-  synced: (resumed: boolean) => void
+  synced: (resumed: boolean, replacedSnapshot: boolean) => void
 }) {
   let current: RealtimeSocket | undefined
   let generation = 0
@@ -83,6 +84,7 @@ export function createRealtimeRecovery<Snapshot>(options: {
   let synchronizedOnce = false
   let needsSnapshot = false
   let replacedSnapshot = false
+  let lastSnapshotAt = -Infinity
   let request: AbortController | undefined
   let session: AbortController | undefined
   let retry: ReturnType<typeof setTimeout> | undefined
@@ -98,6 +100,7 @@ export function createRealtimeRecovery<Snapshot>(options: {
 
   const allowed = () => started && !stopped && options.enabled()
   const suspended = () => frozen || hiddenAt !== undefined || !options.visible()
+  const recentSnapshot = () => Date.now() - lastSnapshotAt < RECOVERY.snapshotStability
   function updateGrace() {
     clearTimeout(grace)
     if (runningSince !== undefined) elapsed += Date.now() - runningSince
@@ -121,6 +124,7 @@ export function createRealtimeRecovery<Snapshot>(options: {
   function release() {
     generation++
     clearTimeout(retry)
+    retry = undefined
     clearTimeout(deadline)
     clearTimeout(total)
     request?.abort()
@@ -150,6 +154,7 @@ export function createRealtimeRecovery<Snapshot>(options: {
   }
   function failed(verifySession = true) {
     if (!allowed()) return
+    if (state === 'connected' && !recentSnapshot()) attempts = 0
     release()
     options.lost()
     setStatus(options.online() ? 'reconnecting' : 'offline')
@@ -218,6 +223,7 @@ export function createRealtimeRecovery<Snapshot>(options: {
         options.install(snapshot)
         needsSnapshot = false
         replacedSnapshot = true
+        lastSnapshotAt = Date.now()
         open()
       })
       .catch(() => {
@@ -242,18 +248,24 @@ export function createRealtimeRecovery<Snapshot>(options: {
     if (!allowed() || !current || state === 'connected') return
     clearTimeout(deadline)
     clearTimeout(total)
-    attempts = 0
-    const resumed = synchronizedOnce || replacedSnapshot
+    // A bad frame immediately after the barrier can still be part of the same recovery loop.
+    if (!recentSnapshot()) attempts = 0
+    const replaced = replacedSnapshot
+    const resumed = synchronizedOnce || replaced
     synchronizedOnce = true
     replacedSnapshot = false
     setStatus('connected')
-    options.synced(resumed)
+    options.synced(resumed, replaced)
   }
   function resync() {
     if (!allowed()) return
     needsSnapshot = true
     options.invalidate()
-    attempt()
+    if (recentSnapshot()) failed(false)
+    else {
+      attempts = 0
+      attempt()
+    }
   }
   function reconnect() {
     if (allowed()) attempt()
@@ -267,7 +279,7 @@ export function createRealtimeRecovery<Snapshot>(options: {
       (now - lastResume < RECOVERY.coalesce || now - lastAttempt < RECOVERY.coalesce)
     )
       return
-    if (state === 'connected' && !force) return
+    if (!force && (state === 'connected' || (needsSnapshot && retry !== undefined))) return
     lastResume = now
     attempt()
   }

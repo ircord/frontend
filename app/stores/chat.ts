@@ -1254,8 +1254,6 @@ export const useChatStore = defineStore('chat', () => {
       cursor.value = snapshot.cursor
       checkpointTrusted.value = true
       void queryCache.invalidateQueries({ key: ['messages'] }, false).catch(() => {})
-      for (const key of ['connection', 'saved', 'inbox'])
-        void queryCache.invalidateQueries({ key: [key] }).catch(() => {})
     },
     session: async (signal) => {
       if (data.value?.demo) return true
@@ -1276,7 +1274,11 @@ export const useChatStore = defineStore('chat', () => {
     lost: () => {
       liveSince.value = null
     },
-    synced: (resumed) => {
+    synced: (resumed, replacedSnapshot) => {
+      if (replacedSnapshot) {
+        for (const key of ['connection', 'saved', 'inbox'])
+          void queryCache.invalidateQueries({ key: [key] }).catch(() => {})
+      }
       if (connectedOnce) {
         reconnects.value++
         refreshOutboxNow()
