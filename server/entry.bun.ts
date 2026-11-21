@@ -14,6 +14,7 @@ import { useNitroApp } from 'nitropack/runtime'
 import { startScheduleRunner } from 'nitropack/runtime/internal'
 import wsAdapter from 'crossws/adapters/bun'
 import type { EntryContext } from './utils/backend'
+import { desktopRequestCookie } from './utils/desktop'
 
 interface BunServer {
   url: URL
@@ -37,6 +38,7 @@ const maxRequestBodySize = 32 << 20
 
 const nitroApp = useNitroApp()
 const ws = import.meta._websocket ? wsAdapter(nitroApp.h3App.websocket) : undefined
+const desktopKey = process.env.IRCORD_DESKTOP_KEY
 const number = (value: string | undefined) => {
   const parsed = Number.parseInt(value ?? '')
   return Number.isNaN(parsed) ? undefined : parsed
@@ -82,6 +84,13 @@ const server = Bun.serve({
   maxRequestBodySize,
   websocket: import.meta._websocket ? ws!.websocket : undefined,
   async fetch(req, bunServer) {
+    if (desktopKey) {
+      const cookie = desktopRequestCookie(req.headers, bunServer.url, desktopKey)
+      if (cookie === undefined) return new Response(null, { status: 403 })
+      // Keep the original request for Bun's socket upgrade and peer address lookup.
+      if (cookie) req.headers.set('cookie', cookie)
+      else req.headers.delete('cookie')
+    }
     if (import.meta._websocket && req.headers.get('upgrade') === 'websocket')
       return ws!.handleUpgrade(req, bunServer as never)
     const url = new URL(req.url)

@@ -51,6 +51,7 @@ function measure(file: File): Promise<{ width?: number; height?: number }> {
  */
 export function useUploads() {
   const chat = useChatStore()
+  const instanceOrigin = useInstanceOrigin()
   const { t, n, locale } = useI18n()
   const capability = computed(() => chat.data?.capabilities?.upload)
   const pending = computed(() => queues[chat.activeId] ?? [])
@@ -164,7 +165,7 @@ export function useUploads() {
       if (!files.length) return
       const uploads = files.map((item) => ({
         ...item.upload!,
-        url: new URL(item.upload!.url, location.origin).href,
+        url: new URL(item.upload!.url, instanceOrigin()).href,
       }))
       // Send to the conversation the files were attached in, even if another one is open now.
       if (

@@ -103,7 +103,8 @@ const catalogAttachment = computed<Attachment | undefined>(() => {
 // Metadata can arrive ahead of scrolling; actual players use the smaller render zone.
 const root = ref<HTMLElement | null>(null)
 const { preload, visible } = useEmbedVisibility(root)
-const messageLink = computed(() => parseMessageLink(props.card.url, window.location.origin))
+const instanceOrigin = useInstanceOrigin()
+const messageLink = computed(() => parseMessageLink(props.card.url, instanceOrigin()))
 /** The timeline's embed for the newest post, in the catalog's fixed 16:9 box. */
 const {
   context: embed,

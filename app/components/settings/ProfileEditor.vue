@@ -14,6 +14,7 @@ import { mergeProfileFields, profileChanges, type ProfileFields } from './profil
 import type { Member } from '../../../shared/types/chat'
 const props = defineProps<{ networkId: string }>()
 const chat = useChatStore()
+const instanceOrigin = useInstanceOrigin()
 const appearance = useAppearanceStore()
 const nameStyle = useNameStyle()
 const { t, n, locale } = useI18n()
@@ -108,7 +109,7 @@ const selectedDefault = computed(() =>
   defaultChoice.value
     ? defaultChoice.value.id
     : avatarDataUrl.value === undefined
-      ? defaultAvatarFor(user.value?.avatarUrl, avatars.value, location.origin)?.id
+      ? defaultAvatarFor(user.value?.avatarUrl, avatars.value, instanceOrigin())?.id
       : undefined,
 )
 watch([name, bio, colorMode, customColor], () => {
@@ -194,7 +195,7 @@ async function saveProfile() {
         ...changes,
         ...(avatarDataUrl.value !== undefined ? { avatarDataUrl: avatarDataUrl.value } : {}),
         ...(defaultChoice.value
-          ? { avatarUrl: defaultAvatarUrl(defaultChoice.value, location.origin) }
+          ? { avatarUrl: defaultAvatarUrl(defaultChoice.value, instanceOrigin()) }
           : {}),
       },
     })

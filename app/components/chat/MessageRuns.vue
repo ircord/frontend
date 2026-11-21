@@ -6,6 +6,7 @@ import { messageLinkInText } from '../../../shared/utils/message-links'
 /** One stretch of message text: IRC formatting, links, mentions, emoji and #channels. */
 const props = defineProps<{ text: string }>()
 const { t } = useI18n()
+const instanceOrigin = useInstanceOrigin()
 const media = useMediaStore()
 const chat = useChatStore()
 const appearance = useAppearanceStore()
@@ -34,7 +35,7 @@ function openLink(event: MouseEvent, url: string) {
   }
   if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
   // Read as the preview card reads it, without punctuation or brackets after the link.
-  const linked = messageLinkInText(url, window.location.origin)
+  const linked = messageLinkInText(url, instanceOrigin())
   if (!linked) return
   event.preventDefault()
   void actions.openMessageLink(linked)

@@ -4,12 +4,13 @@ import { messageMediaLinks } from '../../../shared/utils/link-media'
 import { parseMessageLink } from '../../../shared/utils/message-links'
 const props = defineProps<{ message: Message }>()
 const emit = defineEmits<{ mediaReady: [url: string, ready: boolean] }>()
+const instanceOrigin = useInstanceOrigin()
 /** Links to messages in this app show the message itself; they never unfurl as sites. */
 const links = computed(() =>
   (props.message.deleted || props.message.attachment || props.message.attachments?.length
     ? []
     : messageMediaLinks(props.message.text)
-  ).map((url) => ({ url, message: parseMessageLink(url, window.location.origin) })),
+  ).map((url) => ({ url, message: parseMessageLink(url, instanceOrigin()) })),
 )
 </script>
 <template>

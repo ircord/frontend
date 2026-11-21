@@ -10,12 +10,15 @@ export function useMessageActions() {
   const library = useLibraryStore()
   const { confirm } = usePrompt()
   const moderation = useModeration()
+  const instanceOrigin = useInstanceOrigin()
 
   /** Whether this server's file host serves a URL (its own uploads, under /files/). */
   const hostedHere = (url: string) => {
     try {
       const u = new URL(url, window.location.href)
-      return u.origin === window.location.origin && u.pathname.startsWith('/files/')
+      return (
+        [window.location.origin, instanceOrigin()].includes(u.origin) && u.pathname.startsWith('/files/')
+      )
     } catch {
       return false
     }

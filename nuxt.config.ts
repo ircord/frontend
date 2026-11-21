@@ -146,6 +146,9 @@ export default defineNuxtConfig({
     preset: 'bun',
     experimental: { websocket: true },
     compressPublicAssets: true,
+    ...(process.env.IRCORD_DESKTOP_BUILD_DIR && {
+      output: { dir: process.env.IRCORD_DESKTOP_BUILD_DIR },
+    }),
   },
   // The production server passes each request's peer address on and sets its own timeouts and
   // body cap (see the file). Development keeps Nitro's dev server.
@@ -211,6 +214,8 @@ export default defineNuxtConfig({
       // Frontend-owned Nitro routes (appearance, picker library).
       appApiBase: '/api/app',
       websocketUrl: '',
+      // Public links can name the instance while the desktop UI uses its local origin.
+      instanceUrl: '',
       klipyApiKey: '',
       // Public JSON connection presets; never include passwords here.
       networkPresets: '',

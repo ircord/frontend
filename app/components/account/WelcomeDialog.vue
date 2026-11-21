@@ -25,6 +25,7 @@ const emit = defineEmits<{ close: [] }>()
 
 const auth = useAuthStore()
 const chat = useChatStore()
+const instanceOrigin = useInstanceOrigin()
 const { t, n, locale } = useI18n()
 const $t = t
 
@@ -58,7 +59,7 @@ const selectedDefault = computed(() =>
   pickedAvatar.value?.kind === 'default'
     ? pickedAvatar.value.avatar.id
     : pickedAvatar.value === undefined
-      ? defaultAvatarFor(savedAvatarUrl.value || undefined, avatars.value, location.origin)?.id
+      ? defaultAvatarFor(savedAvatarUrl.value || undefined, avatars.value, instanceOrigin())?.id
       : undefined,
 )
 const previewAvatarUrl = computed(() => {
@@ -294,7 +295,7 @@ async function save() {
       const nameChanged = name.value.trim() !== savedName.value
       const avatarPatch =
         pickedAvatar.value?.kind === 'default'
-          ? { avatarUrl: defaultAvatarUrl(pickedAvatar.value.avatar, location.origin) }
+          ? { avatarUrl: defaultAvatarUrl(pickedAvatar.value.avatar, instanceOrigin()) }
           : pickedAvatar.value?.kind === 'upload'
             ? { avatarDataUrl: pickedAvatar.value.dataUrl }
             : pickedAvatar.value?.kind === 'none'

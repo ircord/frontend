@@ -14,6 +14,7 @@ import { errorText } from '../../utils/api'
 /** Right-click menus for people, conversations, networks and messages. */
 export function useMenus() {
   const { t, locale } = useI18n()
+  const instanceOrigin = useInstanceOrigin()
   const chat = useChatStore()
   const library = useLibraryStore()
   const saved = useSavedStore()
@@ -608,7 +609,7 @@ export function useMenus() {
     // The shared ID opens for other readers too; your copy of your own message has another.
     const link =
       linked && path
-        ? messageLinkURL(window.location.origin, path, linkMessageId(linked.networkId, m))
+        ? messageLinkURL(instanceOrigin(), path, linkMessageId(linked.networkId, m))
         : ''
     open(
       event,
