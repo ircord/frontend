@@ -1025,7 +1025,7 @@
   "notifications": {
     "device": {
       "allow": "Allow notifications",
-      "blockedHelp": "Blocked by your browser. Allow notifications for this site in its settings.",
+      "blockedHelp": "Allow notifications for IRCord in your browser or system settings.",
       "checkAgain": "Check again",
       "enable": "Enable notifications",
       "facts": {
@@ -1044,7 +1044,7 @@
         "off": "Off",
         "offNote": "No notifications on this device.",
         "open": "While open",
-        "openNote": "Pop-ups only while IRCord is open in a tab or window.",
+        "openNote": "Show alerts while IRCord is running.",
         "push": "Push",
         "pushNote": "Push notifications, even when IRCord is closed."
       },
@@ -1101,7 +1101,7 @@
           "title": "On while IRCord is open"
         },
         "permission": {
-          "detail": "This browser needs permission to show notifications from IRCord.",
+          "detail": "Allow this device to show notifications from IRCord.",
           "title": "Needs your permission"
         },
         "push": {
@@ -1125,6 +1125,7 @@
       },
       "test": "Test",
       "testHelp": "Sends a test notification to this device only.",
+      "testBody": "This is a test notification.",
       "title": "This device",
       "unsupportedHelp": "This browser can’t show notifications."
     },

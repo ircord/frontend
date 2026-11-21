@@ -210,6 +210,10 @@
       "gifShortcut": "Press {shortcut} for GIFs."
     },
     "shell": {
+      "minimizeWindow": "Minimize window",
+      "maximizeWindow": "Maximize window",
+      "restoreWindow": "Restore window",
+      "closeWindow": "Close window",
       "administration": "Administration",
       "stopReading": "Stop reading highlights aloud",
       "startReading": "Read highlights aloud on this device",

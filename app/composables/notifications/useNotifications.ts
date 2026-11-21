@@ -13,7 +13,9 @@ import { claimNotification } from '../../utils/notification-ledger'
  */
 export function useNotifications(viewedConversation: () => string | undefined) {
   const { t, n } = useI18n()
+  const auth = useAuthStore()
   const chat = useChatStore()
+  const platform = usePlatform()
   const notifications = useNotificationStore()
   const instanceImage = useInstanceImage()
 
@@ -69,42 +71,23 @@ export function useNotifications(viewedConversation: () => string | undefined) {
     })
     // A direct conversation from the server lists only you; directPartner matches them by nick.
     const sender = c?.kind === 'direct' ? chat.directPartner(c) : undefined
-    const options = {
+    await platform.notifications.show({
+      title: alert.preview ? title : 'IRCord',
       body: alert.preview ? body.slice(0, 200) : '',
       // The browser fetches the icon, so a picture on another host would reveal you (#278).
       icon: instanceImage(sender?.avatarUrl) ?? '/icons/icon-192.png',
-      tag: alert.conversationId,
       silent: !alert.sound,
-    }
-    let notification: Notification
-    try {
-      notification = new Notification(alert.preview ? title : 'IRCord', options)
-    } catch {
-      // Chrome on Android only shows notifications through the service worker. Its click
-      // handler opens the conversation.
-      const registration = await navigator.serviceWorker?.ready
-      await registration
-        ?.showNotification(alert.preview ? title : 'IRCord', {
-          ...options,
-          data: { conversationId: alert.conversationId },
-        })
-        .catch(() => {})
-      return
-    }
-    notification.onclick = () => {
-      window.focus()
-      chat.activate(alert.conversationId)
-      notification.close()
-    }
+      target: { conversationId: alert.conversationId, accountId: auth.account?.id },
+    }).catch(() => {})
   }
   const stopAlerts = chat.onAlert(alerted)
 
-  // Notification taps arrive from the service worker.
-  function fromWorker(event: MessageEvent) {
-    if (event.data?.type === 'open-conversation') chat.activate(event.data.conversationId)
-    if (event.data?.type === 'push-subscription-changed') notifications.resubscribe()
-  }
-  useEventListener(navigator.serviceWorker, 'message', fromWorker)
+  const stopActivation = platform.notifications.onActivate(({ conversationId, accountId }) => {
+    if (accountId && accountId !== auth.account?.id) return
+    void platform.focus().catch(() => {})
+    chat.activate(conversationId)
+  })
+  const stopResubscribe = platform.notifications.onPushSubscriptionChange(notifications.resubscribe)
   // Cold start from a notification: /?c=<conversationId>.
   const requested = new URL(location.href).searchParams.get('c')
   if (requested) {
@@ -121,6 +104,8 @@ export function useNotifications(viewedConversation: () => string | undefined) {
   }
   onBeforeUnmount(() => {
     stopAlerts()
+    stopActivation()
+    stopResubscribe()
   })
 
   return { attention }

@@ -3,10 +3,12 @@
 import type { DeviceMode } from '../../stores/notifications'
 import { scopeLabels } from '../../../shared/settings-index'
 const notifications = useNotificationStore()
+const desktop = usePlatform().kind === 'tauri'
+const testMode: DeviceMode = desktop ? 'open' : 'push'
 const install = useInstallPrompt()
 const { t } = useI18n()
 const $t = t
-const modes = computed<{ value: DeviceMode; label: string; note: string }[]>(() => [
+const modes = computed(() => ([
   {
     value: 'off',
     label: t('notifications.device.modes.off'),
@@ -22,7 +24,7 @@ const modes = computed<{ value: DeviceMode; label: string; note: string }[]>(() 
     label: t('notifications.device.modes.push'),
     note: t('notifications.device.modes.pushNote'),
   },
-])
+] satisfies { value: DeviceMode; label: string; note: string }[]).filter((mode) => !desktop || mode.value !== 'push'))
 const blocked = computed(() => notifications.permission === 'denied')
 /** The summary of this device: what is set, whether it works, and the one next step. */
 const summary = computed(() => {
@@ -225,7 +227,7 @@ watch(
           <dt>{{ $t('notifications.device.facts.permission') }}</dt>
           <dd>{{ permissionText }}</dd>
         </div>
-        <div>
+        <div v-if="!desktop">
           <dt>{{ $t('notifications.device.facts.push') }}</dt>
           <dd>{{ pushText }}</dd>
         </div>
@@ -246,7 +248,7 @@ watch(
       >
     </div>
     <div
-      v-else-if="install.available"
+      v-else-if="!desktop && install.available"
       data-setting="install-app"
       class="install-hint flex items-center gap-3 py-3 px-3.5 rounded-md bg-selection text-primary"
     >
@@ -288,7 +290,7 @@ watch(
       />
     </SettingRow>
     <SettingRow
-      v-if="notifications.mode === 'push'"
+      v-if="notifications.mode === testMode"
       data-setting="notifications-test"
       :label="$t('notifications.device.test')"
       :description="$t('notifications.device.testHelp')"
@@ -296,7 +298,7 @@ watch(
       <UiButton
         variant="secondary"
         size="sm"
-        :disabled="testing || notifications.status !== 'push'"
+        :disabled="testing || notifications.status !== testMode"
         @click="sendTest"
       >
         {{ $t('notifications.device.sendTest') }}

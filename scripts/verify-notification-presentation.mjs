@@ -7,7 +7,9 @@ const source = await readFile(
   new URL('../app/composables/notifications/useNotifications.ts', import.meta.url),
   'utf8',
 )
-const notifications = new Transpiler({ loader: 'ts', target: 'browser' }).transformSync(source)
+const transpiler = new Transpiler({ loader: 'ts', target: 'browser' })
+const notifications = transpiler.transformSync(source)
+const platform = transpiler.transformSync(await readFile(new URL('../app/utils/platform.ts', import.meta.url), 'utf8'))
 const server = createServer((request, response) => {
   response.setHeader('Content-Type', 'text/javascript')
   if (request.url === '/app/composables/notifications/useNotifications.js')
@@ -16,6 +18,8 @@ const server = createServer((request, response) => {
     response.end("export const alertText = () => ({ title: 'Title', body: 'Body' })")
   else if (request.url === '/app/utils/notification-ledger')
     response.end('export const claimNotification = key => window.claim(key)')
+  else if (request.url === '/app/utils/platform.js')
+    response.end(platform)
   else {
     response.setHeader('Content-Type', 'text/html')
     response.end('<!doctype html><title>Notification presentation test</title>')
@@ -33,6 +37,8 @@ try {
     let listener
     let release
     let delay = false
+    let activated
+    const platform = (await import('/app/utils/platform.js')).createPlatform(window)
     const claims = []
     const sounds = []
     const shown = []
@@ -75,8 +81,12 @@ try {
           ...overrides,
         }),
       useI18n: () => ({ t: (key) => key, n: (value) => value }),
+      useAuthStore: () => ({ account: { id: 'fixture' } }),
+      usePlatform: () => platform,
+      useInstanceImage: () => () => undefined,
       useChatStore: () => ({
         data: { conversations: [] },
+        activate: (id) => (activated = id),
         onAlert: (callback) => {
           listener = callback
           return () => {}
@@ -92,10 +102,12 @@ try {
       watch: () => {},
       useEventListener: () => {},
       onBeforeUnmount: () => {},
+      activated: () => activated,
       Notification: class {
         constructor(title, options) {
-          shown.push({ title, options })
+          shown.push({ title, options, click: () => this.onclick?.() })
         }
+        close() {}
       },
     })
     const module = await import('/app/composables/notifications/useNotifications.js')
@@ -121,6 +133,8 @@ try {
     await window.emitAlert({ alertId: 'inactive' })
     if (window.shown.length !== 1 || !window.claims.includes('1:inactive:os'))
       throw new Error('Inactive window did not show routed OS alert')
+    window.shown[0].click()
+    if (window.activated() !== 'a') throw new Error('Click did not open the conversation')
     window.deferClaim()
     const pending = window.emitAlert({ alertId: 'late' })
     while (!window.claims.includes('1:late:os')) await Promise.resolve()
@@ -132,6 +146,10 @@ try {
     window.state({ visible: false })
     await window.emitAlert({ alertId: 'hidden', delivery: 'sound' })
     if (window.sounds.length !== 3) throw new Error('A hidden window falsely counted as viewing')
+    await window.emitAlert({ alertId: 'private', preview: false, sound: false })
+    const privateAlert = window.shown.at(-1)
+    if (privateAlert.title !== 'IRCord' || privateAlert.options.body || !privateAlert.options.silent)
+      throw new Error('A private silent alert exposed the preview or played sound')
   })
   console.log(
     'Notification presentation: focused, viewed, non-conversation and queued alert guards passed',

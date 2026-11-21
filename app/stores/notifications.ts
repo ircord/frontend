@@ -26,6 +26,7 @@ import {
 } from '../../shared/notification-setup'
 import { devicesQuery } from '../queries/devices'
 import type { Device } from '../../shared/utils/devices'
+import type { PlatformPermission } from '../utils/platform'
 
 const key = ['notification-settings']
 export type { DeviceMode } from '../../shared/notification-setup'
@@ -115,14 +116,12 @@ export const useNotificationStore = defineStore('notifications', () => {
 
   const auth = useAuthStore()
   const accountId = auth.account?.id ?? 'signed-out'
+  const platform = usePlatform()
+  const platformNotifications = platform.notifications
   const supported = {
-    notifications: typeof Notification !== 'undefined',
-    push: 'serviceWorker' in navigator && 'PushManager' in window,
+    notifications: platformNotifications.supported,
+    push: platformNotifications.webPush,
   }
-  /** iOS only allows notifications for sites added to the Home Screen. */
-  const ios =
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
   const displayMode = useMediaQuery('(display-mode: standalone)')
   const standalone = () =>
     displayMode.value || (navigator as Navigator & { standalone?: boolean }).standalone === true
@@ -131,10 +130,14 @@ export const useNotificationStore = defineStore('notifications', () => {
    * about whether the app is also installed somewhere on this device.
    */
   const installed = ref(standalone())
-  const needsInstall = computed(() => ios && !installed.value)
-  const readPermission = (): NotificationPermission | 'unsupported' =>
-    supported.notifications ? Notification.permission : 'unsupported'
-  const permission = ref(readPermission())
+  const needsInstall = computed(() => platformNotifications.requiresHomeScreen && !installed.value)
+  const permission = ref<PlatformPermission>(supported.notifications ? 'default' : 'unsupported')
+  let permissionRead = 0
+  async function readPermission() {
+    const read = ++permissionRead
+    const result = await platformNotifications.getPermission()
+    if (read === permissionRead) permission.value = result
+  }
 
   // The choice is kept per account on this device, so another account signing in here never
   // inherits (and silently re-registers) a push subscription. A choice saved before that
@@ -334,7 +337,11 @@ export const useNotificationStore = defineStore('notifications', () => {
       if (next !== 'off' && permission.value !== 'granted' && requestPermission) {
         if (!supported.notifications)
           throw new Error($i18n.t('workspaceUi.stores.notificationsUnsupported'))
-        permission.value = await Notification.requestPermission()
+        const result = await platformNotifications.requestPermission()
+        ++permissionRead
+        permission.value = result
+        if (result === 'unsupported')
+          throw new Error($i18n.t('workspaceUi.stores.notificationsUnsupported'))
         if (permission.value === 'default')
           throw new Error($i18n.t('workspaceUi.stores.notificationsNotAllowed'))
         if (permission.value !== 'granted')
@@ -380,10 +387,17 @@ export const useNotificationStore = defineStore('notifications', () => {
     return ok
   }
 
-  /** Sends a test push to this device only, and says what happened. */
+  /** Sends a test notification to this device only. */
   async function test(): Promise<{ ok: boolean; message: string }> {
     try {
-      await apiClient().testPush()
+      if (platform.kind === 'tauri') {
+        await platformNotifications.show({
+          title: 'IRCord',
+          body: $i18n.t('notifications.device.testBody'),
+          icon: '/icons/icon-192.png',
+          silent: true,
+        })
+      } else await apiClient().testPush()
       return { ok: true, message: $i18n.t('workspaceUi.stores.testSent') }
     } catch (error) {
       if (errorStatus(error) === 409) {
@@ -402,7 +416,7 @@ export const useNotificationStore = defineStore('notifications', () => {
   function refresh() {
     refreshing ??= (async () => {
       installed.value = standalone()
-      permission.value = readPermission()
+      await readPermission()
       await dropIfRevoked()
       if (supported.push) await checkSubscription()
       await refreshDevices()
@@ -425,15 +439,11 @@ export const useNotificationStore = defineStore('notifications', () => {
   watch(visibility, (state) => state === 'visible' && void refresh(), { flush: 'sync' })
   const relaunched = () => void refresh()
   watch(displayMode, relaunched, { flush: 'sync' })
-  const permissionStatus = shallowRef<PermissionStatus>()
-  useEventListener(permissionStatus, 'change', relaunched)
-  void navigator.permissions
-    ?.query({ name: 'notifications' as PermissionName })
-    .then((status) => (permissionStatus.value = status))
-    .catch(() => {})
+  if (platform.kind === 'tauri') useEventListener(window, 'focus', relaunched)
+  onScopeDispose(platformNotifications.onPermissionChange(relaunched))
 
   // Push subscriptions can be renewed or revoked by the browser; keep the server in step.
-  void dropIfRevoked().then(() => {
+  void readPermission().then(dropIfRevoked).then(() => {
     if (supported.push) void checkSubscription()
     void refreshDevices()
   })
