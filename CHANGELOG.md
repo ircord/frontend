@@ -5,6 +5,8 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+## v0.8.4 — 2026-11-21
+
 ### Fixed
 
 - Apply synced colors and fonts in the desktop app.
