@@ -5,6 +5,8 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+## v0.8.3 — 2026-11-21
+
 ### Improved
 
 - See the desktop version, bundled frontend, and selected server under Settings → About.
