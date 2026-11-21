@@ -47,21 +47,11 @@ const reactionId = ref('')
 useViewHistory('timeline-reactions', reactionId)
 // WKWebView can leave old selection paint on rows as they scroll back into view.
 const skipOffscreenRows = usePlatform().titleBar !== 'macos'
-/**
- * The scroll engine: follows the latest message until the reader scrolls away, keeps the reading
- * position when older history arrives above, and jumps to messages. Rows are in normal flow, so
- * the browser's own scroll anchoring keeps the view put while content above changes size.
- */
 /** A retained history window follows the reader, even when its current bottom is visible. */
 const detached = computed(() => !!history.data.value?.detached || !!history.data.value?.hasNewer)
-const timeline = provideMessageScroller({
-  get autoScroll() {
-    return !detached.value
-  },
-  scrollEdgeThreshold: 80,
-})
-const viewport = ref<{ element: HTMLElement | null } | null>(null)
-const scroller = computed(() => viewport.value?.element ?? null)
+const scroller = useTemplateRef<HTMLElement>('viewport')
+const content = useTemplateRef<HTMLElement>('content')
+const spacer = useTemplateRef<HTMLElement>('spacer')
 const atBottom = ref(true)
 async function jumpToPresent() {
   const id = chat.activeId
@@ -97,6 +87,8 @@ type Row =
   /** The top of the timeline: the conversation's beginning, or older history loading. */
   | { kind: 'start' | 'loading' | 'offline' | 'retry'; key: string }
 const at = (m: Message) => new Date(m.createdAt).getTime()
+const sameDay = (a: Message, b: Message) =>
+  new Date(a.createdAt).toDateString() === new Date(b.createdAt).toDateString()
 /** A run of chatter takes events at most a minute apart, and closes after 5 minutes or 50. */
 const continues = (run: Message[], next: Message) =>
   at(next) - at(run.at(-1)!) <= 60_000 &&
@@ -133,10 +125,16 @@ const rows = computed<Row[]>(() => {
   }
   return result
 })
+const timeline = useTimelineScroll({
+  viewport: scroller,
+  content,
+  spacer,
+  rows: () => rows.value,
+  detached: () => detached.value,
+  atBottom,
+})
 const firstOf = (row: Row | undefined) =>
   row?.kind === 'message' ? row.message : row?.kind === 'events' ? row.events[0] : undefined
-const sameDay = (a: Message, b: Message) =>
-  new Date(a.createdAt).toDateString() === new Date(b.createdAt).toDateString()
 function dayBreak(index: number) {
   const a = firstOf(rows.value[index - 1])
   const b = firstOf(rows.value[index])
@@ -249,16 +247,8 @@ watch(
 )
 
 function scrollLatest() {
-  nextTick(() => {
-    timeline.context.scrollToEnd()
-    atBottom.value = true
-  })
+  nextTick(() => timeline.scrollToEnd())
 }
-// The engine reports whether there is more below; in follow mode there never is.
-watch(
-  () => timeline.context.scrollable.value.end,
-  (more) => (atBottom.value = !more),
-)
 let previousTop = 0
 let pageDirection: 'older' | 'newer' = 'older'
 let historyFrame: number | undefined
@@ -266,10 +256,8 @@ const newerFailed = ref(false)
 // Read only from event callbacks: this flag needs no cached reactive subscription.
 const paging = () => chat.loadingOlder || chat.loadingNewer
 function onScroll() {
-  const el = scroller.value
-  if (!el) return
   if (attract.value) scrollTick.value++
-  const top = el.scrollTop
+  const top = timeline.onScroll()
   if (top !== previousTop) pageDirection = top < previousTop ? 'older' : 'newer'
   previousTop = top
   checkHistoryBeforePaint()
@@ -289,24 +277,18 @@ onBeforeUnmount(() => {
 function pageNearEdge() {
   const el = scroller.value
   if (!el || paging()) return
+  const page = history.data.value
+  const canPageOlder = page?.nextCursor && !page.syncError
+  const canPageNewer = page?.hasNewer && !newerFailed.value
+  if (!canPageOlder && !canPageNewer) return
   const height = el.clientHeight
   const distance = Math.max(900, height * 1.5)
-  const nearTop = el.scrollTop < distance
-  const nearBottom = el.scrollHeight - el.scrollTop - height < distance
-  if (
-    nearBottom &&
-    (!nearTop || pageDirection === 'newer') &&
-    history.data.value?.hasNewer &&
-    !newerFailed.value
-  )
-    void newer()
-  else if (
-    nearTop &&
-    (!nearBottom || pageDirection === 'older') &&
-    history.data.value?.nextCursor &&
-    !history.data.value?.syncError
-  )
-    void older()
+  const top = el.scrollTop
+  const nearTop = top < distance
+  if (!nearTop && !canPageNewer) return
+  const nearBottom = el.scrollHeight - top - height < distance
+  if (canPageNewer && nearBottom && (!nearTop || pageDirection === 'newer')) void newer()
+  else if (canPageOlder && nearTop && (!nearBottom || pageDirection === 'older')) void older()
 }
 async function older() {
   const id = chat.activeId
@@ -346,29 +328,53 @@ function fillUp() {
       void older()
   })
 }
-/** Wheel/swipe intent still pages at an edge where there is nothing left to scroll. */
-let touchY = 0
-function pullHistory(event: WheelEvent | TouchEvent) {
+/** Wheel and swipe intent still pages at an edge when there is nothing left to scroll. */
+function scrollIntent(direction: 'up' | 'down') {
   stopResume()
-  // Not `instanceof TouchEvent`: desktop Firefox has no TouchEvent.
-  const delta = 'touches' in event ? touchY - (event.touches[0]?.clientY ?? touchY) : event.deltaY
-  if ('touches' in event) touchY = event.touches[0]?.clientY ?? touchY
-  if (!delta) return
-  pageDirection = delta < 0 ? 'older' : 'newer'
+  timeline.userScrollIntent(direction)
+  pageDirection = direction === 'up' ? 'older' : 'newer'
   checkHistoryBeforePaint()
 }
-function pullHistoryKey(event: KeyboardEvent) {
+function scrollWheel(event: WheelEvent) {
+  if (event.deltaY && !event.ctrlKey) scrollIntent(event.deltaY < 0 ? 'up' : 'down')
+}
+function scrollKey(event: KeyboardEvent) {
   // Keys from a link or button in a row scroll the timeline too; typing in a field doesn't.
-  if (isEditable(event.target)) return
-  if (['ArrowDown', 'PageDown', 'End'].includes(event.key)) pageDirection = 'newer'
-  else if (['ArrowUp', 'PageUp', 'Home'].includes(event.key)) pageDirection = 'older'
-  else return
-  stopResume()
-  checkHistoryBeforePaint()
+  if (event.defaultPrevented || isEditable(event.target)) return
+  if (['ArrowDown', 'PageDown', 'End'].includes(event.key)) scrollIntent('down')
+  else if (['ArrowUp', 'PageUp', 'Home'].includes(event.key)) scrollIntent('up')
+  else if (
+    event.key === ' ' &&
+    !(event.target instanceof Element && event.target.closest('button, [role="button"]'))
+  )
+    scrollIntent(event.shiftKey ? 'up' : 'down')
 }
+function pointerDown(event: PointerEvent) {
+  stopResume()
+  // A context click may open a native menu without delivering its release.
+  if (event.pointerType !== 'touch' && event.button === 0) timeline.hold()
+}
+let touchY = 0
+let touchOrigin = { x: 0, y: 0 }
+let verticalPan: boolean | undefined
 function touchStart(event: TouchEvent) {
   stopResume()
-  touchY = event.touches[0]?.clientY ?? 0
+  const touch = event.touches[0]
+  if (!touch) return
+  timeline.hold()
+  touchY = touch.clientY
+  touchOrigin = { x: touch.clientX, y: touchY }
+  verticalPan = undefined
+}
+function touchMove(event: TouchEvent) {
+  if (event.touches.length !== 1) return
+  const touch = event.touches[0]!
+  const dx = Math.abs(touch.clientX - touchOrigin.x)
+  const dy = Math.abs(touch.clientY - touchOrigin.y)
+  // A sideways swipe for reply or drawers must leave the live follow choice alone.
+  if (verticalPan === undefined && Math.hypot(dx, dy) > 10) verticalPan = dx < dy * 1.2
+  if (verticalPan && touch.clientY !== touchY) scrollIntent(touch.clientY > touchY ? 'up' : 'down')
+  touchY = touch.clientY
 }
 watch(() => [chat.activeId, history.data.value] as const, fillUp, { flush: 'post' })
 watch(
@@ -377,7 +383,6 @@ watch(
     previousTop = 0
     pageDirection = 'older'
     newerFailed.value = false
-    scrollLatest()
   },
 )
 watch(
@@ -408,7 +413,7 @@ function onVisibility() {
   followingWhenHidden = false
   resumeUntil = Date.now() + RESUME_CATCH_UP
   // A thumb already on the screen as the app comes back wins; arrivals catch up after it lifts.
-  if (!timeline.context.userInteracting()) scrollLatest()
+  if (!timeline.userInteracting()) scrollLatest()
 }
 /** The reader's own scrolling ends the catch-up. */
 const stopResume = () => (resumeUntil = 0)
@@ -426,11 +431,11 @@ watch(
   },
   (sending) => {
     // Sent while holding or dragging the timeline: the reader's hand wins, the pill shows the way.
-    if (!sending || timeline.context.userInteracting()) return
+    if (!sending || timeline.userInteracting()) return
     // A window into older history first goes back to the present.
     if (detached.value) return void jumpToPresent()
     atBottom.value = true
-    timeline.context.scrollToEnd({ behavior: appearance.reducedMotion ? 'auto' : 'smooth' })
+    timeline.scrollToEnd(!appearance.reducedMotion)
   },
   { flush: 'pre' },
 )
@@ -440,7 +445,7 @@ watch(
     // Back from another app while following: land on the newest message once the history caught up.
     // Only while still following: a reader who scrolled away by any means, even a scrollbar drag
     // no event reports, has left the catch-up.
-    if (resumeUntil > Date.now() && atBottom.value && !timeline.context.userInteracting())
+    if (resumeUntil > Date.now() && atBottom.value && !timeline.userInteracting())
       scrollLatest()
     // Nothing is known while history first loads or after switching, and older history arrives
     // above the first known message: neither is news.
@@ -525,7 +530,7 @@ watch(
     const row = rows.value.find((r) => r.kind === 'message' && r.message.id === id)
     if (row && props.highlightId === id) {
       highlighted = id
-      timeline.context.scrollToMessage(row.key, { align: 'center' })
+      timeline.jumpToMessage(row.key)
     }
   },
 )
@@ -533,7 +538,6 @@ watch(
   () => chat.activeId,
   () => (highlighted = undefined),
 )
-onMounted(scrollLatest)
 
 // Keyboard shortcuts for the “New messages” line and the newest message.
 const actions = useWorkspaceActions()
@@ -543,7 +547,7 @@ function jumpToUnread() {
     chat.notify(t('workspaceUi.history.nothingUnreadHere'))
     return true
   }
-  timeline.context.scrollToMessage(row.key, { align: 'center' })
+  timeline.jumpToMessage(row.key)
   return true
 }
 function jumpToPresentKey() {
@@ -652,17 +656,17 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
       :style="edgeClock"
       aria-hidden="true"
     />
-    <MessageScrollerViewport
+    <div
       ref="viewport"
       class="timeline-scroll h-full overflow-y-auto [overflow-anchor:auto] overscroll-contain outline-offset-[-2px]! [touch-action:pan-y_pinch-zoom]"
       tabindex="0"
       :aria-label="t('timeline.history')"
       @scroll.passive="onScroll"
       @touchstart.passive="touchStart"
-      @pointerdown.passive="stopResume"
-      @wheel.passive="pullHistory"
-      @touchmove.passive="pullHistory"
-      @keydown="pullHistoryKey"
+      @pointerdown.passive="pointerDown"
+      @wheel.passive="scrollWheel"
+      @touchmove.passive="touchMove"
+      @keydown="scrollKey"
     >
       <div
         v-if="!chat.active"
@@ -732,9 +736,10 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
         <UiButton @click="history.refetch()"> {{ t('common.tryAgain') }} </UiButton>
       </div>
       <!-- The bottom padding is room for the composer's typing line, so it never covers a message. -->
-      <MessageScrollerContent
+      <div
         v-else
         :key="chat.activeId"
+        ref="content"
         class="timeline-rows flow-root min-h-full pt-2 pr-0 pb-6 pl-0"
         role="log"
         aria-live="off"
@@ -743,8 +748,6 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
           v-for="(row, index) in rows"
           :key="row.key"
           :data-message-id="row.key"
-          data-slot="message-scroller-item"
-          data-scroll-anchor="false"
           :data-index="index"
           class="timeline-row flow-root"
           :class="{
@@ -883,8 +886,13 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
           </UiButton>
           <span v-else>{{ t('timeline.loading') }}</span>
         </div>
-      </MessageScrollerContent>
-    </MessageScrollerViewport>
+        <div
+          ref="spacer"
+          aria-hidden="true"
+          hidden
+        />
+      </div>
+    </div>
     <button
       v-if="(!atBottom || detached) && messages.length"
       class="jump-latest absolute bottom-3 left-1/2 z-10 [transform:translateX(-50%)] flex items-center gap-2 bg-primary text-primary-foreground py-1.5 px-3 rounded-[999px] text-[12px] font-[600] shadow-control whitespace-nowrap"

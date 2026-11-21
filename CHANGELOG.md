@@ -5,6 +5,10 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+### Improved
+
+- Keep scrolling responsive while reading busy channels.
+
 ## v0.8.0 — 2026-11-21
 
 ### New

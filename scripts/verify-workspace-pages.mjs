@@ -95,6 +95,7 @@ try {
   }
   await page.goto(base)
   await page.waitForURL(`${base}/channel/general`)
+  await page.locator('.timeline-scroll .event-summary').first().waitFor()
   assert.equal((await demoAppearance).status(), 200)
   await page.getByRole('button', { name: 'User settings' }).click()
   const settings = page.getByRole('dialog', { name: 'Settings', exact: true })

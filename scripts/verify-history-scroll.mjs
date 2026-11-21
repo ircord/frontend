@@ -1,10 +1,8 @@
 // Signed-out, in-memory fixture using the production pager and normal-flow scroll engine.
 // It runs inside the app's browser bundle: start `bun run dev`, then run
 // `node scripts/verify-history-scroll-browser.mjs`. Bun cannot run it directly.
-import { createApp, defineComponent, h, nextTick, ref, vaporInteropPlugin } from 'vue'
-import { provideMessageScroller } from '../app/composables/chat/useMessageScroller'
-import MessageScrollerViewport from '../app/components/message-scroller/MessageScrollerViewport.vue'
-import MessageScrollerContent from '../app/components/message-scroller/MessageScrollerContent.vue'
+import { computed, createApp, defineComponent, h, nextTick, ref } from 'vue'
+import { useTimelineScroll } from '../app/composables/chat/useTimelineScroll'
 import { createHistoryPagination } from '../app/utils/history-pagination'
 import { boundaryMessage, messageBoundary } from '../shared/utils/history-cursor'
 import timelineSource from '../app/components/chat/ChatTimeline.vue?raw'
@@ -40,6 +38,11 @@ export async function verifyHistoryScroll() {
   }
   const page = ref(read({ limit: 500 })),
     loading = ref()
+  const rows = computed(() => [
+    ...(loading.value === 'older' ? [{ key: 'loading' }] : []),
+    ...page.value.items.map((item) => ({ key: item.id, text: item.text })),
+  ])
+  const atBottom = ref(true)
   let engine,
     viewport,
     maximumAnchorError = 0,
@@ -71,16 +74,24 @@ export async function verifyHistoryScroll() {
   })
   const Root = defineComponent({
     setup() {
-      engine = provideMessageScroller({
-        get autoScroll() {
-          return !page.value.detached
-        },
-        scrollEdgeThreshold: 80,
+      const view = ref(null)
+      const content = ref(null)
+      const spacer = ref(null)
+      engine = useTimelineScroll({
+        viewport: view,
+        content,
+        spacer,
+        rows: () => rows.value,
+        detached: () => !!page.value.detached,
+        atBottom,
       })
       return () =>
         h(
-          MessageScrollerViewport,
+          'div',
           {
+            ref: view,
+            id: 'fixture-timeline',
+            onScroll: engine.onScroll,
             style: {
               height: '240px',
               width: '500px',
@@ -88,23 +99,20 @@ export async function verifyHistoryScroll() {
               overflowAnchor: 'none',
             },
           },
-          () =>
-            h(MessageScrollerContent, {}, () => [
-              ...(loading.value === 'older'
-                ? [
-                    h('div', {
-                      key: 'loading',
-                      style: { height: '36px' },
-                    }),
-                  ]
-                : []),
-              ...page.value.items.map((item) =>
+          [
+            h('div', { ref: content }, [
+              ...rows.value.map((item) =>
                 h(
                   'div',
                   {
-                    key: item.id,
-                    'data-message-id': item.id,
-                    style: { height: `${28 + (Number(item.id.slice(-4)) % 3) * 4}px` },
+                    key: item.key,
+                    'data-message-id': item.key,
+                    style: {
+                      height:
+                        item.key === 'loading'
+                          ? '36px'
+                          : `${28 + (Number(item.key.slice(-4)) % 3) * 4}px`,
+                    },
                   },
                   item.text,
                 ),
@@ -112,7 +120,9 @@ export async function verifyHistoryScroll() {
               ...(loading.value === 'newer'
                 ? [h('div', { style: { height: '36px' } }, 'Loading')]
                 : []),
+              h('div', { ref: spacer, hidden: true, key: 'spacer' }),
             ]),
+          ],
         )
     },
   })
@@ -126,7 +136,7 @@ export async function verifyHistoryScroll() {
     color: '#eee',
   })
   document.body.append(host)
-  const app = createApp(Root).use(vaporInteropPlugin)
+  const app = createApp(Root)
   const settle = async () => {
     await nextTick()
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
@@ -138,9 +148,9 @@ export async function verifyHistoryScroll() {
     )
   }
   const position = async (top) => {
-    engine.context.userScrollIntent()
+    engine.userScrollIntent()
     viewport.scrollTop = top
-    engine.context.syncAfterScroll()
+    engine.onScroll()
     await settle()
   }
   async function advance(direction) {
@@ -155,7 +165,7 @@ export async function verifyHistoryScroll() {
   }
   try {
     app.mount(host)
-    viewport = host.querySelector('[data-slot="message-scroller-viewport"]')
+    viewport = host.querySelector('#fixture-timeline')
     await settle()
     while (page.value.nextCursor) {
       await position(120)
@@ -218,7 +228,7 @@ export async function verifyHistoryScroll() {
     )
     check(!page.value.detached, 'The authoritative latest page did not reattach')
     check(seen.size === retained.length, 'Bidirectional travel skipped retained messages')
-    engine.context.scrollToEnd()
+    engine.scrollToEnd()
     await settle()
     check(
       viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1,
@@ -226,11 +236,11 @@ export async function verifyHistoryScroll() {
     )
     const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
     // A gentle upward swipe must stay detached through a new arrival.
-    engine.context.userScrollIntent('up')
+    engine.userScrollIntent('up')
     viewport.scrollTop -= 12
-    engine.context.syncAfterScroll()
+    engine.onScroll()
     await pause(250)
-    check(engine.context.scrollable.value.end, 'Gentle upward scrolling did not detach')
+    check(!atBottom.value, 'Gentle upward scrolling did not detach')
     const beforeArrival = viewport.scrollTop
     page.value = {
       ...page.value,
@@ -248,17 +258,18 @@ export async function verifyHistoryScroll() {
     check(Math.abs(viewport.scrollTop - beforeArrival) <= 1, 'A new message pulled the reader down')
     // Simulate a resize observer recording the final position before the scroll event, and
     // independently rounded DOM dimensions leaving a subpixel residual at the physical end.
-    engine.context.userScrollIntent('down')
+    engine.userScrollIntent('down')
     viewport.scrollTop = viewport.scrollHeight
-    engine.context.handleResize()
+    viewport.style.width = '510px'
+    await settle()
     const scrollHeight = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollHeight').get
     Object.defineProperty(viewport, 'scrollHeight', {
       configurable: true,
       get: () => scrollHeight.call(viewport) + 0.75,
     })
-    engine.context.syncAfterScroll()
+    engine.onScroll()
     await pause(250)
-    check(!engine.context.scrollable.value.end, 'Jump control remained at the physical bottom')
+    check(atBottom.value, 'Jump control remained at the physical bottom')
     delete viewport.scrollHeight
     const beforeFollowingArrival = viewport.scrollTop
     page.value = {
@@ -280,7 +291,7 @@ export async function verifyHistoryScroll() {
       'Following did not reach the new message',
     )
     const target = page.value.items[100].id
-    check(engine.context.scrollToMessage(target, { align: 'center' }), 'Could not jump to a native row')
+    check(engine.jumpToMessage(target), 'Could not jump to a native row')
     await settle()
     const item = viewport.querySelector(`[data-message-id="${target}"]`).getBoundingClientRect()
     const frame = viewport.getBoundingClientRect()
@@ -288,6 +299,64 @@ export async function verifyHistoryScroll() {
       Math.abs(item.top + item.height / 2 - (frame.top + frame.height / 2)) <= 1,
       'Jump did not center the native row',
     )
+    // Native scrolling through a stable page must leave row layout to the browser.
+    const getBounds = Element.prototype.getBoundingClientRect
+    let rowMeasurements = 0
+    let heightReads = 0
+    Element.prototype.getBoundingClientRect = function () {
+      if (viewport.contains(this) && this.hasAttribute('data-message-id')) rowMeasurements++
+      return getBounds.call(this)
+    }
+    Object.defineProperty(viewport, 'scrollHeight', {
+      configurable: true,
+      get: () => {
+        heightReads++
+        return scrollHeight.call(viewport)
+      },
+    })
+    try {
+      for (let i = 0; i < 12; i++) {
+        viewport.scrollTop -= 32
+        await settle()
+      }
+      await pause(250)
+    } finally {
+      Element.prototype.getBoundingClientRect = getBounds
+      delete viewport.scrollHeight
+    }
+    check(rowMeasurements === 0, `Scrolling measured ${rowMeasurements} rows`)
+    check(heightReads <= 2, `Scrolling repeatedly read the viewport extent (${heightReads} reads)`)
+
+    const last = page.value.items.at(-1).id
+    check(engine.jumpToMessage(last), 'Could not jump to the last row')
+    await settle()
+    const tailRow = viewport.querySelector(`[data-message-id="${last}"]`)
+    const tail = tailRow.getBoundingClientRect()
+    check(
+      Math.abs(tail.top + tail.height / 2 - (frame.top + frame.height / 2)) <= 1,
+      'The last row did not center',
+    )
+    check(!atBottom.value, 'Centering the last row started following live chat')
+    engine.scrollToEnd(true)
+    await pause(750)
+    check(
+      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1,
+      'The glide did not reach the latest row',
+    )
+    const beforeGrowth = viewport.scrollTop
+    engine.hold()
+    tailRow.style.height = '160px'
+    await settle()
+    check(viewport.scrollTop === beforeGrowth, 'A resize moved the timeline while held')
+    window.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'mouse' }))
+    await settle()
+    check(
+      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1,
+      'Following did not catch up when the reader released the timeline',
+    )
+    viewport.scrollTop -= 12
+    await settle()
+    check(!atBottom.value, 'Scrolling without an input event did not leave live chat')
     return {
       retained: retained.length,
       visited: seen.size,
@@ -295,6 +364,8 @@ export async function verifyHistoryScroll() {
       newPages,
       bound: 500,
       maximumAnchorError,
+      rowMeasurements,
+      heightReads,
       browserScrollAnchoring: 'disabled',
       followLatest: 'pass',
     }

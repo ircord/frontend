@@ -3,7 +3,8 @@
 //   bun scripts/perf-busy.mjs             (BASE=http://127.0.0.1:4174 by default)
 //   CHROME_CHANNEL=chrome bun scripts/perf-busy.mjs  (installed Google Chrome)
 // Load is configurable: MEMBERS, HISTORY, RATE, CHURN, SECONDS, plus FLOOD (seconds measured).
-// Set EMBEDS=1 for local images, videos and link cards. The video fixture uses FFmpeg.
+// Set EMBEDS=1 for local images, videos and link cards. This defaults to quiet history so live
+// traffic doesn't replace the seeded media rows. The video fixture uses FFmpeg.
 // PASSES controls the number of history scrolls in each direction (default 2 with embeds).
 // PROFILE can match a scenario label to report its hottest JavaScript functions.
 import { spawnSync } from 'node:child_process'
@@ -11,18 +12,19 @@ import { readFile } from 'node:fs/promises'
 import { chromium } from 'playwright'
 
 const base = process.env.BASE ?? 'http://127.0.0.1:4174'
+const withEmbeds = process.env.EMBEDS === '1'
 const load = {
   members: Number(process.env.MEMBERS ?? 5000),
   history: Number(process.env.HISTORY ?? 5000),
-  rate: Number(process.env.RATE ?? 20),
-  churn: Number(process.env.CHURN ?? 10),
+  rate: Number(process.env.RATE ?? (withEmbeds ? 0 : 20)),
+  churn: Number(process.env.CHURN ?? (withEmbeds ? 0 : 10)),
   seconds: Number(process.env.SECONDS ?? 120),
 }
-const flood = Number(process.env.FLOOD ?? 15)
-const withEmbeds = process.env.EMBEDS === '1'
+const flood = Number(process.env.FLOOD ?? (withEmbeds ? 1 : 15))
 const passes = Number(process.env.PASSES ?? (withEmbeds ? 2 : 1))
 const profiles = []
 const mediaRequests = { image: 0, video: 0, card: 0 }
+let fixturePages = 0
 
 const browser = await chromium.launch({
   channel: process.env.CHROME_CHANNEL,
@@ -114,6 +116,7 @@ async function addMediaFixtures() {
     const response = await route.fetch()
     if (!response.ok()) return route.fulfill({ response })
     const history = await response.json()
+    fixturePages++
     for (const message of history.items) {
       const kind = Math.floor(Date.parse(message.createdAt) / 2000) % 8
       if (kind > 2 || !Number.isFinite(kind)) continue
@@ -316,8 +319,12 @@ for (let pass = 1; pass <= passes; pass++) {
   await measure(`history down ${pass}`, () => scrollHistory(1))
 }
 const rows = await page.locator('.message-row').count()
-if (withEmbeds && Object.values(mediaRequests).some((count) => count === 0))
-  throw new Error('The history workload did not exercise every media fixture')
+if (withEmbeds && Object.values(mediaRequests).some((count) => count === 0)) {
+  const blocked = await page.locator('.timeline-scroll .sensitive-media').count()
+  throw new Error(
+    `The history workload did not exercise every media fixture (${fixturePages} pages, ${blocked} sensitive previews): ${JSON.stringify(mediaRequests)}`,
+  )
+}
 
 // ---- Member list -------------------------------------------------------------------------------
 const memberScroller = page.locator('.members-scroll')
