@@ -5,6 +5,8 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+## v0.8.0 — 2026-11-21
+
 ### New
 
 - Sign in to a public or self-hosted IRCord server from the desktop app.
