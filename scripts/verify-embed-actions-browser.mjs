@@ -87,6 +87,9 @@ try {
       ),
       'The phone profile has no hover and a coarse pointer',
     )
+    const message = page.locator('.message-row').filter({ has: image })
+    assert.equal(await message.locator('.mobile-message-menu').count(), 1)
+    assert.equal(await message.locator('.message-actions').count(), 0)
     await settle(page)
     assert.ok(await hidden(controls), 'touch: buttons stay off the embed until it is tapped')
     await image.tap()

@@ -802,7 +802,7 @@ onBeforeUnmount(() => {
         @add-network="actions.addNetwork()"
         @edit-network="actions.editNetwork($event)"
       />
-      <AdministrationDialog
+      <LazyAdministrationDialog
         v-else-if="overlay === 'administration'"
         @close="overlay = null"
       />
@@ -819,18 +819,18 @@ onBeforeUnmount(() => {
         :first-connection="networkDialog.firstConnection"
         @close="overlay = null"
       />
-      <WelcomeDialog
+      <LazyWelcomeDialog
         v-else-if="overlay === 'welcome' && onboardingNetwork"
         :key="welcomeKey"
         :network-id="onboardingNetwork.id"
         @close="welcomeClosed"
       />
-      <JoinDialog
+      <LazyJoinDialog
         v-else-if="overlay === 'join'"
         :initial-filter="joinFilter"
         @close="overlay = null"
       />
-      <CreateChannelDialog
+      <LazyCreateChannelDialog
         v-else-if="overlay === 'createChannel'"
         :network-id="createChannelNetwork"
         @close="overlay = null"

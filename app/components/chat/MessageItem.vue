@@ -13,12 +13,15 @@ import {
   publicMediaURL,
 } from '../../../shared/utils/link-media'
 import { selectEmbed } from '../../utils/embed'
+import { isPlainMessageText } from '../../../shared/utils/blocks'
 import type { useMessageActions } from '../../composables/chat/useMessageActions'
 import type { useMenus } from '../../composables/workspace/useMenus'
 const props = defineProps<{
   message: Message
   messageActions: ReturnType<typeof useMessageActions>
   menus: ReturnType<typeof useMenus>
+  touchMenu: boolean
+  reactionId: string
   grouped?: boolean
   highlighted?: boolean
   /** /attract: shine across this row, sparkle on its avatar, or both. */
@@ -29,6 +32,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   reply: [message: Message]
   profile: [id: string]
+  reaction: [id: string]
 }>()
 const { t, locale } = useI18n()
 const chat = useChatStore()
@@ -36,7 +40,12 @@ const appearance = useAppearanceStore()
 const library = useLibraryStore()
 const nameStyle = useNameStyle()
 const { time, full } = useTimeFormat()
-const reacting = ref(false)
+const reacting = computed({
+  get: () => props.reactionId === props.message.id,
+  set: (value) => {
+    if (value || reacting.value) emit('reaction', value ? props.message.id : '')
+  },
+})
 const returningReactionFocus = ref(false)
 // Computed once per effect: re-renders must not move a running animation's delay.
 const attractStyle = computed(() =>
@@ -100,7 +109,8 @@ const hasExtras = computed(() => {
     )
   )
 })
-const showText = computed(() => !!stripFormatting(presentedText.value).trim())
+const plainText = computed(() => isPlainMessageText(presentedText.value))
+const showText = computed(() => plainText.value || !!stripFormatting(presentedText.value).trim())
 /** The three most recently used emoji (defaults until there is history). */
 const quickReactions = computed(() => library.quickReactions.slice(0, 3))
 const { menus, messageActions } = props
@@ -129,9 +139,12 @@ const swipeReply = computed(
     !props.message.deleted &&
     !editing.value,
 )
-watch(reactionReason, (reason) => {
-  if (reason) reacting.value = false
-})
+watch(
+  () => reacting.value && reactionReason.value,
+  (reason) => {
+    if (reason) reacting.value = false
+  },
+)
 const authorMenu = (event: MouseEvent) => author.value && menus.member(event, author.value)
 const row = ref<HTMLElement | null>(null)
 /** The reaction picker opens from the toolbar button, or from the row (long-press menu). */
@@ -154,9 +167,8 @@ watch(
         })
       : undefined
   },
-  { flush: 'sync' },
+  { flush: 'sync', immediate: true },
 )
-useViewHistory(`message-reactions:${props.message.id}`, reacting)
 watch(
   [reacting, row, reactButton],
   ([value]) => {
@@ -164,7 +176,10 @@ watch(
   },
   { flush: 'post' },
 )
-onScopeDispose(() => unregisterReactions?.())
+onScopeDispose(() => {
+  unregisterReactions?.()
+  if (reacting.value) reacting.value = false
+})
 function openReactions(anchor: HTMLElement | null = row.value) {
   if (reactionReason.value) return
   reactAnchor.value = anchor
@@ -242,7 +257,7 @@ function trackFocus(event: FocusEvent) {
       : 'row'
 }
 const alternate = computed(
-  () => shift.value && focus.value !== 'toolbar' && (hovered.value || focus.value === 'row'),
+  () => focus.value !== 'toolbar' && (hovered.value || focus.value === 'row') && shift.value,
 )
 watch(
   () => hovered.value || focus.value !== 'none',
@@ -259,11 +274,15 @@ const tools = () =>
     (button) => !button.disabled,
   )
 function rove() {
+  if (!toolbarActive.value) {
+    currentTool = moreButton.value ?? undefined
+    if (currentTool) currentTool.tabIndex = 0
+    return
+  }
   const list = tools()
   if (!currentTool || !list.includes(currentTool)) currentTool = list[0]
   for (const button of list) button.tabIndex = button === currentTool ? 0 : -1
 }
-onMounted(rove)
 onUpdated(rove)
 function toolbarFocus(event: FocusEvent) {
   if (event.target instanceof HTMLButtonElement) currentTool = event.target
@@ -391,7 +410,13 @@ function react(item: EmojiItem) {
           dir="auto"
           class="message-text font-chat leading-[1.5] text-body wrap-anywhere whitespace-pre-wrap"
         >
+          <span
+            v-if="plainText"
+            class="message-content"
+            >{{ presentedText }}</span
+          >
           <MessageContent
+            v-else
             :text="presentedText"
             code-blocks
           /><MessageEdited
@@ -476,7 +501,13 @@ function react(item: EmojiItem) {
             :style="nameStyle(author)"
             >{{ author?.nick }}
           </span>
+          <span
+            v-if="plainText"
+            class="message-content"
+            >{{ presentedText }}</span
+          >
           <MessageContent
+            v-else
             :text="presentedText"
             code-blocks
             :continues-line="action"
@@ -524,7 +555,8 @@ function react(item: EmojiItem) {
     </ol>
     <!-- On touch screens a long-press opens the menu; the button stays for screen readers. -->
     <UiButton
-      v-if="!message.delivery"
+      v-if="touchMenu && !message.delivery"
+      :ref="(el) => (moreButton = (el as { $el: HTMLButtonElement } | null)?.$el ?? null)"
       variant="ghost"
       size="icon-sm"
       class="mobile-message-menu hidden sr-only [@media(hover:none)]:flex"
@@ -538,7 +570,7 @@ function react(item: EmojiItem) {
       />
     </UiButton>
     <div
-      v-if="!message.delivery && !message.deleted"
+      v-if="!touchMenu && !message.delivery && !message.deleted"
       ref="toolbar"
       class="message-actions absolute right-3 top-[-16px] flex items-center px-1 py-0.5 bg-popover/90 backdrop-blur-md rounded-full shadow-[var(--shadow-small),inset_0_0_0_1px_color-mix(in_srgb,var(--border)_80%,transparent)] opacity-0 pointer-events-none z-2 [&_.icon-button]:w-7.5 [&_.icon-button]:h-7 [&_.icon-button]:rounded-full [&_.icon-button:disabled]:opacity-40 [&_.icon-button:disabled]:cursor-not-allowed [&_.danger:hover:not(:disabled)]:text-destructive group-hover/message:opacity-100 group-hover/message:pointer-events-auto group-focus-within/message:opacity-100 group-focus-within/message:pointer-events-auto group-[.show-actions]/message:opacity-100 group-[.show-actions]/message:pointer-events-auto [@media(hover:none)]:hidden"
       role="toolbar"
@@ -671,7 +703,7 @@ function react(item: EmojiItem) {
         :aria-label="t('workspaceUi.message.moreActions')"
         aria-haspopup="menu"
         :aria-expanded="moreMenuOpen"
-        :title="moreTitle"
+        :title="toolbarActive ? moreTitle : undefined"
         @click="moreButton && messageMenu(moreButton)"
       >
         <AppIcon

@@ -1,5 +1,14 @@
-import { computed, onBeforeUnmount, ref, shallowRef, toValue, watch } from 'vue'
-import type { Component, MaybeRefOrGetter } from 'vue'
+import {
+  computed,
+  effectScope,
+  onBeforeUnmount,
+  onScopeDispose,
+  ref,
+  shallowRef,
+  toValue,
+  watch,
+} from 'vue'
+import type { Component, EffectScope, MaybeRefOrGetter } from 'vue'
 import { useQuery, useQueryCache } from '@pinia/colada'
 import { embedLoaders } from '#embed-manifest'
 import type { Attachment, Message } from '../../../shared/types/chat'
@@ -69,9 +78,7 @@ export function useEmbed(input: UseEmbedInput) {
     () => toValue(input.attachments) ?? (attachment.value ? [attachment.value] : []),
   )
   const upload = computed(() =>
-    attachment.value
-      ? (attachmentMediaAsset(attachment.value, mediaBase) ?? undefined)
-      : undefined,
+    attachment.value ? (attachmentMediaAsset(attachment.value, mediaBase) ?? undefined) : undefined,
   )
   const selection = computed(() =>
     selectEmbed(
@@ -169,13 +176,27 @@ export function useEmbed(input: UseEmbedInput) {
       nearby.value &&
       !offlineStatus.value.offline,
   )
-  // Attachments already include their own source and dimensions. They never resolve a link.
-  const query =
-    input.attachment || input.attachments
-      ? undefined
-      : useQuery(() => linkMediaQuery({ ...identity.value, enabled: enabled.value }))
-  if (query) {
-    const queryCache = useQueryCache()
+  // Timeline uploads already include a source. A catalog entry can switch between
+  // an upload and an ordinary link as its source messages change.
+  const resolvesLinks = surface === 'catalog' || (!input.attachment && !input.attachments)
+  const queryCache = resolvesLinks ? useQueryCache() : undefined
+  const createQuery = () =>
+    useQuery(() => linkMediaQuery({ ...identity.value, enabled: enabled.value }))
+  const query = shallowRef<ReturnType<typeof createQuery>>()
+  if (queryCache) {
+    const app = useNuxtApp().vueApp
+    let scope: EffectScope | undefined
+    // Reserved boxes can reuse cached metadata without tracking a network query per faraway link.
+    watch(
+      nearby,
+      (preload) => {
+        if (!preload || scope) return
+        scope = effectScope(true)
+        query.value = scope.run(() => app.runWithContext(createQuery))
+      },
+      { immediate: true, flush: 'post' },
+    )
+    onScopeDispose(() => scope?.stop())
     let releasePreview: (() => void) | undefined
     watch(
       [enabled, widgetKey],
@@ -193,10 +214,16 @@ export function useEmbed(input: UseEmbedInput) {
     onBeforeUnmount(() => releasePreview?.())
   }
   const pending = computed(
-    () => delivery.value === 'pending' || query?.asyncStatus.value === 'loading',
+    () => delivery.value === 'pending' || query.value?.asyncStatus.value === 'loading',
   )
-  const resolved = computed(() => query?.data.value)
-  const resolutionError = computed(() => query?.error.value)
+  const resolved = computed(() =>
+    query.value
+      ? query.value.data.value
+      : queryCache?.getQueryData<components['schemas']['LinkMediaResponse']>(
+          linkMediaKey(identity.value),
+        ),
+  )
+  const resolutionError = computed(() => query.value?.error.value)
   const content = computed(() => {
     const value = resolved.value
     const provider = selection.value.provider
@@ -253,13 +280,13 @@ export function useEmbed(input: UseEmbedInput) {
     },
     { immediate: true, flush: 'sync' },
   )
-  const expired = query
+  const expired = queryCache
     ? useLinkMediaExpiry({
         key: widgetKey,
         assets: () => linkMediaExpirations(resolved.value),
         enabled,
         pending,
-        refresh: () => query.refetch(),
+        refresh: async () => query.value?.refetch(),
       }).expired
     : shallowRef(false)
   const saved = useOfflineMedia(

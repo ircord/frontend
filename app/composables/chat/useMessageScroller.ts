@@ -729,8 +729,15 @@ function createEngine(props: MessageScrollerProviderProps) {
     return scrollToElement(streamingTurn, { align: 'start' }, { keepPreviousPeek: true })
   }
 
+  function findMessageElement(messageId: string) {
+    return (
+      messageElements.get(messageId) ??
+      content?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(messageId)}"]`)
+    )
+  }
+
   function scrollToMessage(messageId: string, options?: MessageScrollerScrollOptions): boolean {
-    const element = messageElements.get(messageId)
+    const element = findMessageElement(messageId)
     if (element) {
       defaultScrollPositionApplied = true
       if (scrollToElement(element, options)) {
@@ -750,7 +757,7 @@ function createEngine(props: MessageScrollerProviderProps) {
 
   function flushPendingScrollToMessage(): boolean {
     if (!pendingScrollToMessage) return false
-    const element = messageElements.get(pendingScrollToMessage.messageId)
+    const element = findMessageElement(pendingScrollToMessage.messageId)
     if (!element || !scrollToElement(element, pendingScrollToMessage.options)) return false
     pendingScrollToMessage = null
     defaultScrollPositionApplied = true

@@ -579,9 +579,48 @@ verify: try {
     }
     await page.screenshot({ path: `../.data/prepush-direct-${kind}-phone.png` })
   }
+
+  // A catalog card can supply an optional upload but still resolve ordinary links by message.
+  const { networks } = await (await context.request.get(`${base}/api/v1/bootstrap`)).json()
+  const catalogUrl = 'https://example.invalid/catalog-post'
+  const catalogSource = {
+    conversationId: 'general',
+    messageId: 'catalog-post',
+    networkId: networks[0].id,
+    senderId: sample.senderId,
+    postedAt: sample.createdAt,
+    url: catalogUrl,
+    excerpt: catalogUrl,
+    nsfw: false,
+    nsfwKnown: true,
+  }
+  await context.route('**/api/v1/links?*', (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            identity: catalogUrl,
+            url: catalogUrl,
+            host: 'example.invalid',
+            kind: 'link',
+            count: 1,
+            lastPostedAt: catalogSource.postedAt,
+            sources: [catalogSource],
+          },
+        ],
+        indexing: false,
+        nextCursor: null,
+      },
+    }),
+  )
+  await page.goto(`${base}/links`)
+  await page
+    .locator('.catalog-card-title')
+    .filter({ hasText: 'A local preview without an image' })
+    .waitFor({ state: 'attached' })
   assert.deepEqual(errors, [])
   console.log(
-    `PASS: video/audio controls, hover ownership, keyboard seeking, geometry, viewer and phone; link art ${art.includes('<path') ? 'Satori-rendered' : 'fallback SVG'}`,
+    `PASS: video/audio controls, hover ownership, keyboard seeking, geometry, viewer, phone and catalog previews; link art ${art.includes('<path') ? 'Satori-rendered' : 'fallback SVG'}`,
   )
 } finally {
   unblockVideo()

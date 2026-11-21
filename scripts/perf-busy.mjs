@@ -1,9 +1,11 @@
-// Busy-channel performance run (#13). Needs a demo-mode server:
+// Busy-channel performance run. Needs a demo-mode server:
 //   bun run build && NUXT_DEMO=true PORT=4174 bun run preview
 //   bun scripts/perf-busy.mjs             (BASE=http://127.0.0.1:4174 by default)
 //   CHROME_CHANNEL=chrome bun scripts/perf-busy.mjs  (installed Google Chrome)
 // Load is configurable: MEMBERS, HISTORY, RATE, CHURN, SECONDS, plus FLOOD (seconds measured).
-// Set EMBEDS=1 for local image and video attachments. The video fixture uses FFmpeg.
+// Set EMBEDS=1 for local images, videos and link cards. The video fixture uses FFmpeg.
+// PASSES controls the number of history scrolls in each direction (default 2 with embeds).
+// PROFILE can match a scenario label to report its hottest JavaScript functions.
 import { spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { chromium } from 'playwright'
@@ -18,17 +20,23 @@ const load = {
 }
 const flood = Number(process.env.FLOOD ?? 15)
 const withEmbeds = process.env.EMBEDS === '1'
-const mediaRequests = { image: 0, video: 0 }
+const passes = Number(process.env.PASSES ?? (withEmbeds ? 2 : 1))
+const profiles = []
+const mediaRequests = { image: 0, video: 0, card: 0 }
 
 const browser = await chromium.launch({
   channel: process.env.CHROME_CHANNEL,
   args: ['--enable-precise-memory-info'],
 })
 console.log('Browser', browser.version())
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+const page = await browser.newPage({
+  viewport: { width: 1440, height: 900 },
+  serviceWorkers: 'block',
+})
 const cdp = await page.context().newCDPSession(page)
 const browserCDP = await browser.newBrowserCDPSession()
 await cdp.send('Performance.enable')
+await cdp.send('Network.enable')
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
 
@@ -108,7 +116,11 @@ async function addMediaFixtures() {
     const history = await response.json()
     for (const message of history.items) {
       const kind = Math.floor(Date.parse(message.createdAt) / 2000) % 8
-      if (kind > 1 || !Number.isFinite(kind)) continue
+      if (kind > 2 || !Number.isFinite(kind)) continue
+      if (kind === 2) {
+        message.text = `Link preview fixture https://example.invalid/posts/${message.id}`
+        continue
+      }
       const video = kind === 0
       const name = video ? 'fixture.webm' : 'fixture.png'
       message.text = video ? 'Video preview fixture' : 'Image preview fixture'
@@ -124,9 +136,32 @@ async function addMediaFixtures() {
     }
     await route.fulfill({ response, json: history })
   })
+  await page.route('**/conversations/busy/messages/*/link-media', (route) => {
+    const { url } = route.request().postDataJSON()
+    if (!url?.startsWith('https://example.invalid/posts/')) return route.continue()
+    mediaRequests.card++
+    return route.fulfill({
+      json: {
+        url,
+        kind: 'card',
+        provider: 'page',
+        assets: [],
+        card: {
+          site: 'Example fixture',
+          title: 'A local preview without an image',
+          description: 'A metadata preview with generated artwork.',
+        },
+      },
+    })
+  })
 }
 /** Collects frame times and long tasks in the page while `run` executes. */
 async function measure(label, run) {
+  const profiling = process.env.PROFILE && label.includes(process.env.PROFILE)
+  if (profiling) {
+    await cdp.send('Profiler.enable')
+    await cdp.send('Profiler.start')
+  }
   await page.evaluate(() => {
     const w = window
     w.__perf = { frames: [], long: [] }
@@ -147,6 +182,21 @@ async function measure(label, run) {
   await run()
   const elapsed = (Date.now() - started) / 1000
   const after = await metrics()
+  if (profiling) {
+    const { profile } = await cdp.send('Profiler.stop')
+    profiles.push({
+      scenario: label,
+      functions: profile.nodes
+        .filter((node) => node.hitCount && node.callFrame.url)
+        .sort((a, b) => b.hitCount - a.hitCount)
+        .slice(0, 15)
+        .map(({ callFrame, hitCount }) => ({
+          function: callFrame.functionName,
+          samples: hitCount,
+          source: `${callFrame.url}:${callFrame.lineNumber + 1}:${callFrame.columnNumber + 1}`,
+        })),
+    })
+  }
   const sample = await page.evaluate(() => {
     const w = window
     cancelAnimationFrame(w.__perf.raf)
@@ -180,6 +230,9 @@ async function measure(label, run) {
 const results = []
 
 // ---- Sign in and create the busy channel ------------------------------------------------------
+const demoProbe = await page.request.post(`${base}/api/v1/_demo/busy`, { data: { stop: true } })
+if (demoProbe.status() !== 401)
+  throw new Error('Start a demo-mode frontend before running this benchmark')
 await page.goto(base)
 await page.getByRole('button', { name: 'Create an account' }).click()
 const username = `perf${Date.now().toString(36)}`
@@ -195,15 +248,41 @@ const started = await page.request.post(`${base}/api/v1/_demo/busy`, { data: loa
 if (!started.ok()) throw new Error(`Could not seed the busy channel (${started.status()})`)
 console.log('load', await started.json())
 if (withEmbeds) await addMediaFixtures()
-// Seeded conversations are in the bootstrap snapshot.
-await page.reload()
 const conversation = (name) =>
   page.locator('.conversation-link').filter({ has: page.getByText(name, { exact: true }) })
 const busyLink = conversation('busy')
+const firstMessage = page
+  .locator('.timeline-row')
+  .filter({ has: page.locator('.message-row') })
+  .first()
+
+// Authenticated startup with an empty HTTP cache, including the large roster in bootstrap.
+await cdp.send('Network.setCacheDisabled', { cacheDisabled: true })
+let t = Date.now()
+await page.reload({ waitUntil: 'domcontentloaded' })
 await busyLink.waitFor({ timeout: 30_000 })
+await page.getByRole('textbox', { name: 'Message #general' }).waitFor()
+await firstMessage.waitFor()
+await page.waitForFunction(() => performance.getEntriesByName('first-contentful-paint').length)
+const startup = {
+  readyMs: Date.now() - t,
+  ...(await page.evaluate(() => {
+    const scripts = performance
+      .getEntriesByType('resource')
+      .filter((entry) => new URL(entry.name).pathname.endsWith('.js'))
+    return {
+      firstContentfulPaintMs: Math.round(
+        performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? 0,
+      ),
+      scriptRequests: scripts.length,
+      scriptKiB: Math.round(scripts.reduce((sum, entry) => sum + entry.encodedBodySize, 0) / 1024),
+    }
+  })),
+}
+await cdp.send('Network.setCacheDisabled', { cacheDisabled: false })
 
 // ---- Opening the channel -----------------------------------------------------------------------
-let t = Date.now()
+t = Date.now()
 await busyLink.click()
 await page.getByRole('textbox', { name: 'Message #busy' }).waitFor()
 await page.locator('.message-row').first().waitFor()
@@ -215,65 +294,99 @@ await measure(`flood ${load.rate}/s, churn ${load.churn}/s`, () =>
 )
 const heapAfterFlood = (await metrics()).JSHeapUsedSize
 
-// ---- Scrolling back through history -------------------------------------------------------------
-await measure('scroll history', async () => {
+// ---- Revisiting history and releasing its players ------------------------------------------------
+async function scrollHistory(direction) {
+  await page.mouse.move(800, 400)
   for (let i = 0; i < 40; i++) {
-    await page.mouse.move(800, 400)
-    await page.mouse.wheel(0, -3000)
+    await page.mouse.wheel(0, direction * 3000)
     await page.waitForTimeout(120)
   }
-})
+}
+const historySamples = []
+for (let pass = 1; pass <= passes; pass++) {
+  await measure(`history up ${pass}`, () => scrollHistory(-1))
+  await cdp.send('HeapProfiler.collectGarbage')
+  const settled = await metrics()
+  historySamples.push({
+    heapMB: +(settled.JSHeapUsedSize / 1048576).toFixed(1),
+    nodes: settled.Nodes,
+    rendererRSS: await rendererRSS(),
+    players: await page.locator('.timeline-scroll video, .timeline-scroll iframe').count(),
+  })
+  await measure(`history down ${pass}`, () => scrollHistory(1))
+}
 const rows = await page.locator('.message-row').count()
-if (withEmbeds && (!mediaRequests.image || !mediaRequests.video))
-  throw new Error('The scroll workload did not load both media fixtures')
-await cdp.send('HeapProfiler.collectGarbage')
-const scrollSettled = await metrics()
-const scrollRSS = await rendererRSS()
-const mediaNodes = await page.locator('.timeline-scroll video, .timeline-scroll iframe').count()
+if (withEmbeds && Object.values(mediaRequests).some((count) => count === 0))
+  throw new Error('The history workload did not exercise every media fixture')
 
 // ---- Member list -------------------------------------------------------------------------------
-await measure('scroll members', async () => {
-  const box = await page.locator('.member-sidebar').boundingBox()
-  if (!box) return
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-  for (let i = 0; i < 40; i++) {
-    await page.mouse.wheel(0, 4000)
-    await page.waitForTimeout(60)
-  }
-})
-const memberRows = await page
-  .locator('.member-sidebar .member-row, .member-sidebar [role="option"], .member-sidebar li')
-  .count()
+const memberScroller = page.locator('.members-scroll')
+if (!(await memberScroller.isVisible())) await page.locator('.member-toggle').click()
+const box = await memberScroller.boundingBox()
+if (!box) throw new Error('Could not open the member list')
+const memberRows = page.locator('.member-sidebar .member-button')
+await memberRows.first().waitFor()
+const visibleMembers = await memberRows.count()
+if (load.members > visibleMembers)
+  await measure('scroll members', async () => {
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    for (let i = 0; i < 40; i++) {
+      await page.mouse.wheel(0, 4000)
+      await page.waitForTimeout(60)
+    }
+    if (!(await memberScroller.evaluate((element) => element.scrollTop)))
+      throw new Error('The roster did not scroll')
+  })
+const filter = page.locator('.members-filter input, input.members-filter')
+if (await filter.isVisible())
+  await measure('filter members', async () => {
+    await filter.fill('user00000')
+    await memberRows.filter({ hasText: 'User 0' }).waitFor()
+    if ((await memberRows.count()) !== 1)
+      throw new Error('The roster filter did not narrow the list')
+    await filter.clear()
+    await memberRows.nth(1).waitFor()
+  })
 
 // ---- Switching away and back -------------------------------------------------------------------
-await conversation('general').first().click()
-await page.getByRole('textbox', { name: 'Message #general' }).waitFor()
-t = Date.now()
-await busyLink.click()
-await page.getByRole('textbox', { name: 'Message #busy' }).waitFor()
-await page.locator('.message-row').first().waitFor()
-const backMs = Date.now() - t
+const switches = []
+await measure('switch channels', async () => {
+  for (const name of ['general', 'busy', 'general', 'busy', 'general', 'busy']) {
+    const previous = await firstMessage.getAttribute('data-message-id')
+    const start = Date.now()
+    await conversation(name).first().click()
+    await page.getByRole('textbox', { name: `Message #${name}` }).waitFor()
+    await page.waitForFunction((previous) => {
+      const first = document.querySelector('.timeline-row:has(.message-row)')
+      return first && first.getAttribute('data-message-id') !== previous
+    }, previous)
+    switches.push({ name, ms: Date.now() - start })
+  }
+})
 
 // ---- Idle after the flood (memory should settle) ------------------------------------------------
 await page.request.post(`${base}/api/v1/_demo/busy`, { data: { stop: true } })
-await cdp.send('HeapProfiler.collectGarbage').catch(() => {})
 await page.waitForTimeout(1000)
+await cdp.send('HeapProfiler.collectGarbage')
 const settled = await metrics()
 
 console.table(results)
 console.log({
+  startup,
   'open #busy ms': openMs,
-  'switch back ms': backMs,
+  switches,
   'message rows in DOM': rows,
-  'member rows in DOM': memberRows,
+  'member rows in DOM': visibleMembers,
   'heap after flood MB': +(heapAfterFlood / 1048576).toFixed(1),
-  'history heap after GC MB': +(scrollSettled.JSHeapUsedSize / 1048576).toFixed(1),
-  'history DOM nodes': scrollSettled.Nodes,
-  'history renderer RSS MB': scrollRSS,
-  'history active video and iframe nodes': mediaNodes,
+  historySamples,
   ...(withEmbeds ? { 'fixture media requests': mediaRequests } : {}),
   'heap after GC MB': +(settled.JSHeapUsedSize / 1048576).toFixed(1),
   'DOM nodes': settled.Nodes,
   'page errors': errors,
 })
+for (const { scenario, functions } of profiles) {
+  console.log(scenario)
+  console.table(functions)
+}
 await browser.close()
+if (errors.length) process.exitCode = 1

@@ -8,6 +8,15 @@ export type MessageBlock =
   | { kind: 'code'; code: string; lang?: string }
   | { kind: 'quote'; blocks: MessageBlock[] }
 
+/** Ordinary one-line prose can render as text without building formatting components. */
+export function isPlainMessageText(text: string) {
+  // Keep controls, possible links and mentions, fences, block markers and emoji-only lines
+  // on the rich path. A conservative match keeps their behavior in one place.
+  // eslint-disable-next-line no-control-regex -- IRC formatting codes are control characters.
+  if (/[\x00-\x1f:@#`]|^ *(?:>|[-+*] |\d+[.)] )/.test(text)) return false
+  return /(?!\p{Extended_Pictographic}|\p{Emoji_Presentation})[\p{L}\p{N}]/u.test(text)
+}
+
 /**
  * Splits a message body into blocks. Fenced code comes first, so nothing inside it is a quote or
  * a list; then `> ` quotes, whose contents split into code and lists again; then lists. A `>>> `

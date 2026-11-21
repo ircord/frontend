@@ -14,5 +14,6 @@ withDefaults(defineProps<{ embed: EmbedContext; actions?: boolean; error?: unkno
     :expired="embed.expired"
     :offline="embed.offline"
     :actions="actions"
+    :show-artwork="embed.nearby"
   />
 </template>

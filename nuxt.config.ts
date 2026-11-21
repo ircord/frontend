@@ -234,6 +234,11 @@ export default defineNuxtConfig({
     },
   },
   hooks: {
+    'build:manifest'(manifest) {
+      // The artwork engine is only used by visible link cards without images.
+      for (const [source, chunk] of Object.entries(manifest))
+        if (source.includes('/node_modules/satori/')) chunk.prefetch = false
+    },
     'nitro:config'(nitro) {
       const dir = resolve(nitro.buildDir ?? '.nuxt', 'build-info')
       nitro.publicAssets = [...(nitro.publicAssets ?? []), { dir, baseURL: '/build-info' }]

@@ -5,7 +5,6 @@ import { createApp, defineComponent, h, nextTick, ref, vaporInteropPlugin } from
 import { provideMessageScroller } from '../app/composables/chat/useMessageScroller'
 import MessageScrollerViewport from '../app/components/message-scroller/MessageScrollerViewport.vue'
 import MessageScrollerContent from '../app/components/message-scroller/MessageScrollerContent.vue'
-import MessageScrollerItem from '../app/components/message-scroller/MessageScrollerItem.vue'
 import { createHistoryPagination } from '../app/utils/history-pagination'
 import { boundaryMessage, messageBoundary } from '../shared/utils/history-cursor'
 import timelineSource from '../app/components/chat/ChatTimeline.vue?raw'
@@ -93,22 +92,21 @@ export async function verifyHistoryScroll() {
             h(MessageScrollerContent, {}, () => [
               ...(loading.value === 'older'
                 ? [
-                    h(MessageScrollerItem, {
+                    h('div', {
                       key: 'loading',
-                      messageId: 'loading',
                       style: { height: '36px' },
                     }),
                   ]
                 : []),
               ...page.value.items.map((item) =>
                 h(
-                  MessageScrollerItem,
+                  'div',
                   {
                     key: item.id,
-                    messageId: item.id,
+                    'data-message-id': item.id,
                     style: { height: `${28 + (Number(item.id.slice(-4)) % 3) * 4}px` },
                   },
-                  () => item.text,
+                  item.text,
                 ),
               ),
               ...(loading.value === 'newer'
@@ -280,6 +278,15 @@ export async function verifyHistoryScroll() {
     check(
       viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1,
       'Following did not reach the new message',
+    )
+    const target = page.value.items[100].id
+    check(engine.context.scrollToMessage(target, { align: 'center' }), 'Could not jump to a native row')
+    await settle()
+    const item = viewport.querySelector(`[data-message-id="${target}"]`).getBoundingClientRect()
+    const frame = viewport.getBoundingClientRect()
+    check(
+      Math.abs(item.top + item.height / 2 - (frame.top + frame.height / 2)) <= 1,
+      'Jump did not center the native row',
     )
     return {
       retained: retained.length,

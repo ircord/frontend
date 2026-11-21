@@ -196,6 +196,18 @@ try {
       (el) => el.querySelectorAll('button').length === 1,
     ),
   )
+  const reactionRow = page.locator('.message-row').first()
+  await reactionRow.hover()
+  await reactionRow.getByRole('button', { name: 'Add reaction', exact: true }).click()
+  const reaction = page.getByRole('dialog', { name: 'Choose a reaction', exact: true })
+  await reaction.waitFor()
+  await page.waitForFunction(() => history.state.ircordViews?.dialogs === 1)
+  await page.evaluate(() => history.back())
+  await reaction.waitFor({ state: 'hidden' })
+  await page.evaluate(() => history.forward())
+  await reaction.waitFor()
+  await page.keyboard.press('Escape')
+  await reaction.waitFor({ state: 'hidden' })
   const draft = 'Keep this draft while browsing workspace pages'
   await composer.fill(draft)
   const scripts = () =>

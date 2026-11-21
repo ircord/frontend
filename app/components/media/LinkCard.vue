@@ -10,8 +10,9 @@ const props = withDefaults(
     expired?: boolean
     offline?: boolean
     actions?: boolean
+    showArtwork?: boolean
   }>(),
-  { actions: true },
+  { actions: true, showArtwork: true },
 )
 const { t } = useI18n()
 const href = computed(() => publicMediaURL(props.url))
@@ -54,7 +55,7 @@ const status = computed(() => {
         class="link-card-thumb grid size-24 shrink-0 grid-cols-1 grid-rows-1 place-items-center overflow-hidden rounded-lg bg-card text-muted-foreground [&>img]:size-full [&>img]:object-cover"
       >
         <NuxtImg
-          v-if="image && !imageFailed && !expired && !offline"
+          v-if="showArtwork && image && !imageFailed && !expired && !offline"
           :src="image"
           alt=""
           width="96"
@@ -65,7 +66,7 @@ const status = computed(() => {
           @error="imageFailed = true"
         />
         <SatoriLinkGraphic
-          v-else
+          v-else-if="showArtwork"
           :url="url"
           :site="card.site"
           :title="card.title || card.site"
@@ -79,7 +80,7 @@ const status = computed(() => {
           class="link-card-site flex min-w-0 items-center gap-1.5 pe-18 truncate text-[length:var(--ui-caption)] leading-[18px] text-muted-foreground"
         >
           <NuxtImg
-            v-if="icon && !iconFailed"
+            v-if="showArtwork && icon && !iconFailed"
             :src="icon"
             alt=""
             width="16"

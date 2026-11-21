@@ -32,19 +32,19 @@ const names = computed<Record<string, string>>(() => ({
 type Row =
   | { kind: 'group'; key: string; label: string; count: number }
   | { kind: 'member'; key: string; member: Member; prefix: string }
+type PersonRow = Extract<Row, { kind: 'member' }>
+type MemberGroup = { key: string; label: string; people: PersonRow[] }
 /**
  * Flat rows (group headings and people) for the virtual list, grouped by the highest channel
  * prefix from the network's PREFIX, then presence. Large channels only render visible rows.
  */
-function group(): Row[] {
+function group(): MemberGroup[] {
   // One pass over the roster: busy channels have thousands of people and this reruns on
   // presence changes, so no per-group filtering and the PREFIX is parsed once.
   const { prefixes } = parsePrefix(network.value?.isupport)
   const modes = chat.active?.memberModes ?? {}
-  const q = filter.value.trim().toLowerCase()
-  const buckets = new Map<string, { member: Member; prefix: string; name: string }[]>()
+  const buckets = new Map<string, (PersonRow & { name: string })[]>()
   for (const member of members.value) {
-    if (q && !`${member.nick} ${member.displayName}`.toLowerCase().includes(q)) continue
     const own = modes[member.id] ?? ''
     let prefix = ''
     if (own)
@@ -56,7 +56,13 @@ function group(): Row[] {
     const key = prefix || member.status
     let list = buckets.get(key)
     if (!list) buckets.set(key, (list = []))
-    list.push({ member, prefix, name: member.displayName || member.nick })
+    list.push({
+      kind: 'member',
+      key: member.id,
+      member,
+      prefix,
+      name: member.displayName || member.nick,
+    })
   }
   const groups = [
     ...[...prefixes].map(
@@ -67,30 +73,43 @@ function group(): Row[] {
     ['offline', t('workspaceUi.members.offline')] as const,
   ]
   const collator = sharedCollator(locale.value)
-  const result: Row[] = []
+  const result: MemberGroup[] = []
   for (const [key, label] of groups) {
     const list = buckets.get(key)
     if (!list?.length) continue
     list.sort((a, b) => collator.compare(a.name, b.name))
-    result.push({ kind: 'group', key: `group:${key}`, label, count: list.length })
-    for (const x of list)
-      result.push({ kind: 'member', key: x.member.id, member: x.member, prefix: x.prefix })
+    result.push({ key, label, people: list })
   }
   return result
 }
 /**
  * Regrouping thousands of people dozens of times a second (presence changes, joins and parts in
  * busy channels) adds nothing a person can see, so roster changes regroup at most every 250ms.
- * Filtering and switching channels regroup immediately.
+ * Channel changes regroup immediately. Filtering uses the already sorted roster.
  */
-const rows = shallowRef<Row[]>([])
+const roster = shallowRef<MemberGroup[]>([])
+const rows = computed<Row[]>(() => {
+  const query = filter.value.trim().toLowerCase()
+  const result: Row[] = []
+  for (const { key, label, people } of roster.value) {
+    const matches = query
+      ? people.filter(({ member }) =>
+          `${member.nick} ${member.displayName}`.toLowerCase().includes(query),
+        )
+      : people
+    if (!matches.length) continue
+    result.push({ kind: 'group', key: `group:${key}`, label, count: matches.length })
+    for (const person of matches) result.push(person)
+  }
+  return result
+})
 let regrouped = 0
 let regroupTimer: ReturnType<typeof setTimeout> | undefined
 function regroup() {
   clearTimeout(regroupTimer)
   regroupTimer = undefined
   regrouped = performance.now()
-  rows.value = group()
+  roster.value = group()
 }
 watch(
   () => [members.value, chat.active?.memberModes, network.value?.isupport],
@@ -101,7 +120,7 @@ watch(
     else regroupTimer = setTimeout(regroup, wait)
   },
 )
-watch([filter, () => chat.activeId, locale], regroup, { immediate: true })
+watch([() => chat.activeId, locale], regroup, { immediate: true })
 onBeforeUnmount(() => clearTimeout(regroupTimer))
 const virtualizer = useVirtualizer(
   computed(() => ({

@@ -42,6 +42,9 @@ const appearance = useAppearanceStore()
 const notifications = useNotificationStore()
 const messageActions = useMessageActions()
 const menus = useMenus(messageActions)
+const touchMenu = useMediaQuery('(hover: none)')
+const reactionId = ref('')
+useViewHistory('timeline-reactions', reactionId)
 // WKWebView can leave old selection paint on rows as they scroll back into view.
 const skipOffscreenRows = usePlatform().titleBar !== 'macos'
 /**
@@ -736,10 +739,12 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
         role="log"
         aria-live="off"
       >
-        <MessageScrollerItem
+        <div
           v-for="(row, index) in rows"
           :key="row.key"
-          :message-id="row.key"
+          :data-message-id="row.key"
+          data-slot="message-scroller-item"
+          data-scroll-anchor="false"
           :data-index="index"
           class="timeline-row flow-root"
           :class="{
@@ -846,12 +851,15 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
               :message="row.message"
               :menus="menus"
               :message-actions="messageActions"
+              :touch-menu="touchMenu"
+              :reaction-id="reactionId"
               :grouped="grouped(index)"
               :highlighted="row.message.id === highlightId"
               :attract="attractOf(index)"
               :attract-started-at="attract?.startedAt"
               @reply="emit('reply', $event)"
               @profile="emit('profile', $event)"
+              @reaction="reactionId = $event"
             />
             <EventRow
               v-else-if="row.kind === 'events'"
@@ -859,7 +867,7 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
               @profile="emit('profile', $event)"
             />
           </template>
-        </MessageScrollerItem>
+        </div>
         <div
           v-if="chat.loadingNewer || newerFailed"
           class="history-load flex items-center justify-center p-4 text-muted-foreground text-[12px]"
