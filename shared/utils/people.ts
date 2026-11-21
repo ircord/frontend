@@ -45,6 +45,15 @@ export function networkPeople<T extends NamedPerson>(
   return otherPeople(members).filter((m) => ids.has(m.id) || m.id.startsWith(`${networkId}:`))
 }
 
+/** People who aren't in a channel yet, so inviting them there means something. */
+export function peopleOutside<T extends NamedPerson>(
+  people: readonly T[],
+  channelMemberIds: readonly string[] = [],
+) {
+  const here = new Set(channelMemberIds)
+  return people.filter((person) => !here.has(person.id))
+}
+
 /** Rank locally available nick targets without treating a services account as a nickname. */
 export function matchingPeople<T extends NamedPerson>(
   people: readonly T[],

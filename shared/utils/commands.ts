@@ -22,7 +22,8 @@ export interface CommandArgumentSpec {
   placeholder?: string
   maxBytes?: number
   choices?: readonly { value: string; label: string }[]
-  autocomplete?: 'nickname' | 'channel' | 'emoji' | 'ignored'
+  /** `invitee` suggests people on the network who aren't in the target channel yet. */
+  autocomplete?: 'nickname' | 'invitee' | 'channel' | 'emoji' | 'ignored'
   token?: boolean
 }
 
@@ -159,7 +160,10 @@ export const commands: CommandSpec[] = [
     name: 'invite',
     args: '<nick> [#channel]',
     description: 'Invite someone to a channel',
-    fields: [nick(), field('channel', 'channel', { token: true })],
+    fields: [
+      field('nickname', 'nickname', { required: true, token: true, autocomplete: 'invitee' }),
+      field('channel', 'channel', { token: true }),
+    ],
   },
   {
     name: 'mode',

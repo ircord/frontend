@@ -10,6 +10,7 @@ import { conversationPath } from '../../../shared/utils/workspace-routes'
 import type { MenuEntry } from '../shared/useContextMenu'
 import { useMessageActions } from '../chat/useMessageActions'
 import { errorText } from '../../utils/api'
+import { networkPeople, peopleOutside } from '../../../shared/utils/people'
 
 /** Right-click menus for people, conversations, networks and messages. */
 export function useMenus() {
@@ -429,6 +430,15 @@ export function useMenus() {
                       title: t('workspaceUi.menus.inviteTitle', { channel: channelName(c) }),
                       label: t('workspaceUi.menus.nickname'),
                       confirm: t('workspaceUi.menus.invite'),
+                      people: peopleOutside(
+                        networkPeople(
+                          chat.data?.members ?? [],
+                          chat.data?.conversations ?? [],
+                          c.networkId,
+                        ),
+                        c.memberIds,
+                      ),
+                      caseMapping: chat.networkOf(c)?.isupport?.CASEMAPPING,
                     })
                     if (nick) chat.raw(`INVITE ${nick} ${channelName(c)}`, c.networkId)
                   },

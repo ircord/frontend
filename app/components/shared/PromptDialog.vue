@@ -1,16 +1,34 @@
 <script setup vapor lang="ts">
+import { matchingPeople } from '../../../shared/utils/people'
+
 const { t: $t } = useI18n()
 const { current, settle } = usePrompt()
+const nameStyle = useNameStyle()
 const value = ref('')
 const input = ref<HTMLInputElement | null>(null)
+const picker = ref<{ focus: () => void } | null>(null)
 watch(
   current,
   (request) => {
     value.value = request?.value ?? ''
-    if (request?.kind === 'prompt') nextTick(() => input.value?.select())
+    if (request?.kind === 'prompt')
+      nextTick(() => (request.people ? picker.value?.focus() : input.value?.select()))
   },
   { immediate: true },
 )
+const people = computed(() =>
+  current.value?.people
+    ? matchingPeople(current.value.people, value.value, current.value.caseMapping, 8)
+    : [],
+)
+const personOptions = computed(() =>
+  people.value.map((person) => ({ key: person.id, label: person.nick })),
+)
+const person = (key: string) => people.value.find((item) => item.id === key)
+function choosePerson(key: string) {
+  const chosen = person(key)
+  if (chosen) value.value = chosen.nick
+}
 const blocked = computed(
   () =>
     (!!current.value?.requireText && value.value !== current.value.requireText) ||
@@ -54,7 +72,41 @@ function submit() {
         "
       >
         <template #default="control">
+          <PeopleCombobox
+            v-if="current.people"
+            ref="picker"
+            v-model="value"
+            :options="personOptions"
+            :label="current.label ?? ''"
+            :placeholder="current.placeholder"
+            :described-by="control['aria-describedby']"
+            auto-highlight
+            @select="choosePerson"
+          >
+            <template #option="{ option }">
+              <span
+                v-if="person(option.key)"
+                class="flex items-center gap-2.5 [&_.presence]:border-field"
+                :data-person="person(option.key)!.nick"
+              >
+                <UserAvatar
+                  :member="person(option.key)!"
+                  size="tiny"
+                  presence
+                />
+                <span
+                  class="min-w-0 flex-1 truncate text-foreground"
+                  :style="nameStyle(person(option.key)!)"
+                  >{{ person(option.key)!.displayName || person(option.key)!.nick }}</span
+                >
+                <span class="shrink-0 text-[length:var(--ui-caption)] text-faint"
+                  >@{{ person(option.key)!.nick }}</span
+                >
+              </span>
+            </template>
+          </PeopleCombobox>
           <UiInput
+            v-else
             v-bind="control"
             :ref="(el) => (input = (el as { $el: HTMLInputElement } | null)?.$el ?? null)"
             v-model="value"

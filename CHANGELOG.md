@@ -14,6 +14,8 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 - The network tabs bar is shorter on desktop, so the tabs sit closer to the conversation.
 - Fetch chat history earlier when you scroll toward either end of the loaded messages.
+- Commands that take a nickname suggest people with their picture, status and display name, like the @ list in the message box.
+- `/invite` and the channel menu's Invite suggest people who aren't in the channel yet.
 
 ### Fixed
 

@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createNickIndex, directPartnerOf, foldPersonIdentity } from './people'
+import {
+  createNickIndex,
+  directPartnerOf,
+  foldPersonIdentity,
+  networkPeople,
+  peopleOutside,
+} from './people'
 
 const people = new Map([
   ['net:1', { id: 'net:1', nick: 'PeterPowers' }],
@@ -53,4 +59,29 @@ test('the nick index folds each person once per casemapping', () => {
   person.nick = 'Other'
   assert.equal(index.fold(person, 'rfc1459'), 'jules')
   assert.equal(index.fold({ ...person }, 'rfc1459'), 'other')
+})
+
+test('invite candidates are people on the network who are not in the channel yet', () => {
+  const members = [
+    { id: 'you', nick: 'me' },
+    { id: 'a:1', nick: 'jules' },
+    { id: 'a:2', nick: 'ellis' },
+    { id: 'a:3', nick: 'noah' },
+    { id: 'b:1', nick: 'elsewhere' },
+  ]
+  const conversations = [
+    { networkId: 'a', memberIds: ['you', 'a:1', 'a:3'] },
+    { networkId: 'a', memberIds: ['you', 'a:2'] },
+    { networkId: 'b', memberIds: ['b:1'] },
+  ]
+  const people = networkPeople(members, conversations, 'a')
+  assert.deepEqual(
+    peopleOutside(people, conversations[0]!.memberIds).map((p) => p.nick),
+    ['ellis'],
+  )
+  // A channel you haven't joined has no known member list, so nobody is left out.
+  assert.deepEqual(
+    peopleOutside(people).map((p) => p.nick),
+    ['jules', 'ellis', 'noah'],
+  )
 })

@@ -3,7 +3,8 @@ import { useQuery } from '@pinia/colada'
 import type { CommandArgumentSpec } from '../../../shared/utils/commands'
 import type { EmojiItem } from '../../../shared/types/media'
 import { emojiText, rankEmoji, searchEmoji } from '../../../shared/utils/media'
-import { matchingPeople } from '../../../shared/utils/people'
+import type { Member } from '../../../shared/types/chat'
+import { matchingPeople, networkPeople, peopleOutside } from '../../../shared/utils/people'
 import { channelListQuery } from '../../queries/chat'
 
 const props = defineProps<{
@@ -24,6 +25,7 @@ const chat = useChatStore()
 const media = useMediaStore()
 const library = useLibraryStore()
 const notifications = useNotificationStore()
+const nameStyle = useNameStyle()
 const { t } = useI18n()
 const values = reactive<Record<string, string>>({ ...props.initial })
 const initialChanged = (except: string) =>
@@ -55,7 +57,29 @@ const directory = useQuery(() => ({
   ...channelListQuery({ networkId: chat.networkId, q: directoryQuery.value }),
   enabled: provider(field.value) === 'channel' && !!directoryQuery.value,
 }))
-type Suggestion = { value: string; label: string; emoji?: EmojiItem; detail?: string }
+type Suggestion = {
+  value: string
+  label: string
+  emoji?: EmojiItem
+  detail?: string
+  member?: Member
+}
+const personSuggestions = (people: readonly Member[], q: string) =>
+  matchingPeople(people, q, chat.network?.isupport?.CASEMAPPING)
+    .slice(0, 12)
+    .map((member) => ({ value: member.nick, label: member.nick, member }))
+/** The channel an invite goes to: the one typed in, or the one you're in. */
+const inviteChannel = computed(() => {
+  const typed = (values.channel ?? '').trim().replace(/^#/, '').toLowerCase()
+  if (!typed) return chat.active?.kind === 'channel' && !chat.active.party ? chat.active : undefined
+  return chat.data?.conversations.find(
+    (c) =>
+      c.networkId === chat.networkId &&
+      c.kind === 'channel' &&
+      !c.party &&
+      c.name.replace(/^#/, '').toLowerCase() === typed,
+  )
+})
 const suggestions = computed<Suggestion[]>(() => {
   if (!searching.value || !field.value) return []
   const q = query.value
@@ -73,15 +97,20 @@ const suggestions = computed<Suggestion[]>(() => {
           emoji: item,
         }))
     case 'nickname':
-      return matchingPeople(
+      return personSuggestions(
         (chat.active?.memberIds ?? [])
           .map((id) => chat.member(id))
           .filter((m): m is NonNullable<typeof m> => !!m && m.id !== 'you'),
         q,
-        chat.network?.isupport?.CASEMAPPING,
       )
-        .slice(0, 12)
-        .map((member) => ({ value: member.nick, label: member.nick, detail: member.displayName }))
+    case 'invitee':
+      return personSuggestions(
+        peopleOutside(
+          networkPeople(chat.data?.members ?? [], chat.data?.conversations ?? [], chat.networkId),
+          inviteChannel.value?.memberIds,
+        ),
+        q,
+      )
     case 'ignored':
       return notifications.settings.ignore
         .filter((value) => value.toLowerCase().includes(q.toLowerCase()))
@@ -212,26 +241,45 @@ defineExpose({ focus, suggestionsOpen })
             :key="item.value"
             role="option"
             :aria-selected="index === active"
-            class="flex min-h-9 cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-[length:var(--ui-small)] hover:bg-accent aria-selected:bg-accent"
+            class="flex min-h-9 cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-[length:var(--ui-small)] hover:bg-accent aria-selected:bg-accent [&_.presence]:border-card [&[aria-selected=true]_.presence]:border-accent"
+            :data-person="item.member ? item.member.nick : undefined"
             @pointerdown.prevent
             @mousemove="active = index"
             @click="choose(item)"
           >
-            <span
-              v-if="item.emoji"
-              class="flex w-6 shrink-0 justify-center text-xl"
-              ><CustomEmoji
-                v-if="item.emoji.url && !item.emoji.unicode"
-                :item="item.emoji"
-                icon
-              /><template v-else>{{ item.value }}</template></span
-            >
-            <span>{{ item.label }}</span
-            ><span
-              v-if="item.detail && item.detail !== item.label"
-              class="truncate text-muted-foreground"
-              >{{ item.detail }}</span
-            >
+            <!-- People look the same as in the message box's @ list. -->
+            <template v-if="item.member">
+              <UserAvatar
+                :member="item.member"
+                size="tiny"
+                presence
+              />
+              <span
+                class="min-w-0 flex-1 truncate text-foreground"
+                :style="nameStyle(item.member)"
+                >{{ item.member.displayName || item.member.nick }}</span
+              >
+              <span class="shrink-0 text-[length:var(--ui-caption)] text-faint"
+                >@{{ item.member.nick }}</span
+              >
+            </template>
+            <template v-else>
+              <span
+                v-if="item.emoji"
+                class="flex w-6 shrink-0 justify-center text-xl"
+                ><CustomEmoji
+                  v-if="item.emoji.url && !item.emoji.unicode"
+                  :item="item.emoji"
+                  icon
+                /><template v-else>{{ item.value }}</template></span
+              >
+              <span>{{ item.label }}</span
+              ><span
+                v-if="item.detail && item.detail !== item.label"
+                class="truncate text-muted-foreground"
+                >{{ item.detail }}</span
+              >
+            </template>
           </li>
         </ul>
       </div>

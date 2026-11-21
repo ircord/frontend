@@ -1,3 +1,5 @@
+import type { Member } from '../../../shared/types/chat'
+
 interface PromptRequest {
   kind: 'prompt' | 'confirm'
   title: string
@@ -13,6 +15,10 @@ interface PromptRequest {
   allowEmpty?: boolean
   /** Asks for the account's current password; the answer is returned untrimmed. */
   password?: boolean
+  /** Asks for a nickname: suggests these people as you type, like the message box's @ list. */
+  people?: readonly Member[]
+  /** The network's casemapping, for matching `people`. */
+  caseMapping?: string
   resolve: (value: string | null) => void
 }
 const current = shallowRef<PromptRequest | null>(null)
