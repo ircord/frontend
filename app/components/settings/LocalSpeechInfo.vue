@@ -14,8 +14,10 @@ const headingId = useId()
 </script>
 <template>
   <UiPopover v-model:open="open">
-    <UiPopoverTrigger as-child>
+    <UiPopoverTrigger v-slot="{ bind, setTrigger }">
       <button
+        :ref="setTrigger"
+        v-bind="bind"
         type="button"
         class="local-speech-info inline-flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent data-[state=open]:text-foreground [@media(pointer:coarse)]:size-11"
         :aria-label="t('readAloud.local.info.title')"

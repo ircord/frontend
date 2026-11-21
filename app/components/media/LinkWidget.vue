@@ -197,7 +197,7 @@ onBeforeUnmount(() => clearTimeout(retryTimer))
       :aria-label="t('mediaUi.widget.loadEmbedNamed', { title })"
       @click="loadEmbed"
     >
-      <NuxtImg
+      <img
         v-if="poster && !posterFailed"
         :src="poster"
         alt=""
@@ -223,7 +223,7 @@ onBeforeUnmount(() => clearTimeout(retryTimer))
         role="status"
         aria-busy="true"
       >
-        <NuxtImg
+        <img
           v-if="poster && !posterFailed"
           :src="poster"
           alt=""

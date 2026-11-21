@@ -51,7 +51,7 @@ function choose(value: unknown) {
       "
       :title="avatar.id === suggested ? $t('mediaUi.avatars.suggestedTitle') : undefined"
     >
-      <NuxtImg
+      <img
         class="size-full rounded-full object-cover"
         :src="DEFAULT_AVATAR_PATH + avatar.file"
         alt=""

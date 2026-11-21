@@ -1,7 +1,4 @@
-<!-- Not Vapor: Reka's `as-child` trigger merges its props into a VNode slot. -->
-<script setup lang="ts">
-import { DropdownMenuCheckboxItem } from 'reka-ui'
-import { dropdownMenuItemVariants } from '../ui/dropdown-menu'
+<script setup vapor lang="ts">
 import type { MenuItem } from '../../composables/shared/useContextMenu'
 const { t: $t } = useI18n()
 const { state, close, pressedOutside } = useContextMenu()
@@ -77,12 +74,12 @@ onBeforeUnmount(() => {
   <MenuSheet v-if="phone && state.open" />
   <UiDropdownMenu
     :open="state.open && !phone"
-    :modal="false"
     @update:open="openChange"
   >
     <Teleport to="body">
-      <UiDropdownMenuTrigger as-child>
+      <UiDropdownMenuTrigger v-slot="{ setTrigger }">
         <span
+          :ref="setTrigger"
           class="context-menu-anchor pointer-events-none fixed size-0"
           :style="anchor"
           aria-hidden="true"
@@ -101,7 +98,7 @@ onBeforeUnmount(() => {
       @pointer-down-outside="
         (event) => {
           outside = true
-          pressedOutside(event.detail.originalEvent.target)
+          pressedOutside(event.detail.originalEvent?.target ?? null)
         }
       "
       @focus-outside="outside = true"
@@ -175,11 +172,10 @@ onBeforeUnmount(() => {
                 class="context-separator"
               />
               <!-- Choices (a notification level) expose their checked state. -->
-              <DropdownMenuCheckboxItem
+              <UiDropdownMenuItem
                 v-else-if="child.checked !== undefined"
-                :model-value="child.checked"
+                :checked="child.checked"
                 :disabled="child.disabled"
-                :class="dropdownMenuItemVariants({ variant: 'default' })"
                 @select="run(child, $event)"
               >
                 <AppIcon
@@ -194,7 +190,7 @@ onBeforeUnmount(() => {
                   name="check"
                   :size="14"
                 />
-              </DropdownMenuCheckboxItem>
+              </UiDropdownMenuItem>
               <UiDropdownMenuItem
                 v-else
                 :variant="child.danger ? 'destructive' : 'default'"
@@ -224,11 +220,10 @@ onBeforeUnmount(() => {
             </template>
           </UiDropdownMenuSubContent>
         </UiDropdownMenuSub>
-        <DropdownMenuCheckboxItem
+        <UiDropdownMenuItem
           v-else-if="item.checked !== undefined"
-          :model-value="item.checked"
+          :checked="item.checked"
           :disabled="item.disabled"
-          :class="dropdownMenuItemVariants({ variant: 'default' })"
           :title="item.title ?? item.hint"
           @select="run(item, $event)"
         >
@@ -244,7 +239,7 @@ onBeforeUnmount(() => {
             name="check"
             :size="14"
           />
-        </DropdownMenuCheckboxItem>
+        </UiDropdownMenuItem>
         <UiDropdownMenuItem
           v-else
           :variant="item.danger ? 'destructive' : 'default'"

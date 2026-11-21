@@ -1,5 +1,4 @@
-<!-- Not Vapor: Reka's `as-child` trigger merges its props into a VNode slot. -->
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import type { InstanceEmote } from '../../../shared/types/media'
 
 /** The actions for one emote in Settings → Emotes. */
@@ -8,9 +7,11 @@ const emit = defineEmits<{ rename: []; aliases: []; toggle: []; remove: [] }>()
 const { t } = useI18n()
 </script>
 <template>
-  <UiDropdownMenu :modal="false">
-    <UiDropdownMenuTrigger as-child>
+  <UiDropdownMenu>
+    <UiDropdownMenuTrigger v-slot="{ bind, setTrigger }">
       <UiButton
+        :ref="setTrigger"
+        v-bind="bind"
         variant="ghost"
         size="icon-sm"
         class="emote-actions text-muted-foreground"

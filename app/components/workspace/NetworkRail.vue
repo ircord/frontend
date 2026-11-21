@@ -101,7 +101,7 @@ function navigate(event: KeyboardEvent) {
         class="relative -ml-1.5 size-5 shrink-0"
         aria-hidden="true"
       >
-        <NuxtImg
+        <img
           v-if="preferences.preferences.networkIcons[network.id]"
           :src="preferences.preferences.networkIcons[network.id]"
           alt=""

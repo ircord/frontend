@@ -1,14 +1,4 @@
-<!-- Not Vapor: Reka's dialog parts merge props into VNode slots. -->
-<script setup lang="ts">
-import {
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-} from 'reka-ui'
-
+<script setup vapor lang="ts">
 /**
  * A sheet from the bottom of a phone screen, for menus. Drag it down, tap outside, press Escape or
  * Back to close it: it slides away, then emits `close`. `back` shows a back arrow before the title
@@ -28,25 +18,23 @@ const emit = defineEmits<{ close: []; back: [] }>()
 const unregister = useDialogStack().register(() => emit('close'))
 onBeforeUnmount(unregister)
 
-const content = ref<{ $el: HTMLElement } | null>(null)
-const sheet = computed(() => content.value?.$el ?? null)
+const sheet = ref<HTMLElement | null>(null)
 const scroller = ref<HTMLElement | null>(null)
+const titleId = useId()
+const descriptionId = useId()
 const leaving = ref(false)
+let exitTimer: ReturnType<typeof setTimeout> | undefined
 /** Slides the sheet away, then asks to be closed. */
 function dismiss() {
   if (leaving.value) return
   leaving.value = true
   if (sheet.value) sheet.value.style.transform = ''
   const reduced = document.documentElement.dataset.motion === 'reduced'
-  setTimeout(() => emit('close'), reduced ? 0 : 180)
+  exitTimer = setTimeout(() => emit('close'), reduced ? 0 : 180)
 }
-function openChange(open: boolean) {
-  if (!open) dismiss()
-}
-function focusSheet(event: Event) {
-  event.preventDefault()
-  sheet.value?.focus({ preventScroll: true })
-}
+useFocusBoundary(sheet, true, { modal: true, escape: dismiss })
+watch(sheet, (element) => element?.focus({ preventScroll: true }), { flush: 'post' })
+onBeforeUnmount(() => clearTimeout(exitTimer))
 defineExpose({ scrollToTop: () => scroller.value?.scrollTo({ top: 0 }) })
 
 // Dragging down from the top of the list moves the sheet; far enough or fast enough closes it.
@@ -90,64 +78,68 @@ useEventListener(sheet, 'touchend', touchEnd, { passive: true })
 useEventListener(sheet, 'touchcancel', touchEnd, { passive: true })
 </script>
 <template>
-  <DialogRoot
-    :open="true"
-    @update:open="openChange"
-  >
-    <DialogPortal>
-      <DialogOverlay
-        class="menu-sheet-overlay fixed inset-0 z-[70] bg-[rgb(5_5_10_/_55%)]"
-        :data-leaving="leaving || undefined"
+  <Teleport to="body">
+    <div
+      class="menu-sheet-overlay fixed inset-0 z-[70] bg-[rgb(5_5_10_/_55%)]"
+      :data-leaving="leaving || undefined"
+      aria-hidden="true"
+      @click.self="dismiss"
+    />
+    <section
+      ref="sheet"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      :aria-labelledby="titleId"
+      :aria-describedby="description ? descriptionId : undefined"
+      class="menu-sheet fixed inset-x-0 bottom-0 z-[70] flex max-h-[85dvh] flex-col rounded-t-2xl bg-popover text-popover-foreground shadow-[0_-8px_32px_rgb(0_0_0_/_35%),inset_0_1px_0_color-mix(in_srgb,var(--text)_6%,transparent)] outline-none"
+      :data-leaving="leaving || undefined"
+      @contextmenu.prevent.stop
+    >
+      <span
+        class="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-foreground/25"
+        aria-hidden="true"
       />
-      <DialogContent
-        ref="content"
-        class="menu-sheet fixed inset-x-0 bottom-0 z-[70] flex max-h-[85dvh] flex-col rounded-t-2xl bg-popover text-popover-foreground shadow-[0_-8px_32px_rgb(0_0_0_/_35%),inset_0_1px_0_color-mix(in_srgb,var(--text)_6%,transparent)] outline-none"
-        :data-leaving="leaving || undefined"
-        @open-auto-focus="focusSheet"
-        @close-auto-focus.prevent
-        @contextmenu.prevent.stop
-      >
-        <span
-          class="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-foreground/25"
-          aria-hidden="true"
-        />
-        <header class="flex min-h-11 shrink-0 items-center gap-2.5 px-4 pb-2">
-          <button
-            v-if="back"
-            type="button"
-            class="-ml-2 -mr-1.5 grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground active:bg-foreground/8"
-            :aria-label="back"
-            @click="emit('back')"
-          >
-            <AppIcon
-              name="back"
-              :size="20"
-            />
-          </button>
-          <slot name="leading" />
-          <div class="min-w-0 flex-1">
-            <DialogTitle
-              class="truncate text-[length:calc(16px_*_var(--interface-scale,1))] font-[650]"
-              :class="{ 'sr-only': props.hideTitle }"
-              >{{ title }}</DialogTitle
-            >
-            <DialogDescription
-              v-if="description"
-              class="truncate text-[length:var(--ui-small)] text-muted-foreground"
-              >{{ description }}</DialogDescription
-            >
-          </div>
-        </header>
-        <!-- Cards keep their full height; a menu taller than the sheet scrolls. -->
-        <div
-          ref="scroller"
-          class="flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain px-3 pb-[calc(12px_+_env(safe-area-inset-bottom))] [&>*]:shrink-0 [&>.sheet-card]:overflow-hidden [&>.sheet-card]:rounded-xl [&>.sheet-card]:bg-foreground/5"
+      <header class="flex min-h-11 shrink-0 items-center gap-2.5 px-4 pb-2">
+        <button
+          v-if="back"
+          type="button"
+          class="-ml-2 -mr-1.5 grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground active:bg-foreground/8"
+          :aria-label="back"
+          @click="emit('back')"
         >
-          <slot />
+          <AppIcon
+            name="back"
+            :size="20"
+          />
+        </button>
+        <slot name="leading" />
+        <div class="min-w-0 flex-1">
+          <h2
+            :id="titleId"
+            class="truncate text-[length:calc(16px_*_var(--interface-scale,1))] font-[650]"
+            :class="{ 'sr-only': props.hideTitle }"
+          >
+            {{ title }}
+          </h2>
+          <p
+            v-if="description"
+            :id="descriptionId"
+            class="truncate text-[length:var(--ui-small)] text-muted-foreground"
+          >
+            {{ description }}
+          </p>
         </div>
-      </DialogContent>
-    </DialogPortal>
-  </DialogRoot>
+      </header>
+      <!-- Cards keep their full height; a menu taller than the sheet scrolls. -->
+      <div
+        ref="scroller"
+        class="flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain px-3 pb-[calc(12px_+_env(safe-area-inset-bottom))] [&>*]:shrink-0 [&>.sheet-card]:overflow-hidden [&>.sheet-card]:rounded-xl [&>.sheet-card]:bg-foreground/5"
+      >
+        <slot />
+      </div>
+    </section>
+  </Teleport>
 </template>
 <style>
 .menu-sheet {

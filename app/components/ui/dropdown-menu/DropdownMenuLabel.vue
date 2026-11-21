@@ -1,28 +1,18 @@
-<script setup lang="ts">
-import { cn } from '../../../utils/cn'
-import type { DropdownMenuLabelProps } from 'reka-ui'
+<script setup vapor lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { reactiveOmit } from '@vueuse/core'
-import { DropdownMenuLabel, useForwardProps } from 'reka-ui'
-
-const props = defineProps<DropdownMenuLabelProps & { class?: HTMLAttributes['class'] }>()
-
-const delegatedProps = reactiveOmit(props, 'class')
-
-const forwardedProps = useForwardProps(delegatedProps)
+import { cn } from '../../../utils/cn'
+const props = defineProps<{ class?: HTMLAttributes['class'] }>()
 </script>
-
 <template>
-  <DropdownMenuLabel
+  <div
     data-slot="dropdown-menu-label"
-    v-bind="forwardedProps"
     :class="
       cn(
-        'overflow-hidden text-ellipsis whitespace-nowrap px-2 pt-1 pb-1.5 text-[length:var(--ui-caption)] font-[650] text-faint',
+        'px-2.5 py-1.5 text-[length:var(--ui-caption)] font-semibold text-muted-foreground',
         props.class,
       )
     "
   >
     <slot />
-  </DropdownMenuLabel>
+  </div>
 </template>

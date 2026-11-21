@@ -1,20 +1,10 @@
 import type { VariantProps } from 'class-variance-authority'
 import { cva } from 'class-variance-authority'
 
-export { default as DropdownMenu } from './DropdownMenu.vue'
-export { default as DropdownMenuContent } from './DropdownMenuContent.vue'
-export { default as DropdownMenuItem } from './DropdownMenuItem.vue'
-export { default as DropdownMenuLabel } from './DropdownMenuLabel.vue'
-export { default as DropdownMenuSeparator } from './DropdownMenuSeparator.vue'
-export { default as DropdownMenuSub } from './DropdownMenuSub.vue'
-export { default as DropdownMenuSubContent } from './DropdownMenuSubContent.vue'
-export { default as DropdownMenuSubTrigger } from './DropdownMenuSubTrigger.vue'
-export { default as DropdownMenuTrigger } from './DropdownMenuTrigger.vue'
-
 // A raised panel with a quiet edge and a top highlight, so menus lift off the conversation.
 // Above dialogs (z-[70]), like selects: a menu opened inside one must show over it.
 export const dropdownMenuContentClass =
-  'dropdown-menu-panel z-[80] min-w-56 max-w-72 max-h-[var(--reka-dropdown-menu-content-available-height)] overflow-y-auto rounded-lg border border-solid border-[color-mix(in_srgb,var(--border)_80%,transparent)] bg-popover p-1.5 text-popover-foreground shadow-[var(--shadow),inset_0_1px_0_color-mix(in_srgb,var(--text)_6%,transparent)] outline-none'
+  'dropdown-menu-panel z-[80] min-w-56 max-w-72 max-h-[var(--panel-available-height,calc(100dvh_-_16px))] overflow-y-auto rounded-lg border border-solid border-[color-mix(in_srgb,var(--border)_80%,transparent)] bg-popover p-1.5 text-popover-foreground shadow-[var(--shadow),inset_0_1px_0_color-mix(in_srgb,var(--text)_6%,transparent)] outline-none'
 
 // Highlight is a soft accent tint, with the icon taking the accent, rather than a solid fill.
 export const dropdownMenuItemVariants = cva(

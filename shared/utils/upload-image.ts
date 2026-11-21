@@ -17,11 +17,6 @@ export function isUploadImageUrl(value: unknown, origin = browserOrigin()): valu
   )
 }
 
-/** Keep external images and signed URLs on the global single-density policy. */
-export function uploadImageDensities(value: unknown, origin = browserOrigin()): '1x' | '1x 2x' {
-  return isUploadImageUrl(value, origin) ? '1x 2x' : '1x'
-}
-
 function dimension(value: unknown): number | undefined {
   if (typeof value !== 'number' && typeof value !== 'string') return undefined
   if (!/^\d+$/.test(String(value))) return undefined
@@ -42,4 +37,19 @@ export function uploadImageVariant(
   const h = dimension(height)
   const query = [w ? `w=${w}` : '', h ? `h=${h}` : ''].filter(Boolean).join('&')
   return query ? `${value}?${query}` : value
+}
+
+/** Only eligible uploads get density variants. Preserve original and signed URLs. */
+export function uploadImageSources(
+  value: string | undefined,
+  width?: string | number,
+  height?: string | number,
+  origin = browserOrigin(),
+): { src: string | undefined; srcset?: string } {
+  const w = dimension(width)
+  const h = dimension(height)
+  if ((!w && !h) || !isUploadImageUrl(value, origin)) return { src: value }
+  const src = uploadImageVariant(value, w, h, origin)
+  const double = uploadImageVariant(value, w ? w * 2 : undefined, h ? h * 2 : undefined, origin)
+  return double === src ? { src } : { src, srcset: `${src} 1x, ${double} 2x` }
 }

@@ -1,31 +1,46 @@
-<script setup lang="ts">
-import { cn } from '../../../utils/cn'
-import type { DropdownMenuItemEmits, DropdownMenuItemProps } from 'reka-ui'
+<script setup vapor lang="ts">
 import type { HTMLAttributes } from 'vue'
-import type { DropdownMenuItemVariants } from '.'
-import { reactiveOmit } from '@vueuse/core'
-import { DropdownMenuItem, useForwardPropsEmits } from 'reka-ui'
-import { dropdownMenuItemVariants } from '.'
-
-const props = defineProps<
-  DropdownMenuItemProps & {
-    class?: HTMLAttributes['class']
+import { cn } from '../../../utils/cn'
+import { dropdownMenuItemVariants, type DropdownMenuItemVariants } from '.'
+import { menuKey } from './context'
+const props = withDefaults(
+  defineProps<{
+    disabled?: boolean
+    checked?: boolean | null
     variant?: DropdownMenuItemVariants['variant']
-  }
->()
-const emits = defineEmits<DropdownMenuItemEmits>()
-
-const delegatedProps = reactiveOmit(props, 'class', 'variant')
-
-const forwarded = useForwardPropsEmits(delegatedProps, emits)
+    class?: HTMLAttributes['class']
+  }>(),
+  { checked: null },
+)
+const emit = defineEmits<{ select: [event: Event] }>()
+const root = inject(menuKey)!
+const focus = ref(false)
+const hover = ref(false)
+const attrs = useAttrs()
+function select() {
+  if (props.disabled || attrs['aria-disabled'] === true || attrs['aria-disabled'] === 'true') return
+  const event = new Event('select', { cancelable: true })
+  emit('select', event)
+  if (!event.defaultPrevented) root.closeAll()
+}
 </script>
-
 <template>
-  <DropdownMenuItem
+  <button
+    type="button"
+    :role="checked === null ? 'menuitem' : 'menuitemcheckbox'"
+    :aria-checked="checked ?? undefined"
+    tabindex="-1"
+    :disabled="disabled"
     data-slot="dropdown-menu-item"
-    v-bind="forwarded"
+    :data-disabled="disabled ? '' : undefined"
+    :data-highlighted="focus || hover ? '' : undefined"
     :class="cn(dropdownMenuItemVariants({ variant }), props.class)"
+    @focus="focus = true"
+    @blur="focus = false"
+    @pointerenter="hover = true"
+    @pointerleave="hover = false"
+    @click="select"
   >
     <slot />
-  </DropdownMenuItem>
+  </button>
 </template>

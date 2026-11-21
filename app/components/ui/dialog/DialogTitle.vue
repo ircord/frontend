@@ -1,23 +1,19 @@
-<script setup lang="ts">
-import { cn } from '../../../utils/cn'
-import type { DialogTitleProps } from 'reka-ui'
+<script setup vapor lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { reactiveOmit } from '@vueuse/core'
-import { DialogTitle, useForwardProps } from 'reka-ui'
-
-const props = defineProps<DialogTitleProps & { class?: HTMLAttributes['class'] }>()
-
-const delegatedProps = reactiveOmit(props, 'class')
-
-const forwardedProps = useForwardProps(delegatedProps)
+import { cn } from '../../../utils/cn'
+import { dialogKey } from './context'
+const props = withDefaults(
+  defineProps<{ as?: 'h2' | 'h3' | 'h4'; class?: HTMLAttributes['class'] }>(),
+  { as: 'h2' },
+)
+const dialog = inject(dialogKey)!
 </script>
-
 <template>
-  <DialogTitle
+  <component
+    :is="as"
+    :id="dialog.titleId"
     data-slot="dialog-title"
-    v-bind="forwardedProps"
     :class="cn(props.class)"
-  >
-    <slot />
-  </DialogTitle>
+    ><slot
+  /></component>
 </template>

@@ -54,7 +54,7 @@ const status = computed(() => {
       <span
         class="link-card-thumb grid size-24 shrink-0 grid-cols-1 grid-rows-1 place-items-center overflow-hidden rounded-lg bg-card text-muted-foreground [&>img]:size-full [&>img]:object-cover"
       >
-        <NuxtImg
+        <AppImage
           v-if="showArtwork && image && !imageFailed && !expired && !offline"
           :src="image"
           alt=""
@@ -79,7 +79,7 @@ const status = computed(() => {
         <span
           class="link-card-site flex min-w-0 items-center gap-1.5 pe-18 truncate text-[length:var(--ui-caption)] leading-[18px] text-muted-foreground"
         >
-          <NuxtImg
+          <AppImage
             v-if="showArtwork && icon && !iconFailed"
             :src="icon"
             alt=""

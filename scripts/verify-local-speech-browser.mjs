@@ -185,7 +185,7 @@ try {
   assert.equal(signup.status(), 201)
   created = true
 
-  // ---- Software-only WebGPU: the switch stays off, the downsides still open ------------------
+  // ---- Software-only WebGPU: the option is unavailable, the downsides still open ------------
   const soft = await context.newPage()
   soft.setDefaultTimeout(8000)
   await soft.addInitScript(softwareGpu)
@@ -196,7 +196,7 @@ try {
     await page.getByRole('button', { name: 'User settings' }).click()
     const settings = page.getByRole('dialog', { name: 'Settings' })
     await settings.getByRole('combobox', { name: 'Search settings' }).fill('webgpu')
-    await settings.getByRole('option', { name: /Voice model on this device/ }).click()
+    await settings.getByRole('option', { name: /Voice source for read-aloud/ }).click()
     await settings.locator('[data-setting="local-speech"]').waitFor()
     return settings
   }
@@ -209,14 +209,16 @@ try {
   await softRow
     .getByText('Not available: this browser or graphics card has no WebGPU support.')
     .waitFor()
-  assert.equal(await softRow.getByRole('switch').isDisabled(), true)
-  await softRow.getByRole('button', { name: 'Before you switch this on' }).click()
-  const softInfo = soft.getByRole('dialog', { name: 'Before you switch this on' })
+  assert.equal(await softRow.getByRole('radio', { name: 'WebGPU' }).isDisabled(), true)
+  await softRow.getByRole('button', { name: 'Before you choose WebGPU' }).click()
+  const softInfo = soft.getByRole('dialog', { name: 'Before you choose WebGPU' })
   await softInfo.getByText(/downloads a 921 MB voice model from huggingface\.co/).waitFor()
   await softInfo
     .getByText(/IRCord does not send message text to a speech service on its own/)
     .waitFor()
   await soft.keyboard.press('Escape')
+  await softInfo.waitFor({ state: 'detached' })
+  assert.equal(await settings.isVisible(), true)
   await soft.close()
 
   // ---- Enabling shows the downsides first and downloads nothing ------------------------------
@@ -241,9 +243,9 @@ try {
   assert.equal(await topBar.count(), 0, 'no read-aloud button before anything is set up')
   settings = await openVoiceSettings(page)
   const localRow = settings.locator('[data-setting="local-speech"]')
-  await localRow.getByText(/It needs no speech service and no API key/).waitFor()
-  await localRow.getByRole('switch').click()
-  const info = page.getByRole('dialog', { name: 'Before you switch this on' })
+  const webgpu = localRow.getByRole('radio', { name: 'WebGPU' })
+  await webgpu.click()
+  const info = page.getByRole('dialog', { name: 'Before you choose WebGPU' })
   await info.waitFor()
   for (const topic of [
     'Download.',
@@ -256,10 +258,11 @@ try {
     await info.getByText(topic, { exact: true }).waitFor()
   await page.keyboard.press('Escape')
   await info.waitFor({ state: 'hidden' })
+  assert.equal(await settings.isVisible(), true)
   assert.deepEqual(await page.evaluate(() => window.__workers), { created: 0, terminated: 0 })
   // Only the first time: off and on again opens nothing.
-  await localRow.getByRole('switch').click()
-  await localRow.getByRole('switch').click()
+  await localRow.getByRole('radio', { name: 'API' }).click()
+  await webgpu.click()
   await page.waitForTimeout(300)
   assert.equal(await info.count(), 0)
 
@@ -283,9 +286,11 @@ try {
   assert.equal(requests[0].text, 'This is how IRCord reads your highlights aloud.')
   assert.equal(requests[0].speaker_embedding_id, 'default_3765f0d1140c05c0')
   assert.equal(requests[0].language, 'en_gb')
-  await voice.click()
+  await voice.press('ArrowDown')
+  await page.getByRole('listbox', { name: 'Voice' }).waitFor()
   await page.getByRole('option', { name: 'Liesel, German, female' }).click()
   assert.equal((await voice.textContent()).trim(), 'Liesel, German, female')
+  assert.equal(await voice.evaluate((node) => node === document.activeElement), true)
   await test.getByRole('button', { name: 'Test', exact: true }).click()
   await test.getByText('Played a sample.').waitFor()
   requests = await page.evaluate(() => window.__stub.requests)
@@ -295,6 +300,8 @@ try {
 
   // ---- A highlight is read by the model; another tab leaves it to this one --------------------
   await highlights.getByRole('switch').click()
+  await page.waitForFunction(() => window.__stub.requests.length === 3)
+  assert.equal((await page.evaluate(() => window.__stub.requests)).at(-1).text, 'Read aloud enabled')
   await closeSettings(page)
   // The top bar's button appears once the model is downloaded, and shows it is on.
   assert.equal(await topBar.getAttribute('aria-pressed'), 'true')
@@ -314,12 +321,12 @@ try {
   delayEvents = 1500
   await otherComposer.fill(`@${nick} have a look at #dev!!!`)
   await otherComposer.press('Enter')
-  await page.waitForFunction(() => window.__stub.requests.length === 3, null, { timeout: 8000 })
+  await page.waitForFunction(() => window.__stub.requests.length === 4, null, { timeout: 8000 })
   delayEvents = 0
   requests = await page.evaluate(() => window.__stub.requests)
   assert.match(requests.at(-1).text, /^echo in general: .* have a look at dev!$/)
   await page.waitForTimeout(800)
-  assert.equal((await page.evaluate(() => window.__stub.requests)).length, 3, 'read once')
+  assert.equal((await page.evaluate(() => window.__stub.requests)).length, 4, 'read once')
   assert.equal(await other.evaluate(() => window.__workers.created), 0, 'one tab holds the model')
 
   // ---- A Test in the other tab loads a guest copy and frees it right after ----------------------
@@ -403,7 +410,7 @@ try {
     [],
   )
   console.log(
-    'Voice model switch, downsides info, download, voices, Test, highlights, tab lock, unload, no fallback and no automatic download pass.',
+    'Voice source, downsides info, download, voices, Test, highlights, tab lock, unload, no fallback and no automatic download pass.',
   )
 } catch (error) {
   // Server diagnostics exclude configuration and request bodies.

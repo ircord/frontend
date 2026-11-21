@@ -1,7 +1,7 @@
 <script setup vapor lang="ts">
 import type { components } from '../../../shared/generated/api'
 import { publicMediaURL } from '../../../shared/utils/link-media'
-import { isUploadImageUrl, uploadImageDensities } from '../../../shared/utils/upload-image'
+import { isUploadImageUrl } from '../../../shared/utils/upload-image'
 import { offlineStatus } from '../../utils/offline-archive'
 
 const props = defineProps<{
@@ -374,14 +374,13 @@ onBeforeUnmount(() => {
         @load="loaded"
         @error="unavailable"
       />
-      <NuxtImg
+      <AppImage
         v-else-if="source"
         :key="`image:${source}`"
         :src="source"
         :alt="description || t('mediaUi.directMedia.linkedImage')"
         :width="displaySize.width"
         :height="displaySize.height"
-        :densities="uploadImageDensities(source)"
         loading="lazy"
         decoding="async"
         referrerpolicy="no-referrer"

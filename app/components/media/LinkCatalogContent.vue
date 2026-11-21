@@ -1,4 +1,3 @@
-<!-- Not Vapor: Reka's `as-child` trigger merges its props into a VNode slot. -->
 <script setup lang="ts">
 import { useQueryCache } from '@pinia/colada'
 import type { Attachment, LinkCard, LinkSource, MessagePage } from '../../../shared/types/chat'
@@ -250,7 +249,7 @@ const href = computed(() => (openableLink(props.card.url) ? props.card.url : und
         :class="{ 'justify-end': titledPreview }"
       >
         <template v-if="!titledPreview"
-          ><NuxtImg
+          ><AppImage
             v-if="icon && !iconFailed"
             :src="icon"
             width="14"
@@ -312,8 +311,10 @@ const href = computed(() => (openableLink(props.card.url) ? props.card.url : und
           </AppSheet>
         </template>
         <UiDropdownMenu v-else-if="card.count > 1">
-          <UiDropdownMenuTrigger as-child>
+          <UiDropdownMenuTrigger v-slot="{ bind, setTrigger }">
             <UiButton
+              :ref="setTrigger"
+              v-bind="bind"
               variant="link"
               size="text"
               class="catalog-card-count ml-auto h-auto shrink-0 p-0 text-[length:var(--ui-caption)]"

@@ -585,7 +585,7 @@ onBeforeUnmount(() => {
                 class="gif-category relative h-24 rounded-md overflow-hidden bg-secondary gif-collection"
                 @click="openFavorites"
               >
-                <NuxtImg
+                <img
                   v-if="library.library.gifs[0]"
                   :src="library.library.gifs[0].stillUrl"
                   alt=""
@@ -601,7 +601,7 @@ onBeforeUnmount(() => {
                 class="gif-category relative h-24 rounded-md overflow-hidden bg-secondary gif-collection"
                 @click="trending"
               >
-                <NuxtImg
+                <img
                   v-if="categories.data.value?.[0]"
                   :src="categories.data.value[0].previewUrl"
                   alt=""
@@ -619,7 +619,7 @@ onBeforeUnmount(() => {
                 class="gif-category relative h-24 rounded-md overflow-hidden bg-secondary"
                 @click="category(item)"
               >
-                <NuxtImg
+                <img
                   :src="item.previewUrl"
                   alt=""
                   referrerpolicy="no-referrer"
@@ -683,7 +683,7 @@ onBeforeUnmount(() => {
                     :aria-label="$t('mediaUi.expression.sendGif', { title: item.title })"
                     @click="emit('gif', item, debouncedGifQuery)"
                   >
-                    <NuxtImg
+                    <img
                       :src="appearance.animate ? item.previewUrl : item.stillUrl"
                       :alt="item.title"
                       loading="lazy"
@@ -803,7 +803,7 @@ onBeforeUnmount(() => {
         ><template v-else-if="preview"
           ><span class="emoji-preview-glyph text-[26px] leading-[1]"
             ><span v-if="preview.unicode">{{ emojiText(preview, library.library.skinTone) }}</span
-            ><NuxtImg
+            ><img
               v-else
               :src="preview.staticUrl || preview.url"
               alt="" /></span

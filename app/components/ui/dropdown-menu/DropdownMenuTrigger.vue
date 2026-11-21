@@ -1,17 +1,11 @@
-<script setup lang="ts">
-import type { DropdownMenuTriggerProps } from 'reka-ui'
-import { DropdownMenuTrigger, useForwardProps } from 'reka-ui'
-
-const props = defineProps<DropdownMenuTriggerProps>()
-
-const forwardedProps = useForwardProps(props)
+<script setup vapor lang="ts">
+import { panelTrigger } from '../../../composables/shared/useFloatingPanel'
+import { menuKey } from './context'
+const root = inject(menuKey)!
 </script>
-
 <template>
-  <DropdownMenuTrigger
-    data-slot="dropdown-menu-trigger"
-    v-bind="forwardedProps"
-  >
-    <slot />
-  </DropdownMenuTrigger>
+  <slot
+    :bind="panelTrigger(root, 'menu')"
+    :set-trigger="root.setAnchor"
+  />
 </template>

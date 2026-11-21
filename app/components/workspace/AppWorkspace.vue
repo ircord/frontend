@@ -1,14 +1,13 @@
-<!-- Not Vapor: Reka's `as-child` focus scope merges its props into a VNode slot. -->
 <script setup lang="ts">
 import { useQuery } from '@pinia/colada'
 import { useEventListener, useMediaQuery } from '@vueuse/core'
-import { FocusScope } from 'reka-ui'
 import type { Message, NetworkInput } from '../../../shared/types/chat'
 import { publicPageLabel, publicPageTitle } from '../../../shared/page-metadata'
 import { isConversationPath, workspacePages } from '../../../shared/utils/workspace-routes'
 import { messagesQuery } from '../../queries/chat'
 import { layoutLimits } from '../../stores/layout'
 import { errorText } from '../../utils/api'
+import { elementOf } from '../../utils/focus-dom'
 import { partyName } from '../../../shared/utils/party'
 import type { MessageLink } from '../../../shared/utils/message-links'
 
@@ -277,6 +276,12 @@ actions.jumpToDate = (id) => void historyTools.jumpToDate(id, highlight)
 const MEMBERS_DOCKED = 1100
 const SIDEBAR_DOCKED = 900
 const mobileNav = ref(false)
+const navigationPanel = shallowRef<HTMLElement | null>(null)
+useFocusBoundary(navigationPanel, mobileNav)
+
+function setNavigationPanel(value: unknown) {
+  navigationPanel.value = elementOf(value)
+}
 const mobileMembers = ref(false)
 const navMotion = ref(false)
 const sidebarPhase = ref<'idle' | 'covering' | 'revealing'>('idle')
@@ -723,36 +728,30 @@ onBeforeUnmount(() => {
         @click="closeDrawers"
       />
       <WorkspaceBar :inert="mobileNav || mobileMembers" />
-      <FocusScope
-        as-child
-        :present="mobileNav"
-        :trapped="mobileNav"
-        :loop="mobileNav"
-        @mount-auto-focus.prevent
-        @unmount-auto-focus.prevent
-        ><ConversationSidebar
-          :docked="wideSidebar && !horizontalSegments"
-          :phase="sidebarPhase"
-          :inert="mobileMembers || (!sidebarDocked && !mobileNav)"
-          :role="mobileNav ? 'dialog' : undefined"
-          :aria-modal="mobileNav || undefined"
-          @search="actions.search()"
-          @drafts="actions.drafts()"
-          @join="actions.join()"
-          @close="mobileNav = false"
-          @keydown.esc="closeNavigation"
-        >
-          <ResizeHandle
-            :label="$t('workspaceUi.shell.resizeConversations')"
-            direction="right"
-            :value="layout.state.sidebarWidth"
-            :min="layoutLimits.sidebar.min"
-            :max="layoutLimits.sidebar.max"
-            :default="layoutLimits.sidebar.default"
-            :scale="panelScale"
-            @resize="layout.set('sidebarWidth', $event)"
-          /> </ConversationSidebar
-      ></FocusScope>
+      <ConversationSidebar
+        :ref="setNavigationPanel"
+        :docked="wideSidebar && !horizontalSegments"
+        :phase="sidebarPhase"
+        :inert="mobileMembers || (!sidebarDocked && !mobileNav)"
+        :role="mobileNav ? 'dialog' : undefined"
+        :aria-modal="mobileNav || undefined"
+        @search="actions.search()"
+        @drafts="actions.drafts()"
+        @join="actions.join()"
+        @close="mobileNav = false"
+        @keydown.esc="closeNavigation"
+      >
+        <ResizeHandle
+          :label="$t('workspaceUi.shell.resizeConversations')"
+          direction="right"
+          :value="layout.state.sidebarWidth"
+          :min="layoutLimits.sidebar.min"
+          :max="layoutLimits.sidebar.max"
+          :default="layoutLimits.sidebar.default"
+          :scale="panelScale"
+          @resize="layout.set('sidebarWidth', $event)"
+        />
+      </ConversationSidebar>
       <main
         id="main-content"
         tabindex="-1"

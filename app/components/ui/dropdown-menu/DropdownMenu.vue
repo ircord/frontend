@@ -1,19 +1,10 @@
-<script setup lang="ts">
-import type { DropdownMenuRootEmits, DropdownMenuRootProps } from 'reka-ui'
-import { DropdownMenuRoot, useForwardPropsEmits } from 'reka-ui'
-
-const props = defineProps<DropdownMenuRootProps>()
-const emits = defineEmits<DropdownMenuRootEmits>()
-
-const forwarded = useForwardPropsEmits(props, emits)
+<script setup vapor lang="ts">
+import { menuKey, menuRoot } from './context'
+const open = defineModel<boolean>('open', { default: false })
+const root = menuRoot(open)
+provide(menuKey, root)
+watch(open, (value) => {
+  if (!value) root.submenu.value = ''
+})
 </script>
-
-<template>
-  <DropdownMenuRoot
-    v-slot="slotProps"
-    data-slot="dropdown-menu"
-    v-bind="forwarded"
-  >
-    <slot v-bind="slotProps" />
-  </DropdownMenuRoot>
-</template>
+<template><slot /></template>

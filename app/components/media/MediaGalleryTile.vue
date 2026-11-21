@@ -1,6 +1,6 @@
 <script setup vapor lang="ts">
 import type { components } from '../../../shared/generated/api'
-import { isUploadImageUrl, uploadImageDensities } from '../../../shared/utils/upload-image'
+import { isUploadImageUrl } from '../../../shared/utils/upload-image'
 
 /**
  * One cell of a media mosaic: a cropped photo, GIF still, or video frame that opens the viewer.
@@ -129,7 +129,7 @@ function focus(event: FocusEvent) {
           @load="ready"
           @error="broken"
       /></span>
-      <NuxtImg
+      <AppImage
         v-else-if="asset.kind === 'image'"
         :key="`image:${source}-${attempt}`"
         class="absolute inset-0 size-full object-cover opacity-0 transition-opacity duration-150 motion-reduce:transition-none [&.is-loaded]:opacity-100"
@@ -137,7 +137,6 @@ function focus(event: FocusEvent) {
         :src="source"
         :alt="label"
         :width="width"
-        :densities="uploadImageDensities(source)"
         loading="lazy"
         decoding="async"
         referrerpolicy="no-referrer"

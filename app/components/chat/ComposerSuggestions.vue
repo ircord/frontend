@@ -178,7 +178,7 @@ watch(
         >
           <span class="suggestion-glyph w-6 flex justify-center text-[20px] leading-[1]"
             ><template v-if="item.unicode">{{ emojiText(item, library.library.skinTone) }}</template
-            ><NuxtImg
+            ><img
               v-else
               class="size-6 object-contain"
               :src="appearance.animate ? item.url : item.staticUrl || item.url"

@@ -56,7 +56,6 @@ export default defineNuxtConfig({
     '@pinia/nuxt',
     '@pinia/colada-nuxt',
     '@nuxt/fonts',
-    '@nuxt/image',
     '@vueuse/nuxt',
     '@nuxtjs/i18n',
     '@nuxt/eslint',
@@ -71,12 +70,6 @@ export default defineNuxtConfig({
     processCSSVariables: 'font-prefixed-only',
     families: fontFamilies.map((name) => ({ name, preload: false })),
     defaults: { weights: ['100 900'], styles: ['normal'] },
-  },
-  image: {
-    provider: 'ircord',
-    providers: { ircord: { provider: './app/providers/ircord' } },
-    // The CDN currently serves originals. Do not advertise imaginary variants.
-    densities: [1],
   },
   vueuse: { autoImports: true },
   i18n: {
@@ -141,7 +134,6 @@ export default defineNuxtConfig({
         'highlight.js/lib/languages/xml',
         'highlight.js/lib/languages/yaml',
         'openapi-fetch',
-        'reka-ui',
         'satori',
         'tailwind-merge',
       ],

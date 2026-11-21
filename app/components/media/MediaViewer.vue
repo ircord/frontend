@@ -1,7 +1,6 @@
 <script setup vapor lang="ts">
 import type { components } from '../../../shared/generated/api'
 import { publicMediaURL } from '../../../shared/utils/link-media'
-import { uploadImageDensities } from '../../../shared/utils/upload-image'
 import { offlineStatus } from '../../utils/offline-archive'
 /**
  * Full-screen viewer for linked photos and videos: the media as large as the screen allows,
@@ -497,12 +496,11 @@ function up(event: PointerEvent) {
           :aria-current="i === index || undefined"
           @click="index = i"
         >
-          <NuxtImg
+          <AppImage
             v-if="entry.kind === 'image'"
             :src="entry.url"
             :width="48"
             :height="48"
-            :densities="uploadImageDensities(entry.url)"
             alt=""
             loading="lazy"
             referrerpolicy="no-referrer"

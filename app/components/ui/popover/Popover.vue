@@ -1,19 +1,15 @@
-<script setup lang="ts">
-import type { PopoverRootEmits, PopoverRootProps } from 'reka-ui'
-import { PopoverRoot, useForwardPropsEmits } from 'reka-ui'
-
-const props = defineProps<PopoverRootProps>()
-const emits = defineEmits<PopoverRootEmits>()
-
-const forwarded = useForwardPropsEmits(props, emits)
+<script setup vapor lang="ts">
+import { floatingRoot, popoverKey } from '../../../composables/shared/useFloatingPanel'
+const props = defineProps<{ anchor?: HTMLElement | null }>()
+const open = defineModel<boolean>('open', { default: false })
+const root = floatingRoot(open)
+provide(popoverKey, root)
+watch(
+  () => props.anchor,
+  (value) => {
+    if (value !== undefined) root.setAnchor(value)
+  },
+  { immediate: true },
+)
 </script>
-
-<template>
-  <PopoverRoot
-    v-slot="slotProps"
-    data-slot="popover"
-    v-bind="forwarded"
-  >
-    <slot v-bind="slotProps" />
-  </PopoverRoot>
-</template>
+<template><slot /></template>

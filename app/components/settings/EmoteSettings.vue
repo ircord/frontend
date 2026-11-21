@@ -205,7 +205,7 @@ async function stillFrame(image: File): Promise<Blob | undefined> {
   if (image.type === 'image/jpeg' || image.type === 'image/gif') return undefined
   const url = URL.createObjectURL(image)
   try {
-    // A detached element: decode() and naturalWidth feed the canvas, which NuxtImg cannot do.
+    // Decode a detached image before reading its natural size for the canvas.
     const element = new Image()
     element.src = url
     await element.decode()
@@ -555,7 +555,7 @@ const displayName = computed(
               class="emote-row"
               :class="{ disabled: !emote.enabled }"
             >
-              <NuxtImg
+              <AppImage
                 class="emote-thumb"
                 :src="animate ? emote.url : emote.staticUrl"
                 :alt="`:${emote.shortcode}:`"

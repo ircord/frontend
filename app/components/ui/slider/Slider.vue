@@ -1,44 +1,88 @@
-<script setup lang="ts">
-import { cn } from '../../../utils/cn'
-import type { SliderRootEmits, SliderRootProps } from 'reka-ui'
+<script setup vapor lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { reactiveOmit } from '@vueuse/core'
-import { SliderRange, SliderRoot, SliderThumb, SliderTrack, useForwardPropsEmits } from 'reka-ui'
+import { cn } from '../../../utils/cn'
 
-const props = defineProps<
-  SliderRootProps & {
-    class?: HTMLAttributes['class']
-    /** The accessible name of each thumb (the element with role="slider"). */
+const props = withDefaults(
+  defineProps<{
+    min?: number
+    max?: number
+    step?: number
     label?: string
-  }
->()
-const emits = defineEmits<SliderRootEmits>()
-
-const delegatedProps = reactiveOmit(props, 'class', 'label')
-
-const forwarded = useForwardPropsEmits(delegatedProps, emits)
+    disabled?: boolean
+    class?: HTMLAttributes['class']
+  }>(),
+  { min: 0, max: 100, step: 1 },
+)
+const model = defineModel<number[]>({ required: true })
+const value = computed(() => model.value[0] ?? props.min)
+const fill = computed(() => {
+  const span = props.max - props.min
+  return `${span > 0 ? Math.max(0, Math.min(100, (100 * (value.value - props.min)) / span)) : 0}%`
+})
+function update(event: Event) {
+  const next = (event.currentTarget as HTMLInputElement).valueAsNumber
+  if (Number.isFinite(next) && next !== value.value) model.value = [next]
+}
 </script>
 
 <template>
-  <SliderRoot
-    v-slot="{ modelValue }"
+  <input
+    type="range"
     data-slot="slider"
-    v-bind="forwarded"
     :class="
       cn(
-        'relative flex w-full touch-none select-none items-center data-disabled:opacity-45',
+        'ui-range h-4 w-full cursor-pointer appearance-none bg-transparent disabled:cursor-not-allowed disabled:opacity-45',
         props.class,
       )
     "
-  >
-    <SliderTrack class="relative h-1 w-full grow overflow-hidden rounded-full bg-border">
-      <SliderRange class="absolute h-full bg-primary" />
-    </SliderTrack>
-    <SliderThumb
-      v-for="(_, index) in modelValue"
-      :key="index"
-      :aria-label="label"
-      class="block size-4 rounded-full border-2 border-solid border-primary bg-background shadow-control transition-[box-shadow] hover:shadow-[0_0_0_4px_color-mix(in_srgb,var(--accent)_20%,transparent)] focus-visible:shadow-[0_0_0_4px_color-mix(in_srgb,var(--accent)_30%,transparent)] focus-visible:outline-none"
-    />
-  </SliderRoot>
+    :style="{ '--slider-fill': fill }"
+    :aria-label="label"
+    :min="min"
+    :max="max"
+    :step="step"
+    :value="value"
+    :disabled="disabled"
+    @input="update"
+  />
 </template>
+
+<style>
+.ui-range {
+  --slider-direction: to right;
+  --slider-track: linear-gradient(
+    var(--slider-direction),
+    var(--primary) var(--slider-fill),
+    var(--border) var(--slider-fill)
+  );
+}
+.ui-range:dir(rtl) {
+  --slider-direction: to left;
+}
+.ui-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--slider-track);
+}
+.ui-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--slider-track);
+}
+.ui-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  background: var(--background);
+}
+.ui-range::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  background: var(--background);
+}
+</style>

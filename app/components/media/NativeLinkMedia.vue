@@ -320,7 +320,7 @@ function keys(event: KeyboardEvent) {
               </button>
             </div>
             <template v-else-if="item.kind === 'image'">
-              <NuxtImg
+              <img
                 class="native-media-backdrop absolute inset-[-10%] w-[120%] h-[120%] object-cover [filter:blur(28px)_saturate(1.3)_brightness(0.55)] [transform:translateZ(0)] pointer-events-none"
                 :src="item.url"
                 alt=""

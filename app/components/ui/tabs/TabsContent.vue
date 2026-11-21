@@ -1,21 +1,24 @@
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import { cn } from '../../../utils/cn'
-import type { TabsContentProps } from 'reka-ui'
 import type { HTMLAttributes } from 'vue'
-import { reactiveOmit } from '@vueuse/core'
-import { TabsContent } from 'reka-ui'
+import { tabsKey, tabId } from './context'
 
-const props = defineProps<TabsContentProps & { class?: HTMLAttributes['class'] }>()
-
-const delegatedProps = reactiveOmit(props, 'class')
+const props = defineProps<{ value: string; class?: HTMLAttributes['class'] }>()
+const tabs = inject(tabsKey)!
+const active = computed(() => tabs.selected.value === props.value)
 </script>
 
 <template>
-  <TabsContent
+  <div
+    :id="tabId(tabs.id, 'panel', value)"
+    role="tabpanel"
+    tabindex="0"
+    :aria-labelledby="tabId(tabs.id, 'tab', value)"
+    :data-state="active ? 'active' : 'inactive'"
+    :hidden="!active"
     data-slot="tabs-content"
-    v-bind="delegatedProps"
     :class="cn(props.class)"
   >
-    <slot />
-  </TabsContent>
+    <slot v-if="active" />
+  </div>
 </template>

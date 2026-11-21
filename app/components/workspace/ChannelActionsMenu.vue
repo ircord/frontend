@@ -60,11 +60,12 @@ onBeforeUnmount(() => clearTimeout(timer))
   <UiDropdownMenu
     v-else
     :open="open"
-    :modal="false"
     @update:open="change"
   >
-    <UiDropdownMenuTrigger as-child>
+    <UiDropdownMenuTrigger v-slot="{ bind, setTrigger }">
       <UiButton
+        :ref="setTrigger"
+        v-bind="bind"
         variant="ghost"
         size="icon-sm"
         class="size-[22px]"

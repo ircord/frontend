@@ -28,7 +28,7 @@ const statusLabels = computed<Record<string, string>>(() => ({
       :key="network.id"
       class="network-setting flex items-center gap-3 p-3 mb-2 rounded-md bg-card"
     >
-      <NuxtImg
+      <img
         v-if="preferences.preferences.networkIcons[network.id]"
         class="network-mini w-9 h-9 flex items-center justify-center rounded-md font-[650] object-cover"
         :src="preferences.preferences.networkIcons[network.id]"

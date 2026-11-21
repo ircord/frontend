@@ -1,8 +1,8 @@
-<!-- Reka's as-child trigger needs VNode slots. -->
+<!-- The account menu and status editor share the profile button's position. -->
 <script setup lang="ts">
-import { PopoverAnchor } from 'reka-ui'
 import { statusShowing } from '../../../shared/utils/profile'
 import { awayLabel } from '../../../shared/utils/commands'
+import { elementOf } from '../../utils/focus-dom'
 
 const chat = useChatStore()
 const { chooseServer } = usePlatform()
@@ -42,6 +42,9 @@ const status = computed(() =>
 watch([() => chat.networkId, () => auth.account?.id], () => {
   menuOpen.value = false
   editorOpen.value = false
+})
+watch(menuOpen, (open) => {
+  if (open) editorOpen.value = false
 })
 function openEditor() {
   const network = chat.networkId
@@ -90,268 +93,277 @@ async function toggleAway() {
 <template>
   <UiPopover
     v-model:open="editorOpen"
-    :modal="false"
+    :anchor="trigger"
   >
-    <PopoverAnchor as-child>
-      <span class="inline-flex">
-        <UiDropdownMenu
-          :open="menuOpen && !phone"
-          :modal="false"
-          @update:open="(open) => (menuOpen = open)"
-        >
-          <UiDropdownMenuTrigger as-child>
-            <button
-              ref="trigger"
-              type="button"
-              data-self-menu-trigger
-              class="self-profile flex min-h-8 max-w-[190px] min-w-0 items-center gap-2 rounded-full bg-secondary/55 py-0.5 pr-3 pl-1.5 text-left text-[length:var(--ui-small)] font-medium text-foreground shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--border)_65%,transparent)] transition-colors hover:bg-accent max-[700px]:px-1.5 [&_.presence]:border-sidebar hover:[&_.presence]:border-accent [@media(pointer:coarse)]:min-h-[44px] [@media(pointer:coarse)]:min-w-[44px]"
-              :aria-label="t('selfMenu.open')"
-              @contextmenu="chat.self && menus.member($event, chat.self)"
-            >
-              <UserAvatar
-                :member="displayMember"
-                size="small"
-                presence
-              />
-              <span class="flex max-w-36 min-w-0 flex-col justify-center max-[700px]:hidden">
-                <span class="truncate text-[length:var(--ui-text)] font-medium leading-[1.1]">{{
-                  chat.self?.displayName
-                }}</span>
-                <small
-                  v-if="status || chat.self?.status === 'away'"
-                  class="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-[length:var(--ui-caption)] leading-[1.1] text-muted-foreground"
-                >
-                  <template v-if="hasStatus">
-                    <span
-                      v-if="chat.self?.statusEmoji"
-                      class="inline-flex h-3.5 max-w-8 shrink-0 items-center overflow-hidden text-[14px] leading-none [&_.icon-custom-emoji]:size-3.5"
-                    >
-                      <StatusEmoji :value="chat.self.statusEmoji" />
-                    </span>
-                    <span class="min-w-0 truncate">{{ chat.self?.statusText }}</span>
-                  </template>
-                  <span
-                    v-else
-                    class="min-w-0 truncate"
-                    >{{ awayLabel(chat.self?.awayMessage, t('workspaceUi.presence.away')) }}</span
-                  >
-                </small>
-              </span>
-            </button>
-          </UiDropdownMenuTrigger>
-          <UiDropdownMenuContent
-            align="end"
-            class="w-72 max-w-[calc(100vw-16px)]"
-            :aria-label="t('selfMenu.open')"
-            @close-auto-focus="
-              (event) => {
-                if (skipReturnFocus) {
-                  event.preventDefault()
-                  skipReturnFocus = false
-                }
+    <span class="inline-flex">
+      <UiDropdownMenu
+        :open="menuOpen && !phone"
+        @update:open="(open) => (menuOpen = open)"
+      >
+        <UiDropdownMenuTrigger v-slot="{ bind, setTrigger }">
+          <button
+            :ref="
+              (element) => {
+                trigger = elementOf(element) as HTMLButtonElement | null
+                setTrigger(element)
               }
             "
+            v-bind="bind"
+            type="button"
+            data-self-menu-trigger
+            class="self-profile flex min-h-8 max-w-[190px] min-w-0 items-center gap-2 rounded-full bg-secondary/55 py-0.5 pr-3 pl-1.5 text-left text-[length:var(--ui-small)] font-medium text-foreground shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--border)_65%,transparent)] transition-colors hover:bg-accent max-[700px]:px-1.5 [&_.presence]:border-sidebar hover:[&_.presence]:border-accent [@media(pointer:coarse)]:min-h-[44px] [@media(pointer:coarse)]:min-w-[44px]"
+            :aria-label="t('selfMenu.open')"
+            @contextmenu="chat.self && menus.member($event, chat.self)"
           >
-            <!-- Who you are here: a card above the actions, with the status inside it. -->
-            <div
-              class="mb-1.5 rounded-md bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_14%,transparent),color-mix(in_srgb,var(--text)_4%,transparent))] p-1.5 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--border)_55%,transparent)]"
-            >
-              <div class="flex items-center gap-2.5 px-1 pt-1 pb-2">
-                <UserAvatar
-                  :member="displayMember"
-                  size="normal"
-                  presence
-                  class="[&_.presence]:border-popover"
-                />
-                <span class="grid min-w-0 gap-0.5">
-                  <strong class="truncate text-[length:var(--ui-text)]">{{
-                    chat.self?.displayName || t('selfMenu.you')
-                  }}</strong>
-                  <span class="truncate text-[length:var(--ui-caption)] text-muted-foreground"
-                    >{{ chat.network?.name || t('selfMenu.noNetwork') }} · {{ presence }}</span
-                  >
-                </span>
-              </div>
-              <!-- Reads like a field: the current status on one line, emoji beside the text. -->
-              <UiDropdownMenuItem
-                :disabled="!chat.networkId"
-                class="bg-popover/80 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--border)_70%,transparent)] data-highlighted:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_45%,transparent)]"
-                @select="openEditor"
-              >
-                <span
-                  v-if="hasStatus && chat.self?.statusEmoji"
-                  class="inline-flex size-[18px] shrink-0 items-center justify-center overflow-hidden text-[16px] leading-none [&_.icon-custom-emoji]:size-[18px] [&_img]:size-[18px] [&_img]:object-contain"
-                  ><StatusEmoji :value="chat.self.statusEmoji"
-                /></span>
-                <AppIcon
-                  v-else
-                  name="smile"
-                  :size="16"
-                /><span
-                  class="min-w-0 flex-1 truncate"
-                  :class="{ 'text-muted-foreground': !hasStatus }"
-                  >{{ hasStatus ? chat.self?.statusText : t('selfMenu.setStatus') }}</span
-                ><AppIcon
-                  name="pencil"
-                  :size="13"
-                  class="opacity-60"
-                />
-              </UiDropdownMenuItem>
-              <UiDropdownMenuItem
-                v-if="hasStatus"
-                :disabled="pending"
-                class="mt-0.5"
-                @select="clearStatus"
-                ><AppIcon
-                  name="close"
-                  :size="16"
-                />{{ t('selfMenu.clearStatus') }}</UiDropdownMenuItem
-              >
-            </div>
-            <UiDropdownMenuItem @select="run(() => actions.profile('you'))"
-              ><AppIcon
-                name="user"
-                :size="16"
-              />{{ t('selfMenu.viewProfile') }}</UiDropdownMenuItem
-            >
-            <UiDropdownMenuItem @select="run(() => actions.settings('profile'))"
-              ><AppIcon
-                name="pencil"
-                :size="16"
-              />{{ t('selfMenu.profileSettings') }}</UiDropdownMenuItem
-            >
-            <UiDropdownMenuItem
-              :disabled="!connected || pending"
-              @select="toggleAway"
-              ><AppIcon
-                :name="chat.self?.status === 'away' ? 'sun' : 'moon'"
-                :size="16"
-              />{{
-                chat.self?.status === 'away' ? t('selfMenu.setBack') : t('selfMenu.setAway')
-              }}</UiDropdownMenuItem
-            >
-            <UiDropdownMenuSeparator />
-            <UiDropdownMenuItem @select="run(() => actions.settings())"
-              ><AppIcon
-                name="settings"
-                :size="16"
-              />{{ t('selfMenu.preferences') }}</UiDropdownMenuItem
-            >
-            <UiDropdownMenuItem @select="run(() => actions.settings('notifications'))"
-              ><AppIcon
-                name="bell"
-                :size="16"
-              />{{ t('selfMenu.notifications') }}</UiDropdownMenuItem
-            >
-            <UiDropdownMenuItem @select="run(() => actions.settings('account'))"
-              ><AppIcon
-                name="key"
-                :size="16"
-              />{{ t('selfMenu.accountSettings') }}</UiDropdownMenuItem
-            >
-            <UiDropdownMenuSeparator />
-            <UiDropdownMenuItem v-if="chooseServer" @select="run(() => void openServerChooser())">
-              <AppIcon name="terminal" :size="16" />{{ t('app.chooseDesktopServer') }}
-            </UiDropdownMenuItem>
-            <UiDropdownMenuItem
-              variant="destructive"
-              @select="run(() => void auth.confirmLogout())"
-              ><AppIcon
-                name="logout"
-                :size="16"
-              />{{ t('common.logOut') }}</UiDropdownMenuItem
-            >
-          </UiDropdownMenuContent>
-        </UiDropdownMenu>
-        <AppSheet
-          v-if="phone && menuOpen"
-          :title="chat.self?.displayName || t('selfMenu.you')"
-          :description="`${chat.network?.name || t('selfMenu.noNetwork')} · ${presence}`"
-          @close="menuOpen = false"
-        >
-          <template #leading>
             <UserAvatar
               :member="displayMember"
-              size="normal"
+              size="small"
               presence
-              class="[&_.presence]:border-popover"
             />
-          </template>
-          <div class="sheet-card">
-            <SheetItem
-              :label="hasStatus ? (chat.self?.statusText ?? '') : t('selfMenu.setStatus')"
-              :icon="hasStatus && chat.self?.statusEmoji ? undefined : 'smile'"
+            <span class="flex max-w-36 min-w-0 flex-col justify-center max-[700px]:hidden">
+              <span class="truncate text-[length:var(--ui-text)] font-medium leading-[1.1]">{{
+                chat.self?.displayName
+              }}</span>
+              <small
+                v-if="status || chat.self?.status === 'away'"
+                class="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-[length:var(--ui-caption)] leading-[1.1] text-muted-foreground"
+              >
+                <template v-if="hasStatus">
+                  <span
+                    v-if="chat.self?.statusEmoji"
+                    class="inline-flex h-3.5 max-w-8 shrink-0 items-center overflow-hidden text-[14px] leading-none [&_.icon-custom-emoji]:size-3.5"
+                  >
+                    <StatusEmoji :value="chat.self.statusEmoji" />
+                  </span>
+                  <span class="min-w-0 truncate">{{ chat.self?.statusText }}</span>
+                </template>
+                <span
+                  v-else
+                  class="min-w-0 truncate"
+                  >{{ awayLabel(chat.self?.awayMessage, t('workspaceUi.presence.away')) }}</span
+                >
+              </small>
+            </span>
+          </button>
+        </UiDropdownMenuTrigger>
+        <UiDropdownMenuContent
+          align="end"
+          class="w-72 max-w-[calc(100vw-16px)]"
+          :aria-label="t('selfMenu.open')"
+          @close-auto-focus="
+            (event) => {
+              if (skipReturnFocus) {
+                event.preventDefault()
+                skipReturnFocus = false
+              }
+            }
+          "
+        >
+          <!-- Who you are here: a card above the actions, with the status inside it. -->
+          <div
+            class="mb-1.5 rounded-md bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_14%,transparent),color-mix(in_srgb,var(--text)_4%,transparent))] p-1.5 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--border)_55%,transparent)]"
+          >
+            <div class="flex items-center gap-2.5 px-1 pt-1 pb-2">
+              <UserAvatar
+                :member="displayMember"
+                size="normal"
+                presence
+                class="[&_.presence]:border-popover"
+              />
+              <span class="grid min-w-0 gap-0.5">
+                <strong class="truncate text-[length:var(--ui-text)]">{{
+                  chat.self?.displayName || t('selfMenu.you')
+                }}</strong>
+                <span class="truncate text-[length:var(--ui-caption)] text-muted-foreground"
+                  >{{ chat.network?.name || t('selfMenu.noNetwork') }} · {{ presence }}</span
+                >
+              </span>
+            </div>
+            <!-- Reads like a field: the current status on one line, emoji beside the text. -->
+            <UiDropdownMenuItem
               :disabled="!chat.networkId"
-              @click="openEditor"
+              class="bg-popover/80 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--border)_70%,transparent)] data-highlighted:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_45%,transparent)]"
+              @select="openEditor"
             >
-              <template
+              <span
                 v-if="hasStatus && chat.self?.statusEmoji"
-                #icon
-                ><span
-                  class="inline-flex size-5 items-center justify-center overflow-hidden text-[18px] leading-none [&_img]:size-5 [&_img]:object-contain"
-                  ><StatusEmoji :value="chat.self.statusEmoji" /></span
-              ></template>
-            </SheetItem>
-            <SheetItem
+                class="inline-flex size-[18px] shrink-0 items-center justify-center overflow-hidden text-[16px] leading-none [&_.icon-custom-emoji]:size-[18px] [&_img]:size-[18px] [&_img]:object-contain"
+                ><StatusEmoji :value="chat.self.statusEmoji"
+              /></span>
+              <AppIcon
+                v-else
+                name="smile"
+                :size="16"
+              /><span
+                class="min-w-0 flex-1 truncate"
+                :class="{ 'text-muted-foreground': !hasStatus }"
+                >{{ hasStatus ? chat.self?.statusText : t('selfMenu.setStatus') }}</span
+              ><AppIcon
+                name="pencil"
+                :size="13"
+                class="opacity-60"
+              />
+            </UiDropdownMenuItem>
+            <UiDropdownMenuItem
               v-if="hasStatus"
-              :label="t('selfMenu.clearStatus')"
-              icon="close"
               :disabled="pending"
-              @click="clearStatus"
-            />
+              class="mt-0.5"
+              @select="clearStatus"
+              ><AppIcon
+                name="close"
+                :size="16"
+              />{{ t('selfMenu.clearStatus') }}</UiDropdownMenuItem
+            >
           </div>
-          <div class="sheet-card">
-            <SheetItem
-              :label="t('selfMenu.viewProfile')"
-              icon="user"
-              @click="run(() => actions.profile('you'))"
-            />
-            <SheetItem
-              :label="t('selfMenu.profileSettings')"
-              icon="pencil"
-              @click="run(() => actions.settings('profile'))"
-            />
-            <SheetItem
-              :label="chat.self?.status === 'away' ? t('selfMenu.setBack') : t('selfMenu.setAway')"
-              :icon="chat.self?.status === 'away' ? 'sun' : 'moon'"
-              :disabled="!connected || pending"
-              @click="toggleAway"
-            />
-          </div>
-          <div class="sheet-card">
-            <SheetItem
-              :label="t('selfMenu.preferences')"
-              icon="settings"
-              @click="run(() => actions.settings())"
-            />
-            <SheetItem
-              :label="t('selfMenu.notifications')"
-              icon="bell"
-              @click="run(() => actions.settings('notifications'))"
-            />
-            <SheetItem
-              :label="t('selfMenu.accountSettings')"
-              icon="key"
-              @click="run(() => actions.settings('account'))"
-            />
-          </div>
-          <div class="sheet-card">
-            <SheetItem
-              v-if="chooseServer"
-              :label="t('app.chooseDesktopServer')"
-              icon="terminal"
-              @click="run(() => void openServerChooser())"
-            />
-            <SheetItem
-              :label="t('common.logOut')"
-              icon="logout"
-              danger
-              @click="run(() => void auth.confirmLogout())"
-            />
-          </div>
-        </AppSheet>
-      </span>
-    </PopoverAnchor>
+          <UiDropdownMenuItem @select="run(() => actions.profile('you'))"
+            ><AppIcon
+              name="user"
+              :size="16"
+            />{{ t('selfMenu.viewProfile') }}</UiDropdownMenuItem
+          >
+          <UiDropdownMenuItem @select="run(() => actions.settings('profile'))"
+            ><AppIcon
+              name="pencil"
+              :size="16"
+            />{{ t('selfMenu.profileSettings') }}</UiDropdownMenuItem
+          >
+          <UiDropdownMenuItem
+            :disabled="!connected || pending"
+            @select="toggleAway"
+            ><AppIcon
+              :name="chat.self?.status === 'away' ? 'sun' : 'moon'"
+              :size="16"
+            />{{
+              chat.self?.status === 'away' ? t('selfMenu.setBack') : t('selfMenu.setAway')
+            }}</UiDropdownMenuItem
+          >
+          <UiDropdownMenuSeparator />
+          <UiDropdownMenuItem @select="run(() => actions.settings())"
+            ><AppIcon
+              name="settings"
+              :size="16"
+            />{{ t('selfMenu.preferences') }}</UiDropdownMenuItem
+          >
+          <UiDropdownMenuItem @select="run(() => actions.settings('notifications'))"
+            ><AppIcon
+              name="bell"
+              :size="16"
+            />{{ t('selfMenu.notifications') }}</UiDropdownMenuItem
+          >
+          <UiDropdownMenuItem @select="run(() => actions.settings('account'))"
+            ><AppIcon
+              name="key"
+              :size="16"
+            />{{ t('selfMenu.accountSettings') }}</UiDropdownMenuItem
+          >
+          <UiDropdownMenuSeparator />
+          <UiDropdownMenuItem
+            v-if="chooseServer"
+            @select="run(() => void openServerChooser())"
+          >
+            <AppIcon
+              name="terminal"
+              :size="16"
+            />{{ t('app.chooseDesktopServer') }}
+          </UiDropdownMenuItem>
+          <UiDropdownMenuItem
+            variant="destructive"
+            @select="run(() => void auth.confirmLogout())"
+            ><AppIcon
+              name="logout"
+              :size="16"
+            />{{ t('common.logOut') }}</UiDropdownMenuItem
+          >
+        </UiDropdownMenuContent>
+      </UiDropdownMenu>
+      <AppSheet
+        v-if="phone && menuOpen"
+        :title="chat.self?.displayName || t('selfMenu.you')"
+        :description="`${chat.network?.name || t('selfMenu.noNetwork')} · ${presence}`"
+        @close="menuOpen = false"
+      >
+        <template #leading>
+          <UserAvatar
+            :member="displayMember"
+            size="normal"
+            presence
+            class="[&_.presence]:border-popover"
+          />
+        </template>
+        <div class="sheet-card">
+          <SheetItem
+            :label="hasStatus ? (chat.self?.statusText ?? '') : t('selfMenu.setStatus')"
+            :icon="hasStatus && chat.self?.statusEmoji ? undefined : 'smile'"
+            :disabled="!chat.networkId"
+            @click="openEditor"
+          >
+            <template
+              v-if="hasStatus && chat.self?.statusEmoji"
+              #icon
+              ><span
+                class="inline-flex size-5 items-center justify-center overflow-hidden text-[18px] leading-none [&_img]:size-5 [&_img]:object-contain"
+                ><StatusEmoji :value="chat.self.statusEmoji" /></span
+            ></template>
+          </SheetItem>
+          <SheetItem
+            v-if="hasStatus"
+            :label="t('selfMenu.clearStatus')"
+            icon="close"
+            :disabled="pending"
+            @click="clearStatus"
+          />
+        </div>
+        <div class="sheet-card">
+          <SheetItem
+            :label="t('selfMenu.viewProfile')"
+            icon="user"
+            @click="run(() => actions.profile('you'))"
+          />
+          <SheetItem
+            :label="t('selfMenu.profileSettings')"
+            icon="pencil"
+            @click="run(() => actions.settings('profile'))"
+          />
+          <SheetItem
+            :label="chat.self?.status === 'away' ? t('selfMenu.setBack') : t('selfMenu.setAway')"
+            :icon="chat.self?.status === 'away' ? 'sun' : 'moon'"
+            :disabled="!connected || pending"
+            @click="toggleAway"
+          />
+        </div>
+        <div class="sheet-card">
+          <SheetItem
+            :label="t('selfMenu.preferences')"
+            icon="settings"
+            @click="run(() => actions.settings())"
+          />
+          <SheetItem
+            :label="t('selfMenu.notifications')"
+            icon="bell"
+            @click="run(() => actions.settings('notifications'))"
+          />
+          <SheetItem
+            :label="t('selfMenu.accountSettings')"
+            icon="key"
+            @click="run(() => actions.settings('account'))"
+          />
+        </div>
+        <div class="sheet-card">
+          <SheetItem
+            v-if="chooseServer"
+            :label="t('app.chooseDesktopServer')"
+            icon="terminal"
+            @click="run(() => void openServerChooser())"
+          />
+          <SheetItem
+            :label="t('common.logOut')"
+            icon="logout"
+            danger
+            @click="run(() => void auth.confirmLogout())"
+          />
+        </div>
+      </AppSheet>
+    </span>
     <UiPopoverContent
       align="end"
       class="w-[min(28rem,calc(100vw-16px))] p-0"

@@ -97,7 +97,7 @@ function move(event: KeyboardEvent, index: number) {
             @click="emit('choose', item)"
           >
             <span v-if="item.unicode">{{ emojiText(item, skinTone) }}</span
-            ><NuxtImg
+            ><img
               v-else
               :src="appearance.animate ? item.url : item.staticUrl || item.url"
               :alt="`:${item.shortcode}:`"

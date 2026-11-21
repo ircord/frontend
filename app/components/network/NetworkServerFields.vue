@@ -19,7 +19,7 @@ const { t: $t } = useI18n()
           :title="$t('networkForm.icon')"
           @click="iconInput?.click()"
         >
-          <NuxtImg
+          <img
             v-if="iconPreview"
             class="size-full rounded-[inherit] object-cover"
             :src="iconPreview"

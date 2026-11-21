@@ -1,17 +1,10 @@
-<script setup lang="ts">
-import type { PopoverTriggerProps } from 'reka-ui'
-import { PopoverTrigger, useForwardProps } from 'reka-ui'
-
-const props = defineProps<PopoverTriggerProps>()
-
-const forwardedProps = useForwardProps(props)
+<script setup vapor lang="ts">
+import { panelTrigger, popoverKey } from '../../../composables/shared/useFloatingPanel'
+const root = inject(popoverKey)!
 </script>
-
 <template>
-  <PopoverTrigger
-    data-slot="popover-trigger"
-    v-bind="forwardedProps"
-  >
-    <slot />
-  </PopoverTrigger>
+  <slot
+    :bind="panelTrigger(root, 'dialog')"
+    :set-trigger="root.setAnchor"
+  />
 </template>

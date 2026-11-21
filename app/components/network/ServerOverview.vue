@@ -1,4 +1,3 @@
-<!-- Not Vapor: Reka's `as-child` trigger merges its props into a VNode slot. -->
 <script setup lang="ts">
 import { useQuery } from '@pinia/colada'
 import type { ConnectionInfo, Network } from '../../../shared/types/chat'
@@ -280,8 +279,10 @@ const cardLabel =
               :aria-label="t('collectionsUi.serverOverview.connectionPath')"
             >
               <UiPopover>
-                <UiPopoverTrigger as-child>
+                <UiPopoverTrigger v-slot="{ bind, setTrigger }">
                   <button
+                    :ref="setTrigger"
+                    v-bind="bind"
                     type="button"
                     class="hop-chip flex shrink-0 items-center gap-1.5 rounded-sm px-1.5 py-0.5 font-medium text-foreground hover:bg-accent! data-[state=open]:bg-accent! [@media(pointer:coarse)]:min-h-[44px]"
                     :aria-label="t('collectionsUi.serverOverview.deviceDetails')"
@@ -453,8 +454,10 @@ const cardLabel =
       </div>
 
       <UiPopover>
-        <UiPopoverTrigger as-child>
+        <UiPopoverTrigger v-slot="{ bind, setTrigger }">
           <button
+            :ref="setTrigger"
+            v-bind="bind"
             type="button"
             :class="[
               card,

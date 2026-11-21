@@ -3,7 +3,7 @@
 withDefaults(defineProps<{ size?: number }>(), { size: 48 })
 </script>
 <template>
-  <NuxtImg
+  <img
     src="/favicon.svg"
     alt=""
     :width="size"

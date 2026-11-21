@@ -1,25 +1,22 @@
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import { cn } from '../../../utils/cn'
-import type { TabsRootEmits, TabsRootProps } from 'reka-ui'
 import type { HTMLAttributes } from 'vue'
-import { reactiveOmit } from '@vueuse/core'
-import { TabsRoot, useForwardPropsEmits } from 'reka-ui'
+import { tabsKey } from './context'
 
-const props = defineProps<TabsRootProps & { class?: HTMLAttributes['class'] }>()
-
-const emits = defineEmits<TabsRootEmits>()
-
-const delegatedProps = reactiveOmit(props, 'class')
-
-const forwarded = useForwardPropsEmits(delegatedProps, emits)
+const props = defineProps<{ defaultValue?: string; class?: HTMLAttributes['class'] }>()
+const model = defineModel<string>()
+const selected = computed({
+  get: () => model.value ?? props.defaultValue,
+  set: (value) => (model.value = value),
+})
+provide(tabsKey, { id: useId(), selected })
 </script>
 
 <template>
-  <TabsRoot
+  <div
     data-slot="tabs"
-    v-bind="forwarded"
     :class="cn(props.class)"
   >
     <slot />
-  </TabsRoot>
+  </div>
 </template>
