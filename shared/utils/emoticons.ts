@@ -42,6 +42,7 @@ export const emoticons: Readonly<Record<string, string>> = {
   ':-|': '😐',
   XD: '😆',
   xD: '😆',
+  xd: '😆',
   ':*': '😘',
   ':-*': '😘',
   '>:(': '😠',

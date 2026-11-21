@@ -270,7 +270,10 @@ const sayUnavailable = () => {
 }
 
 async function send() {
-  const text = draft.value
+  const typed = draft.value
+  // Sending finishes the last word, so an emoticon there (“see you :P”) becomes its emoji, as
+  // typing a space after it would. Raw server lines stay as typed.
+  const text = rawMode.value ? typed : convertTrailingEmoticon(typed)
   const files = uploads.pending.value.length
   if (!text.trim() && !files) return
   if (text.length > 4000) return chat.notify(t('workspaceUi.composer.tooLong'))
@@ -289,17 +292,14 @@ async function send() {
     const reply = props.replyTo
     const result = await run(text, { replyTo: reply })
     if (result === 'kept') return
-    if (result === 'handled') return spend(origin, text, reply)
+    if (result === 'handled') return spend(origin, typed, reply)
   }
   if (rawMode.value && text.trim()) {
     if (chat.raw(text.trim())) clear()
     return
   }
   // “//text” sends “/text” literally.
-  // A last emoticon such as “:)” is a finished word once the message is sent.
-  const message = convertTrailingEmoticon(
-    text.trim().startsWith('//') ? text.trim().slice(1) : text,
-  )
+  const message = text.trim().startsWith('//') ? text.trim().slice(1) : text
   const reply = props.replyTo
   if (message.trim() && !chat.send(message, props.replyTo)) return
   clear()
