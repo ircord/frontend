@@ -7,6 +7,9 @@
 // traffic doesn't replace the seeded media rows. The video fixture uses FFmpeg.
 // PASSES controls the number of history scrolls in each direction (default 2 with embeds).
 // PROFILE can match a scenario label to report its hottest JavaScript functions.
+// TRACE_SWITCH=1 summarizes Chrome's renderer trace for channel switches.
+// LIVE_HISTORY measures arrivals while reading for this many seconds. SOAK repeats media browsing
+// and samples retained memory after leaving the busy channel and collecting garbage.
 import { spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { chromium } from 'playwright'
@@ -22,8 +25,13 @@ const load = {
 }
 const flood = Number(process.env.FLOOD ?? (withEmbeds ? 1 : 15))
 const passes = Number(process.env.PASSES ?? (withEmbeds ? 2 : 1))
+const liveHistory = Number(process.env.LIVE_HISTORY ?? 0)
+const soak = Number(process.env.SOAK ?? 0)
+const traceSwitches = process.env.TRACE_SWITCH === '1'
 const profiles = []
 const mediaRequests = { image: 0, video: 0, card: 0 }
+const nativePlayers = new Set()
+let createdPlayers = 0
 let fixturePages = 0
 
 const browser = await chromium.launch({
@@ -39,6 +47,17 @@ const cdp = await page.context().newCDPSession(page)
 const browserCDP = await browser.newBrowserCDPSession()
 await cdp.send('Performance.enable')
 await cdp.send('Network.enable')
+if (soak) {
+  cdp.on('Media.playerCreated', ({ player }) => {
+    nativePlayers.add(player.playerId)
+    createdPlayers++
+  })
+  cdp.on('Media.playerEventsAdded', ({ playerId, events }) => {
+    if (events.some(({ value }) => value.includes('kWebMediaPlayerDestroyed')))
+      nativePlayers.delete(playerId)
+  })
+  await cdp.send('Media.enable')
+}
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
 
@@ -60,6 +79,50 @@ async function rendererRSS() {
       .trim()
       .split(/\s+/)
       .reduce((sum, value) => sum + Number(value), 0) / 1024,
+  )
+}
+
+async function traceSwitch(run) {
+  if (!traceSwitches) return run()
+  const events = []
+  const collect = ({ value }) => events.push(...value)
+  cdp.on('Tracing.dataCollected', collect)
+  const done = new Promise((resolve) => cdp.once('Tracing.tracingComplete', resolve))
+  await cdp.send('Tracing.start', {
+    categories:
+      'devtools.timeline,disabled-by-default-devtools.timeline,toplevel,blink.user_timing,v8',
+    transferMode: 'ReportEvents',
+  })
+  try {
+    await run()
+  } finally {
+    await cdp.send('Tracing.end')
+    await done
+    cdp.off('Tracing.dataCollected', collect)
+  }
+  const rendererThreads = new Set(
+    events
+      .filter((event) => event.name === 'thread_name' && event.args?.name === 'CrRendererMain')
+      .map((event) => `${event.pid}:${event.tid}`),
+  )
+  const timings = new Map()
+  for (const event of events) {
+    if (event.ph !== 'X' || !rendererThreads.has(`${event.pid}:${event.tid}`)) continue
+    const timing = timings.get(event.name) ?? { event: event.name, total: 0, longest: 0 }
+    timing.total += event.dur
+    timing.longest = Math.max(timing.longest, event.dur)
+    timings.set(event.name, timing)
+  }
+  console.log('Switch trace, renderer main threads (inclusive times)')
+  console.table(
+    [...timings.values()]
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 16)
+      .map((timing) => ({
+        event: timing.event,
+        totalMs: Math.round(timing.total / 1000),
+        maxMs: Math.round(timing.longest / 1000),
+      })),
   )
 }
 
@@ -297,10 +360,36 @@ await measure(`flood ${load.rate}/s, churn ${load.churn}/s`, () =>
 )
 const heapAfterFlood = (await metrics()).JSHeapUsedSize
 
+let reading
+if (liveHistory) {
+  const viewport = page.locator('.timeline-scroll')
+  await viewport.evaluate((el) => {
+    el.scrollTop = (el.scrollHeight - el.clientHeight) * 0.55
+  })
+  await page.locator('.jump-latest').waitFor()
+  const anchor = await viewport.evaluate((el) => {
+    const top = el.getBoundingClientRect().top
+    const row = [...el.querySelectorAll('.timeline-row[data-message-id]')].find(
+      (row) => row.getBoundingClientRect().bottom > top,
+    )
+    return { key: row.dataset.messageId, y: row.getBoundingClientRect().top - top }
+  })
+  const last = page.locator('.timeline-row').last()
+  const before = await last.getAttribute('data-message-id')
+  await measure('live arrivals while reading', () => page.waitForTimeout(liveHistory * 1000))
+  if ((await last.getAttribute('data-message-id')) === before)
+    throw new Error('No live messages arrived during the reading sample')
+  const drift = await viewport.evaluate((el, anchor) => {
+    const row = el.querySelector(`[data-message-id="${CSS.escape(anchor.key)}"]`)
+    return row ? row.getBoundingClientRect().top - el.getBoundingClientRect().top - anchor.y : null
+  }, anchor)
+  reading = { anchorDriftPx: drift }
+}
+
 // ---- Revisiting history and releasing its players ------------------------------------------------
-async function scrollHistory(direction) {
+async function scrollHistory(direction, steps = 40) {
   await page.mouse.move(800, 400)
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < steps; i++) {
     await page.mouse.wheel(0, direction * 3000)
     await page.waitForTimeout(120)
   }
@@ -357,25 +446,73 @@ if (await filter.isVisible())
 
 // ---- Switching away and back -------------------------------------------------------------------
 const switches = []
-await measure('switch channels', async () => {
-  for (const name of ['general', 'busy', 'general', 'busy', 'general', 'busy']) {
-    const previous = await firstMessage.getAttribute('data-message-id')
-    const start = Date.now()
-    await conversation(name).first().click()
-    await page.getByRole('textbox', { name: `Message #${name}` }).waitFor()
-    await page.waitForFunction((previous) => {
-      const first = document.querySelector('.timeline-row:has(.message-row)')
-      return first && first.getAttribute('data-message-id') !== previous
-    }, previous)
-    switches.push({ name, ms: Date.now() - start })
-  }
-})
+async function switchTo(name) {
+  const previous = await firstMessage.getAttribute('data-message-id')
+  const link = conversation(name).first()
+  await link.evaluate((element) => {
+    element.addEventListener('click', () => performance.mark('ircord:channel-click'), {
+      once: true,
+    })
+  })
+  const start = Date.now()
+  await link.click()
+  await page.getByRole('textbox', { name: `Message #${name}` }).waitFor()
+  await page.waitForFunction((previous) => {
+    const first = document.querySelector('.timeline-row:has(.message-row)')
+    return first && first.getAttribute('data-message-id') !== previous
+  }, previous)
+  const readyMs = Date.now() - start
+  const paintMs = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          const click = performance.getEntriesByName('ircord:channel-click').at(-1)
+          performance.clearMarks('ircord:channel-click')
+          // This callback runs at the next paint opportunity once the destination is rendered.
+          resolve(click && Math.round(performance.now() - click.startTime))
+        })
+      }),
+  )
+  return { name, readyMs, paintMs }
+}
+await traceSwitch(() =>
+  measure('switch channels', async () => {
+    for (const name of ['general', 'busy', 'general', 'busy', 'general', 'busy'])
+      switches.push(await switchTo(name))
+  }),
+)
 
 // ---- Idle after the flood (memory should settle) ------------------------------------------------
 await page.request.post(`${base}/api/v1/_demo/busy`, { data: { stop: true } })
 await page.waitForTimeout(1000)
 await cdp.send('HeapProfiler.collectGarbage')
 const settled = await metrics()
+
+const soakSamples = []
+if (soak) {
+  await switchTo('general')
+  for (let round = 0; round <= soak; round++) {
+    if (round > 0) {
+      await switchTo('busy')
+      await scrollHistory(-1, 12)
+      await scrollHistory(1, 12)
+      await switchTo('general')
+    }
+    await page.waitForTimeout(600)
+    await cdp.send('HeapProfiler.collectGarbage')
+    const { JSHeapUsedSize } = await metrics()
+    const { nodes, jsEventListeners } = await cdp.send('Memory.getDOMCounters')
+    soakSamples.push({
+      round,
+      heapMB: +(JSHeapUsedSize / 1048576).toFixed(1),
+      rendererRSS: await rendererRSS(),
+      nodes,
+      jsEventListeners,
+      players: nativePlayers.size,
+      mediaElements: await page.locator('.timeline-scroll video, .timeline-scroll iframe').count(),
+    })
+  }
+}
 
 console.table(results)
 console.log({
@@ -386,11 +523,17 @@ console.log({
   'member rows in DOM': visibleMembers,
   'heap after flood MB': +(heapAfterFlood / 1048576).toFixed(1),
   historySamples,
+  ...(reading ? { reading } : {}),
   ...(withEmbeds ? { 'fixture media requests': mediaRequests } : {}),
   'heap after GC MB': +(settled.JSHeapUsedSize / 1048576).toFixed(1),
   'DOM nodes': settled.Nodes,
   'page errors': errors,
 })
+if (soakSamples.length) {
+  if (withEmbeds && !createdPlayers) throw new Error('The soak did not observe a native media player')
+  console.log('Native media players observed', createdPlayers)
+  console.table(soakSamples)
+}
 for (const { scenario, functions } of profiles) {
   console.log(scenario)
   console.table(functions)

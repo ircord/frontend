@@ -2,13 +2,17 @@
 import { errorText } from '../../utils/api'
 import { useQuery } from '@pinia/colada'
 import type { Message } from '../../../shared/types/chat'
-import { messagesQuery } from '../../queries/chat'
+import { HISTORY_PAGE, messagesQuery } from '../../queries/chat'
 import { stripFormatting } from '../../../shared/utils/irc'
-import { isChatter } from '../../../shared/utils/events'
 import { selectionLog } from '../../../shared/utils/log'
 import { isEditable } from '../../../shared/utils/focus'
 import { attractClock, offscreen, resolveAttract } from '../../../shared/utils/attract'
 import { unseenSince, type SeenUpTo } from '../../../shared/utils/unseen'
+import {
+  createTimelineRows,
+  firstMessageOf,
+  type TimelineMessageRow,
+} from '../../utils/timeline-rows'
 const props = defineProps<{ highlightId?: string }>()
 const emit = defineEmits<{
   reply: [message: Message]
@@ -81,49 +85,61 @@ watch(atBottom, (following) => {
 
 // ---- Rows: messages, single events, and runs of join/part/quit/nick collapsed together -------
 
-type Row =
-  | { kind: 'message'; message: Message; key: string }
-  | { kind: 'events'; events: Message[]; key: string }
-  /** The top of the timeline: the conversation's beginning, or older history loading. */
-  | { kind: 'start' | 'loading' | 'offline' | 'retry'; key: string }
-const at = (m: Message) => new Date(m.createdAt).getTime()
-const sameDay = (a: Message, b: Message) =>
-  new Date(a.createdAt).toDateString() === new Date(b.createdAt).toDateString()
-/** A run of chatter takes events at most a minute apart, and closes after 5 minutes or 50. */
-const continues = (run: Message[], next: Message) =>
-  at(next) - at(run.at(-1)!) <= 60_000 &&
-  at(next) - at(run[0]!) <= 5 * 60_000 &&
-  run.length < 50 &&
-  sameDay(run[0]!, next)
+const headerRows = {
+  start: { kind: 'start', key: 'start' },
+  loading: { kind: 'loading', key: 'loading' },
+  offline: { kind: 'offline', key: 'offline' },
+  retry: { kind: 'retry', key: 'retry' },
+} as const
+type Row = TimelineMessageRow | (typeof headerRows)[keyof typeof headerRows]
+const buildRows = createTimelineRows()
+const messageRows = computed(() => {
+  const hideEvents = preferences.preferences.events === 'hide'
+  if (!notifications.settings.ignore.length) return buildRows(messages.value, hideEvents)
+  const ignoredSenders = new Map<string, boolean>()
+  return buildRows(messages.value, hideEvents, (message) => {
+    const id = message.senderId
+    const known = ignoredSenders.get(id)
+    if (known !== undefined) return known
+    const ignored = notifications.ignored(chat.member(id)?.nick)
+    ignoredSenders.set(id, ignored)
+    return ignored
+  })
+})
+const cachedHistoryBatch = HISTORY_PAGE * 2
+const revealedFrom = shallowRef<{ conversation: string; key: string | null }>()
+const firstShown = computed(() => {
+  const revealed = revealedFrom.value
+  const all = messageRows.value
+  if (revealed?.conversation === chat.activeId)
+    return revealed.key === null ? 0 : Math.max(0, all.findIndex((row) => row.key === revealed.key))
+  return Math.max(0, all.length - cachedHistoryBatch)
+})
+function revealFrom(index: number) {
+  const row = messageRows.value[index]
+  revealedFrom.value = { conversation: chat.activeId, key: index > 0 && row ? row.key : null }
+}
+// Switching to a cached channel paints the latest batch first. Once the reader scrolls away,
+// hold the first shown row so incoming messages cannot move the edge they are reading toward.
+watch(
+  atBottom,
+  (following) => {
+    if (!following) revealFrom(firstShown.value)
+    else if (!detached.value) revealedFrom.value = undefined
+  },
+  { flush: 'sync' },
+)
+const header = computed(() => {
+  if (chat.loadingOlder) return headerRows.loading
+  if (history.data.value?.syncError) return headerRows.retry
+  if (!firstShown.value && !history.data.value?.nextCursor && !history.data.value?.partial)
+    return history.data.value?.offline ? headerRows.offline : headerRows.start
+  return undefined
+})
 const rows = computed<Row[]>(() => {
-  const mode = preferences.preferences.events === 'hide' ? 'hide' : 'collapse'
-  const result: Row[] = []
-  for (const message of messages.value) {
-    // Ignored people's messages and membership noise are hidden entirely.
-    if (notifications.ignored(chat.member(message.senderId)?.nick)) continue
-    const chatter = isChatter(message)
-    if (chatter && mode === 'hide') continue
-    const last = result.at(-1)
-    // Kicks, bans, modes and topics always stand alone; only chatter is folded together.
-    if (
-      chatter &&
-      mode === 'collapse' &&
-      last?.kind === 'events' &&
-      isChatter(last.events[0]!) &&
-      continues(last.events, message)
-    )
-      last.events.push(message)
-    else if (message.kind === 'event')
-      result.push({ kind: 'events', events: [message], key: message.id })
-    else result.push({ kind: 'message', message, key: message.clientId ?? message.id })
-  }
-  if (chat.loadingOlder) result.unshift({ kind: 'loading', key: 'loading' })
-  else if (history.data.value?.syncError) result.unshift({ kind: 'retry', key: 'retry' })
-  else if (!history.data.value?.nextCursor && !history.data.value?.partial) {
-    const kind = history.data.value?.offline ? 'offline' : 'start'
-    result.unshift({ kind, key: kind })
-  }
-  return result
+  const start = firstShown.value
+  const shown = start ? messageRows.value.slice(start) : messageRows.value
+  return header.value ? [header.value, ...shown] : shown
 })
 const timeline = useTimelineScroll({
   viewport: scroller,
@@ -134,24 +150,7 @@ const timeline = useTimelineScroll({
   atBottom,
 })
 const firstOf = (row: Row | undefined) =>
-  row?.kind === 'message' ? row.message : row?.kind === 'events' ? row.events[0] : undefined
-function dayBreak(index: number) {
-  const a = firstOf(rows.value[index - 1])
-  const b = firstOf(rows.value[index])
-  return !!b && (!a || !sameDay(a, b))
-}
-function grouped(index: number) {
-  const a = rows.value[index - 1]
-  const b = rows.value[index]
-  if (a?.kind !== 'message' || b?.kind !== 'message' || markerBefore(index)) return false
-  return (
-    !b.message.replyTo &&
-    !dayBreak(index) &&
-    a.message.senderId === b.message.senderId &&
-    a.message.kind === b.message.kind &&
-    new Date(b.message.createdAt).getTime() - new Date(a.message.createdAt).getTime() < 5 * 60_000
-  )
-}
+  row?.kind === 'message' || row?.kind === 'events' ? firstMessageOf(row) : undefined
 
 // “New messages” line: placed once per visit, before the first message that was unread.
 const markerId = ref('')
@@ -181,14 +180,19 @@ watch(
     else if (!chat.unreadMarkers[chat.activeId]) markerId.value = ''
   },
 )
-const markerBefore = (index: number) => {
-  const row = rows.value[index]
+const markerBefore = (row: Row | undefined) => {
   return !!markerId.value && firstOf(row)?.id === markerId.value
 }
+const grouped = (row: Row | undefined) => row?.kind === 'message' && row.grouped && !markerBefore(row)
+const firstMessageIndex = computed(() => (header.value ? 1 : 0))
 
 /** A row's place in the timeline, for the /attract cues. */
 function rowBox(index: number) {
-  const el = scroller.value?.querySelector<HTMLElement>(`.timeline-row[data-index="${index}"]`)
+  const visibleIndex = index - firstShown.value + firstMessageIndex.value
+  if (visibleIndex < firstMessageIndex.value) return
+  const el = scroller.value?.querySelector<HTMLElement>(
+    `.timeline-row[data-index="${visibleIndex}"]`,
+  )
   return el ? { start: el.offsetTop, size: el.offsetHeight } : undefined
 }
 /** Embed boxes already know their size. Keep them in normal flow, including off-screen;
@@ -206,18 +210,21 @@ const attract = computed(() => {
   const target = chat.attention[chat.activeId]
   if (!target) return undefined
   const found = resolveAttract(
-    rows.value.map((r) =>
+    messageRows.value.map((r) =>
       r.kind === 'message' ? { id: r.message.id, senderId: r.message.senderId } : undefined,
     ),
     target,
-    grouped,
+    (index) => grouped(messageRows.value[index]),
   )
   return found && { ...found, startedAt: target.startedAt }
 })
 function attractOf(index: number) {
   const a = attract.value
-  if (!a || (index !== a.row && index !== a.avatar)) return undefined
-  return a.row === a.avatar ? 'both' : index === a.row ? 'row' : 'avatar'
+  if (!a || index < firstMessageIndex.value || a.row < firstShown.value) return undefined
+  const originalIndex = index - firstMessageIndex.value + firstShown.value
+  const avatar = Math.max(a.avatar, firstShown.value)
+  if (originalIndex === a.row) return a.row === avatar ? 'both' : 'row'
+  if (originalIndex === avatar) return 'avatar'
 }
 /**
  * Where the message is when it is out of view: below, the “Jump to present” pill carries the cue;
@@ -228,7 +235,7 @@ const attractOffscreen = computed<'above' | 'below' | undefined>(() => {
   const el = scroller.value
   if (!a || !el) return undefined
   void scrollTick.value
-  return offscreen(a.row, rowBox(a.row), 0, el)
+  return offscreen(a.row, rowBox(a.row), firstShown.value, el)
 })
 const pillCue = computed(
   () => attractOffscreen.value === 'below' && (!atBottom.value || detached.value),
@@ -278,7 +285,7 @@ function pageNearEdge() {
   const el = scroller.value
   if (!el || paging()) return
   const page = history.data.value
-  const canPageOlder = page?.nextCursor && !page.syncError
+  const canPageOlder = firstShown.value > 0 || (page?.nextCursor && !page.syncError)
   const canPageNewer = page?.hasNewer && !newerFailed.value
   if (!canPageOlder && !canPageNewer) return
   const height = el.clientHeight
@@ -291,6 +298,10 @@ function pageNearEdge() {
   else if (canPageOlder && nearTop && (!nearBottom || pageDirection === 'older')) void older()
 }
 async function older() {
+  if (firstShown.value > 0) {
+    revealFrom(Math.max(0, firstShown.value - cachedHistoryBatch))
+    return
+  }
   const id = chat.activeId
   const loaded = await chat.loadOlder(id)
   if (loaded && id === chat.activeId) {
@@ -322,8 +333,7 @@ function fillUp() {
       void newer()
     else if (
       pageDirection === 'older' &&
-      history.data.value?.nextCursor &&
-      !history.data.value?.syncError
+      (firstShown.value > 0 || (history.data.value?.nextCursor && !history.data.value?.syncError))
     )
       void older()
   })
@@ -381,6 +391,7 @@ watch(
   () => chat.activeId,
   () => {
     previousTop = 0
+    revealedFrom.value = undefined
     pageDirection = 'older'
     newerFailed.value = false
   },
@@ -527,10 +538,10 @@ watch(
     if (id !== highlighted) highlighted = undefined
     if (!id || highlighted) return
     await nextTick()
-    const row = rows.value.find((r) => r.kind === 'message' && r.message.id === id)
-    if (row && props.highlightId === id) {
+    const index = messageRows.value.findIndex((r) => r.kind === 'message' && r.message.id === id)
+    if (index >= 0 && props.highlightId === id) {
       highlighted = id
-      timeline.jumpToMessage(row.key)
+      await jumpToRow(index)
     }
   },
 )
@@ -541,13 +552,26 @@ watch(
 
 // Keyboard shortcuts for the “New messages” line and the newest message.
 const actions = useWorkspaceActions()
+async function jumpToRow(index: number) {
+  const row = messageRows.value[index]
+  if (!row) return
+  const id = chat.activeId
+  if (index < firstShown.value) {
+    revealFrom(Math.max(0, index - cachedHistoryBatch))
+    await nextTick()
+  }
+  if (chat.activeId === id) timeline.jumpToMessage(row.key)
+}
+
 function jumpToUnread() {
-  const row = markerId.value && rows.value.find((r) => firstOf(r)?.id === markerId.value)
-  if (!row) {
+  const index = markerId.value
+    ? messageRows.value.findIndex((row) => firstMessageOf(row)?.id === markerId.value)
+    : -1
+  if (index < 0) {
     chat.notify(t('workspaceUi.history.nothingUnreadHere'))
     return true
   }
-  timeline.jumpToMessage(row.key)
+  void jumpToRow(index)
   return true
 }
 function jumpToPresentKey() {
@@ -831,7 +855,7 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
           </div>
           <template v-else>
             <div
-              v-if="dayBreak(index)"
+              v-if="row.dayBreak || index === firstMessageIndex"
               class="date-divider flex items-center gap-2.5 mt-4 mr-4 mb-1 ml-4 text-faint text-[11px] font-[600] whitespace-nowrap before:content-[''] before:h-px before:bg-border before:flex-1 after:content-[''] after:h-px after:bg-border after:flex-1 [&>span]:rounded-full [&>span]:bg-secondary/55 [&>span]:px-2.5 [&>span]:py-0.5 [&>span]:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--border)_55%,transparent)]"
               role="separator"
               :aria-label="day(firstOf(row)!.createdAt)"
@@ -839,7 +863,7 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
               <span>{{ day(firstOf(row)!.createdAt) }}</span>
             </div>
             <div
-              v-if="markerBefore(index)"
+              v-if="markerBefore(row)"
               class="unread-divider flex items-center mt-2 mr-4 mb-1 ml-4 h-[1px] bg-destructive"
               role="separator"
               :aria-label="t('timeline.newMessagesLabel')"
@@ -856,7 +880,7 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
               :message-actions="messageActions"
               :touch-menu="touchMenu"
               :reaction-id="reactionId"
-              :grouped="grouped(index)"
+              :grouped="index !== firstMessageIndex && grouped(row)"
               :highlighted="row.message.id === highlightId"
               :attract="attractOf(index)"
               :attract-started-at="attract?.startedAt"

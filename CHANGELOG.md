@@ -8,6 +8,8 @@ What changed for people using IRCord, newest release first. Each release lists w
 ### Improved
 
 - Keep scrolling responsive while reading busy channels.
+- Show recent messages sooner when you switch back to a busy channel.
+- Release video memory sooner after closing previews.
 
 ## v0.8.0 — 2026-11-21
 

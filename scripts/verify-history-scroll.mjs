@@ -183,6 +183,7 @@ export async function verifyHistoryScroll() {
       'scroller',
       'paging',
       'history',
+      'firstShown',
       'newerFailed',
       'pageDirection',
       'newer',
@@ -192,6 +193,7 @@ export async function verifyHistoryScroll() {
       { value: viewport },
       () => !!loading.value,
       { data: page },
+      { value: 0 },
       { value: false },
       'newer',
       () => {

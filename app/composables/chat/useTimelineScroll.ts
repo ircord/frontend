@@ -292,10 +292,21 @@ export function useTimelineScroll(options: TimelineScrollOptions) {
     [viewport, content],
     ([view, list], _, cleanup) => {
       if (!view || !list) return
-      const observer = new ResizeObserver(reconcileLayout)
+      let frame: number | undefined
+      const observer = new ResizeObserver(() => {
+        if (frame !== undefined) return
+        // A follow update can trim or reveal cached rows. Let resize delivery finish first.
+        frame = requestAnimationFrame(() => {
+          frame = undefined
+          reconcileLayout()
+        })
+      })
       observer.observe(view)
       observer.observe(list)
-      cleanup(() => observer.disconnect())
+      cleanup(() => {
+        observer.disconnect()
+        if (frame !== undefined) cancelAnimationFrame(frame)
+      })
     },
     { flush: 'post' },
   )

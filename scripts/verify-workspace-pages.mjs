@@ -473,6 +473,41 @@ try {
     .getByRole('button', { name: /^Search/ })
     .first()
     .waitFor()
+  // Reopening a large cached channel mounts the latest batch. Earlier cached rows stay reachable
+  // by scrolling, and don't need another history request.
+  const busy = sidebar.locator('.conversation-link').filter({ hasText: 'busy' }).first()
+  const timeline = page.locator('.timeline-scroll')
+  const timelineRows = timeline.locator('.message-row')
+  await busy.click()
+  await page.waitForURL(`${base}/channel/busy`)
+  await timelineRows.first().waitFor()
+  for (const loaded of [80, 120, 125]) {
+    await timeline.evaluate((element) => {
+      element.scrollTop = 0
+    })
+    await page.waitForFunction(
+      (loaded) => document.querySelectorAll('.timeline-scroll .message-row').length >= loaded,
+      loaded,
+    )
+  }
+  await sidebar.locator('[data-sort-id="general"]').click()
+  await page.waitForURL(`${base}/channel/general`)
+  await busy.click()
+  await page.waitForURL(`${base}/channel/busy`)
+  await timelineRows.nth(79).waitFor()
+  assert.equal(await timelineRows.count(), 80)
+  let olderRequests = 0
+  const countOlder = (request) => {
+    const url = new URL(request.url())
+    if (url.pathname.endsWith('/busy/messages') && url.searchParams.has('before')) olderRequests++
+  }
+  page.on('request', countOlder)
+  await timeline.evaluate((element) => {
+    element.scrollTop = 0
+  })
+  await timelineRows.nth(124).waitFor()
+  assert.equal(olderRequests, 0, 'Revealing cached history fetched another page')
+  page.off('request', countOlder)
   await tool('Search', '/search')
   const field = page.getByRole('combobox', { name: 'Search workspace' })
   await field.fill('in:busy')

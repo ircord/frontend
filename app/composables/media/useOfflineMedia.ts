@@ -7,6 +7,13 @@ import {
   offlineStatus,
 } from '../../utils/offline-archive'
 
+function clearMediaSource(media: HTMLMediaElement) {
+  if (!media.hasAttribute('src')) return
+  media.pause()
+  media.removeAttribute('src')
+  media.load()
+}
+
 /** Disabling releases saved bytes; enabling checks this account before using the original URL. */
 export function useOfflineMedia(
   raw: MaybeRefOrGetter<string>,
@@ -27,11 +34,7 @@ export function useOfflineMedia(
     if (!objectURL) return
     const media = toValue(player)
     // Stop pending media reads before revoking this URL, including on an account switch.
-    if (media?.getAttribute('src') === objectURL) {
-      media.pause()
-      media.removeAttribute('src')
-      media.load()
-    }
+    if (media?.getAttribute('src') === objectURL) clearMediaSource(media)
     URL.revokeObjectURL(objectURL)
     objectURL = undefined
   }
@@ -40,6 +43,16 @@ export function useOfflineMedia(
     saved.value = false
     contentType.value = ''
     refs.value = []
+  }
+  if (player) {
+    watch(
+      () => toValue(player),
+      (media, _previous, cleanup) => {
+        // Detached elements can still hold decoder buffers and pending network reads.
+        if (media) cleanup(() => clearMediaSource(media))
+      },
+      { immediate: true, flush: 'sync' },
+    )
   }
   watch(
     [() => toValue(raw), () => toValue(enabled)],

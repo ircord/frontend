@@ -449,9 +449,16 @@ verify: try {
   await viewerVideo.focus()
   await page.keyboard.press('Space')
   await page.waitForFunction(() => document.querySelector('.media-viewer video')?.paused === true)
+  const viewerPlayer = await viewerVideo.elementHandle()
   await page.screenshot({ path: '../.data/prepush-direct-viewer.png' })
   await page.getByRole('button', { name: 'Close viewer' }).click()
   await page.locator('.media-viewer').waitFor({ state: 'hidden' })
+  assert.equal(
+    await viewerPlayer.getAttribute('src'),
+    null,
+    'Closing the viewer releases its video source',
+  )
+  await viewerPlayer.dispose()
   assert.equal((await mediaState(video)).paused, true)
   near(
     (await videoGroup.boundingBox()).height,
