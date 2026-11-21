@@ -2,7 +2,7 @@ import createClient from 'openapi-fetch'
 import type { components, paths } from '../generated/api'
 
 type Schema = components['schemas']
-/** The account documents the frontend owns; the backend stores them as opaque JSON. */
+/** Legacy account document keys, also used by older web builds and demo fixtures. */
 export type AppDocumentKind = 'appearance' | 'library' | 'preferences' | 'themes'
 export type Body<P extends keyof paths, M extends keyof paths[P]> = paths[P][M] extends {
   requestBody: { content: { 'application/json': infer T } }
@@ -39,7 +39,7 @@ export class ApiError extends Error {
   readonly statusCode: number
   readonly code?: ApiErrorCode
   readonly problemType?: string
-  readonly data: { title?: string; detail?: string; statusMessage?: string }
+  readonly data: { title?: string; detail?: string; statusMessage?: string; data?: unknown }
   constructor(response: Response, problem: unknown) {
     const value = problem && typeof problem === 'object' ? problem : {}
     const problemType = 'type' in value && typeof value.type === 'string' ? value.type : undefined
@@ -54,6 +54,7 @@ export class ApiError extends Error {
         'statusMessage' in value && typeof value.statusMessage === 'string'
           ? value.statusMessage
           : undefined,
+      ...('data' in value && { data: value.data }),
     }
     super(data.detail ?? data.statusMessage ?? data.title ?? `Request failed (${response.status}).`)
     this.name = 'ApiError'
@@ -73,17 +74,17 @@ export function createIRCordClient(apiBase: string, options: ClientOptions = {})
     headers: options.headers,
     fetch: options.fetch,
   })
-  const response = async <T>(pending: Result<T>) => {
+  const response = async <T>(pending: Result<T>, publicRead = false) => {
     const result = await pending
     if (!result.response.ok) {
-      if (result.response.status === 401 && !result.response.url.includes('/auth/'))
+      if (!publicRead && result.response.status === 401 && !result.response.url.includes('/auth/'))
         options.onUnauthorized?.()
       throw new ApiError(result.response, result.error)
     }
     return result
   }
-  const read = async <T>(pending: Result<T>): Promise<T> => {
-    const result = await response(pending)
+  const read = async <T>(pending: Result<T>, publicRead = false): Promise<T> => {
+    const result = await response(pending, publicRead)
     if (result.data === undefined) throw new Error('The server returned an empty response.')
     return options.transform ? options.transform(result.data) : result.data
   }
@@ -109,6 +110,27 @@ export function createIRCordClient(apiBase: string, options: ClientOptions = {})
       empty(client.POST('/api/v1/auth/password', { body })),
     completeOnboarding: () => empty(client.POST('/api/v1/auth/onboarding/complete')),
     logout: () => empty(client.POST('/api/v1/auth/logout')),
+    appAppearance: () => read(client.GET('/api/v1/app/appearance')),
+    saveAppAppearance: (settings: Schema['Appearance']) =>
+      read(client.PUT('/api/v1/app/appearance', { body: { settings } })),
+    appPreferences: () => read(client.GET('/api/v1/app/preferences')),
+    saveAppPreferences: (preferences: Schema['ClientPreferences']) =>
+      read(client.PUT('/api/v1/app/preferences', { body: { preferences } })),
+    appLibrary: () => read(client.GET('/api/v1/app/library')),
+    updateAppLibrary: (body: Schema['LibraryPatch']) =>
+      read(client.PATCH('/api/v1/app/library', { body })),
+    saveAppGif: (body: Body<'/api/v1/app/library/gifs', 'post'>) =>
+      read(client.POST('/api/v1/app/library/gifs', { body })),
+    deleteAppGif: (id: string) =>
+      read(client.DELETE('/api/v1/app/library/gifs/{id}', { params: { path: { id } } })),
+    appEmojiCatalog: () => read(client.GET('/api/v1/app/emoji/catalog'), true),
+    appThemes: () => read(client.GET('/api/v1/app/themes')),
+    saveAppTheme: (id: string, body: Body<'/api/v1/app/themes/{id}', 'put'>) =>
+      read(client.PUT('/api/v1/app/themes/{id}', { params: { path: { id } }, body })),
+    deleteAppTheme: (id: string) =>
+      read(client.DELETE('/api/v1/app/themes/{id}', { params: { path: { id } } })),
+    setAppThemeCss: (customCss: boolean) =>
+      read(client.PATCH('/api/v1/app/themes', { body: { customCss } })),
     deleteAccount: (body: Schema['AccountDeletion']) =>
       empty(client.DELETE('/api/v1/auth/account', { body })),
     devices: () => read(client.GET('/api/v1/auth/devices')),

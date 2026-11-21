@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ApiError } from './client'
+import { ApiError, createIRCordClient } from './client'
 
 const response = new Response(null, { status: 409, statusText: 'Conflict' })
 
@@ -42,4 +42,20 @@ test('ApiError does not recognize inherited lookup keys as problem types', () =>
     assert.equal(error.problemType, undefined, `${type} must not be exposed as a stable type`)
     assert.equal(error.message, 'Generic conflict.')
   }
+})
+
+test('a conflicting theme save exposes the stored copy to the editor', async () => {
+  const theirs = { id: 'theme', name: 'Their theme', updatedAt: '2026-11-21T12:00:00.000Z' }
+  const client = createIRCordClient('https://example.invalid/api/v1', {
+    fetch: async () => Response.json({ status: 412, data: { theirs } }, { status: 412 }),
+  })
+  await assert.rejects(
+    client.saveAppTheme(theirs.id, { theme: { name: 'My theme' }, expected: null }),
+    (error: unknown) => {
+      assert(error instanceof ApiError)
+      assert.equal(error.status, 412)
+      assert.deepEqual(error.data.data, { theirs })
+      return true
+    },
+  )
 })

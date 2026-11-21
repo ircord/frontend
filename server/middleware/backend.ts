@@ -4,13 +4,16 @@ import { desktopUpstreamOrigin } from '../utils/desktop'
 /** Keep live HTTP, cookies and shareable files on the frontend origin. */
 export default defineEventHandler(async (event) => {
   const path = event.path.split('?')[0]!
+  const config = useRuntimeConfig(event)
+  // Give the client the same mode the proxy uses so demo builds go straight to their fixtures.
+  config.public.demo = Boolean(config.demo)
   if (
     (path.startsWith('/api/app/') || path.startsWith('/api/v1/')) &&
     !['GET', 'HEAD', 'OPTIONS'].includes(event.method)
   ) {
     const origin = getHeader(event, 'origin')
     const fetchSite = getHeader(event, 'sec-fetch-site')
-    const configured = useRuntimeConfig(event).siteUrl as string
+    const configured = config.siteUrl as string
     let expected: string
     try {
       // Do not trust forwarded host or protocol from the request. Deployments behind TLS

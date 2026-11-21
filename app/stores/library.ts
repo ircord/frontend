@@ -62,7 +62,7 @@ export const useLibraryStore = defineStore('library', () => {
 
   const gifMutation = useMutation({
     mutation: ({ gif, saved }: { gif: GifItem; saved: boolean }) =>
-      saved ? appClient.saveGif(savedGif(gif)) : appClient.removeGif(gif.id),
+      saved ? appClient.saveGif(gif) : appClient.removeGif(gif.id),
     onMutate: ({ gif, saved }) => {
       const previous = library.value
       set((value) => ({

@@ -79,6 +79,11 @@ try {
   const page = await context.newPage()
   page.setDefaultTimeout(5000)
   page.on('pageerror', (error) => errors.push(error.message))
+  const demoAppearance = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/app/appearance' &&
+      response.request().method() === 'GET',
+  )
   const sidebar = page.locator('.conversation-sidebar')
   async function tool(label, path) {
     await sidebar
@@ -90,6 +95,11 @@ try {
   }
   await page.goto(base)
   await page.waitForURL(`${base}/channel/general`)
+  assert.equal((await demoAppearance).status(), 200)
+  const changelog = await context.request.get(`${base}/build-info/changelog.json`)
+  const manifest = await context.request.get(`${base}/_nuxt/builds/latest.json`)
+  assert.equal(changelog.status(), 200)
+  assert.equal((await changelog.json()).buildId, (await manifest.json()).id)
   // A menu button toggles its menu: the second click closes it, the third opens it again.
   const options = page.locator('.conversation-options')
   const menu = page.locator('.context-menu')

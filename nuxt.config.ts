@@ -2,11 +2,14 @@ import { appearanceBootScript } from './shared/appearance-boot'
 import { compileAppearance, defaultAppearance } from './shared/appearance'
 import tailwindcss from '@tailwindcss/vite'
 import { existsSync, readFileSync } from 'node:fs'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { NuxtPage } from 'nuxt/schema'
 import { fontFamilies } from './shared/fonts'
 import { localSpeechHosts } from './shared/local-speech'
 import { parseCollaborators } from './shared/utils/collaborators'
+import type { Changelog } from './shared/utils/changelog'
 
 // DevTools also creates watchers outside Nuxt's watcher options. Apply the
 // workaround to every Chokidar watcher, while respecting explicit user settings.
@@ -184,6 +187,7 @@ export default defineNuxtConfig({
     },
     '/manifest.webmanifest': { headers: { 'Cache-Control': 'no-cache' } },
     '/robots.txt': { headers: { 'Cache-Control': 'no-cache' } },
+    '/build-info/changelog.json': { headers: { 'Cache-Control': 'no-cache' } },
     // Brand artwork keeps its URL across releases; revalidate so a changed icon is picked up.
     '/favicon.svg': { headers: { 'Cache-Control': 'no-cache' } },
     '/icons/**': { headers: { 'Cache-Control': 'no-cache' } },
@@ -211,8 +215,9 @@ export default defineNuxtConfig({
     public: {
       // Go/Huma contract (chat, networks, history, realtime).
       apiBase: '/api/v1',
-      // Frontend-owned Nitro routes (appearance, picker library).
+      // Demo and older-backend routes for account settings and the picker library.
       appApiBase: '/api/app',
+      demo: false,
       websocketUrl: '',
       // Public links can name the instance while the desktop UI uses its local origin.
       instanceUrl: '',
@@ -226,6 +231,26 @@ export default defineNuxtConfig({
     },
   },
   hooks: {
+    'nitro:config'(nitro) {
+      const dir = resolve(nitro.buildDir ?? '.nuxt', 'build-info')
+      nitro.publicAssets = [...(nitro.publicAssets ?? []), { dir, baseURL: '/build-info' }]
+    },
+    async 'nitro:build:before'({ options }) {
+      const directory = options.publicAssets.find((asset) => asset.baseURL === '/build-info')!.dir
+      const data = await readFile(
+        new URL('./server/assets/changelog.json', import.meta.url),
+        'utf8',
+      )
+        .then((raw) => JSON.parse(raw) as { releases?: Changelog['releases'] })
+        .catch(() => null)
+      const changelog: Changelog = {
+        buildId: options.runtimeConfig.app.buildId ?? 'dev',
+        version: process.env.IRCORD_VERSION ?? '',
+        releases: Array.isArray(data?.releases) ? data.releases : [],
+      }
+      await mkdir(directory, { recursive: true })
+      await writeFile(resolve(directory, 'changelog.json'), JSON.stringify(changelog))
+    },
     // Keep native file routing while loading every workspace page with the app.
     'pages:extend'(pages) {
       function eager(pages: NuxtPage[]) {

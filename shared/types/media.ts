@@ -18,7 +18,7 @@ export interface EmojiItem {
   unicode?: string
   url?: string
   staticUrl?: string
-  /** instance: the Go backend's shared catalog; workspace and 7tv come from the frontend bundle. */
+  /** Instance uploads and imports are kept apart from the workspace and 7TV catalog. */
   source: 'unicode' | '7tv' | 'workspace' | 'instance'
   /** Where an instance emote was imported from (7tv, ffz); absent for uploads. */
   provider?: string

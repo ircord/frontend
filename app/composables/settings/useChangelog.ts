@@ -10,7 +10,7 @@ export function useChangelog() {
   const config = useRuntimeConfig()
   /** The build and release this page was loaded with. */
   const running = { buildId: config.app.buildId, version: useAppConfig().release.version }
-  const url = `${config.public.appApiBase}/changelog`
+  const url = `${config.app.baseURL}build-info/changelog.json`
   const data = ref<Changelog | null>(null)
   const status = ref<'idle' | 'loading' | 'ready' | 'failed'>('idle')
   let request = 0

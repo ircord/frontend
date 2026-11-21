@@ -457,6 +457,210 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/app/appearance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read account appearance
+         * @description Returns the signed-in account's appearance. Settings and update time are null before the first save.
+         */
+        get: operations["get-app-appearance"];
+        /**
+         * Save account appearance
+         * @description Replaces the signed-in account's appearance. Omitted settings use their defaults.
+         */
+        put: operations["save-app-appearance"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/emoji/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the public emoji catalog
+         * @description Lists bundled workspace emoji and up to 100 entries from the cached 7TV global set. Uses a bundled snapshot when 7TV is unavailable.
+         */
+        get: operations["get-app-emoji-catalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the picker library
+         * @description Returns the signed-in account's saved GIFs, emoji usage and skin tone.
+         */
+        get: operations["get-app-library"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update emoji usage and skin tone
+         * @description Adds emoji picks to the signed-in account's counts and sets its default skin tone when supplied.
+         */
+        patch: operations["update-app-library"];
+        trace?: never;
+    };
+    "/api/v1/app/library/gifs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save a GIF to the picker library
+         * @description Saves a Klipy GIF for the signed-in account. Saving the same ID moves it to the front. The 200 most recent favorites are retained.
+         */
+        post: operations["save-app-gif"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/library/gifs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a saved GIF
+         * @description Removes the GIF from the signed-in account's library. An absent ID leaves the library contents as they are.
+         */
+        delete: operations["delete-app-gif"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read account preferences
+         * @description Returns the signed-in account's preferences. Preferences and update time are null before the first save.
+         */
+        get: operations["get-app-preferences"];
+        /**
+         * Save account preferences
+         * @description Replaces the signed-in account's preferences. Omitted preferences use their defaults. Device secrets do not belong in this document.
+         */
+        put: operations["save-app-preferences"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/speech/zonos3/{version}/models/{model}/{file}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Redirect to a public read-aloud model shard
+         * @description Redirects a recognized shard name to the pinned public model release. Unknown names return 404.
+         */
+        get: operations["get-app-speech-shard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /**
+         * Redirect to a public read-aloud model shard
+         * @description Redirects a recognized shard name to the pinned public model release. Unknown names return 404.
+         */
+        head: operations["head-app-speech-shard"];
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/themes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the theme library
+         * @description Returns the signed-in account's themes and custom CSS preference.
+         */
+        get: operations["get-app-themes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set the custom CSS preference
+         * @description Sets whether the signed-in account uses its theme CSS. The themes remain saved.
+         */
+        patch: operations["update-app-themes"];
+        trace?: never;
+    };
+    "/api/v1/app/themes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save a personal theme
+         * @description Creates a theme or replaces the theme with this ID. A changed version returns 412 with the current theme unless force is true.
+         */
+        put: operations["save-app-theme"];
+        post?: never;
+        /**
+         * Remove a saved theme
+         * @description Removes a theme from the signed-in account. An absent ID leaves the library contents as they are.
+         */
+        delete: operations["delete-app-theme"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/account": {
         parameters: {
             query?: never;
@@ -2370,6 +2574,76 @@ export interface components {
             data: unknown;
             revision: string;
         };
+        AppEmoji: {
+            aliases: string[];
+            creator?: string;
+            /** @enum {string} */
+            group: "workspace" | "7tv";
+            id: string;
+            label: string;
+            shortcode: string;
+            /** @enum {string} */
+            source: "workspace" | "7tv";
+            sourceUrl?: string;
+            /** @description URL or path to a still image. */
+            staticUrl: string;
+            /** @description Preview URL or path to a bundled image. */
+            url: string;
+        };
+        AppEmojiCatalog: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/AppEmojiCatalog.json
+             */
+            readonly $schema?: string;
+            /** @description Bundled workspace emoji and the cached 7TV global set. */
+            items: components["schemas"]["AppEmoji"][];
+            sources: string[];
+            /** @description Path to the Unicode catalog bundled with the frontend. */
+            standardUrl: string;
+        };
+        Appearance: {
+            /** @enum {string} */
+            accent?: "scheme" | "custom" | "lavender" | "indigo" | "blue" | "sky" | "teal" | "emerald" | "lime" | "amber" | "orange" | "rose" | "pink" | "fuchsia";
+            accentCustom?: string | null;
+            animateMedia?: boolean | null;
+            coloredNames?: boolean | null;
+            /** @enum {string} */
+            corners?: "rounded" | "soft" | "square";
+            /** @enum {string} */
+            density?: "comfortable" | "compact";
+            /** @enum {string} */
+            font?: "geist" | "inter" | "ibm-plex" | "manrope" | "nunito" | "atkinson" | "source-sans" | "system";
+            /**
+             * Format: int64
+             * @description Pixels between message groups.
+             */
+            groupSpacing?: number | null;
+            /**
+             * Format: int64
+             * @description Interface scale in percent.
+             */
+            interfaceScale?: number | null;
+            /** @enum {string} */
+            messageFont?: "interface" | "atkinson" | "lexend" | "serif" | "literata" | "jetbrains-mono" | "geist-mono" | "atkinson-mono";
+            /** @enum {string} */
+            messageLayout?: "cozy" | "compact" | "irc";
+            /** Format: int64 */
+            messageSize?: number | null;
+            /** @enum {string} */
+            mode?: "system" | "dark" | "light";
+            /** @enum {string} */
+            motion?: "system" | "full" | "reduced";
+            /** @description Dark scheme identifier. Defaults to ircord-dark. */
+            schemeDark?: string;
+            /** @description Light scheme identifier. Defaults to ircord-light. */
+            schemeLight?: string;
+            /** @description Saved theme ID, or null to use the scheme. */
+            theme?: string | null;
+            /** @enum {string} */
+            timeFormat?: "24h" | "12h";
+        };
         AppearanceUpdatedEvent: {
             data: components["schemas"]["RevisionUpdate"];
             seq: number;
@@ -2688,6 +2962,34 @@ export interface components {
             nsfw?: boolean;
         };
         ClientEvent: components["schemas"]["SessionResume"] | components["schemas"]["TypingCommand"];
+        ClientPreferences: {
+            askBeforeEmbeds?: boolean;
+            channelGuideSeen?: boolean;
+            /** @enum {string} */
+            events?: "show" | "collapse" | "hide";
+            /** @description Network IDs mapped to PNG, JPEG or WebP data URLs up to 64 KiB each. */
+            networkIcons?: {
+                [key: string]: string;
+            };
+            /** @description Legacy opt-ins by network ID. */
+            nsfwNetworks?: {
+                [key: string]: boolean;
+            };
+            /** @description Register new home-network channels. Defaults to true. */
+            registerChannels?: boolean | null;
+            /** @description Keyboard overrides by action. An empty list clears the bindings for that action. */
+            shortcuts?: {
+                [key: string]: components["schemas"]["Shortcut"][] | null;
+            };
+            showNsfw?: boolean;
+            /** @description Up to 200 ordered conversation IDs per sidebar section. */
+            sidebarOrder?: {
+                [key: string]: string[] | null;
+            };
+            /** @description Speech service settings. API keys stay on the device. */
+            speech?: components["schemas"]["SpeechService"];
+            startup?: components["schemas"]["Startup"];
+        };
         CommandError: {
             clientId?: string;
             message: string;
@@ -3194,6 +3496,13 @@ export interface components {
             /** @description IRCord account IDs, as returned by the user list or identity lookup */
             managers: string[];
             restricted: boolean;
+        };
+        EmojiUsage: {
+            /** Format: int64 */
+            count: number;
+            id: string;
+            /** Format: date-time */
+            lastUsed: string;
         };
         Emote: {
             /**
@@ -3808,6 +4117,38 @@ export interface components {
             at: string;
             /** Format: double */
             ms: number;
+        };
+        Library: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/Library.json
+             */
+            readonly $schema?: string;
+            /** @description Emoji ranked by use count with a two-week half-life. */
+            emojiUsage: components["schemas"]["EmojiUsage"][];
+            /** @description Saved Klipy GIFs, most recently saved first. */
+            gifs: components["schemas"]["SavedGIF"][];
+            /** @enum {string} */
+            skinTone: "0" | "1" | "2" | "3" | "4" | "5";
+            /** Format: date-time */
+            updatedAt: string | null;
+        };
+        LibraryPatch: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/LibraryPatch.json
+             */
+            readonly $schema?: string;
+            /** @description Picked IDs in oldest-to-newest order. */
+            recent?: string[] | null;
+            /** @enum {string} */
+            skinTone?: "0" | "1" | "2" | "3" | "4" | "5";
+            /** @description Emoji ID to additional picks. Each positive count is capped at 100. */
+            uses?: {
+                [key: string]: number;
+            };
         };
         LibraryUpdatedEvent: {
             data: components["schemas"]["RevisionUpdate"];
@@ -4969,6 +5310,24 @@ export interface components {
             /** @description Monotonically increasing decimal ordering token; compare as an integer. */
             revision: string;
         };
+        "Save-app-appearanceRequest": {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/Save-app-appearanceRequest.json
+             */
+            readonly $schema?: string;
+            settings: components["schemas"]["Appearance"];
+        };
+        "Save-app-preferencesRequest": {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/Save-app-preferencesRequest.json
+             */
+            readonly $schema?: string;
+            preferences: components["schemas"]["ClientPreferences"];
+        };
         "Save-push-subscriptionRequest": {
             /**
              * Format: uri
@@ -4979,6 +5338,19 @@ export interface components {
             device?: string;
             subscription: components["schemas"]["BrowserSubscription"];
         };
+        SaveAppThemeInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SaveAppThemeInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description The updatedAt value the editor loaded. Null for a new theme. */
+            expected?: string | null;
+            /** @description Replace the theme even when its saved version changed. */
+            force?: boolean;
+            theme: components["schemas"]["Theme"];
+        };
         SaveInputBody: {
             /**
              * Format: uri
@@ -4987,6 +5359,26 @@ export interface components {
              */
             readonly $schema?: string;
             conversationId: string;
+        };
+        SavePickerGIF: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SavePickerGIF.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            height: number;
+            id: string;
+            previewUrl: string;
+            /** @enum {string} */
+            provider: "klipy";
+            slug: string;
+            stillUrl: string;
+            title: string;
+            url: string;
+            /** Format: int64 */
+            width: number;
         };
         SavedAddedEvent: {
             data: components["schemas"]["SavedMessage"];
@@ -4998,6 +5390,22 @@ export interface components {
             type: "saved.added";
             /** @enum {integer} */
             v: 1;
+        };
+        SavedGIF: {
+            /** Format: int64 */
+            height: number;
+            id: string;
+            previewUrl: string;
+            /** @enum {string} */
+            provider: "klipy";
+            /** Format: date-time */
+            savedAt: string;
+            slug: string;
+            stillUrl: string;
+            title: string;
+            url: string;
+            /** Format: int64 */
+            width: number;
         };
         SavedItem: {
             /**
@@ -5282,6 +5690,12 @@ export interface components {
             };
             quietHours: components["schemas"]["QuietHours"];
         };
+        Shortcut: {
+            alt?: boolean;
+            key: string;
+            mod?: boolean;
+            shift?: boolean;
+        };
         SignupCredentials: {
             /**
              * Format: uri
@@ -5317,6 +5731,17 @@ export interface components {
              */
             version: 1;
         };
+        SpeechService: {
+            /** @description HTTPS base URL, or HTTP on loopback. Leave empty to disable. Credentials, queries and fragments are forbidden. */
+            baseUrl?: string;
+            model?: string;
+            voice?: string;
+        };
+        Startup: {
+            channelId?: string | null;
+            /** @enum {string} */
+            mode?: "last" | "channel";
+        };
         Status: {
             /**
              * Format: uri
@@ -5337,6 +5762,30 @@ export interface components {
             /** Format: int64 */
             uptimeSeconds: number;
             version: string;
+        };
+        StoredAppearance: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/StoredAppearance.json
+             */
+            readonly $schema?: string;
+            /** @description The account's appearance. Null until saved. */
+            settings: components["schemas"]["Appearance"] | null;
+            /** Format: date-time */
+            updatedAt: string | null;
+        };
+        StoredPreferences: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/StoredPreferences.json
+             */
+            readonly $schema?: string;
+            /** @description The account's preferences. Null until saved. */
+            preferences: components["schemas"]["ClientPreferences"] | null;
+            /** Format: date-time */
+            updatedAt: string | null;
         };
         TLSInfo: {
             certificateSha256?: string;
@@ -5366,9 +5815,131 @@ export interface components {
             verified: boolean;
             version: string;
         };
+        Theme: {
+            background?: components["schemas"]["ThemeBackground"] | null;
+            base?: components["schemas"]["ThemeBase"];
+            colors?: components["schemas"]["ThemeColors"];
+            /** @description Custom CSS up to 64 KiB. Clients filter CSS before applying it. */
+            css?: string;
+            /** Format: int64 */
+            format?: number;
+            /** @description The save route takes the ID from the path. */
+            id?: string;
+            madeWith?: string;
+            name?: string;
+            /** @description Version of the stored theme. The server sets it on save. */
+            updatedAt?: string;
+        };
+        ThemeBackground: {
+            /** Format: int64 */
+            blur?: number | null;
+            /** Format: int64 */
+            dim?: number | null;
+            /** @enum {string} */
+            fit?: "cover" | "contain" | "tile";
+            /** Format: int64 */
+            panelOpacity?: number | null;
+            /** @enum {string} */
+            placement?: "conversation" | "app";
+            /** @enum {string} */
+            position?: "center" | "top" | "bottom" | "left" | "right";
+            /** @description Two measured image colors, dark then light, or null. */
+            tones?: string[] | null;
+            /** @description An upload path on this instance. Null if an imported theme needs an image. */
+            url?: string | null;
+        };
+        ThemeBase: {
+            dark?: string;
+            light?: string;
+        };
         ThemeCapability: {
             /** @description Whether themes may apply their custom CSS. When false, colors and backgrounds still apply and the CSS stays stored. */
             customCss: boolean;
+        };
+        ThemeColors: {
+            dark?: components["schemas"]["ThemeSeeds"];
+            light?: components["schemas"]["ThemeSeeds"];
+        };
+        ThemeConflict: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ThemeConflict.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["ThemeConflictDataStruct"];
+            /**
+             * @description A human-readable explanation specific to this occurrence of the problem.
+             * @example Property foo is required but is missing.
+             */
+            detail?: string;
+            /** @description Optional list of individual error details */
+            errors?: components["schemas"]["ErrorDetail"][] | null;
+            /**
+             * Format: uri
+             * @description A URI reference that identifies the specific occurrence of the problem.
+             * @example https://example.com/error-log/abc123
+             */
+            instance?: string;
+            /**
+             * Format: int64
+             * @description HTTP status code
+             * @example 400
+             */
+            status?: number;
+            /**
+             * @description A short, human-readable summary of the problem type. This value should not change between occurrences of the error.
+             * @example Bad Request
+             */
+            title?: string;
+            /**
+             * Format: uri
+             * @description A URI reference to human-readable documentation for the error.
+             * @default about:blank
+             * @example https://example.com/errors/example
+             */
+            type: string;
+        };
+        ThemeConflictDataStruct: {
+            /** @description The current saved theme. */
+            theirs: components["schemas"]["Theme"];
+        };
+        ThemePalette: {
+            blue: string;
+            cyan: string;
+            green: string;
+            orange: string;
+            pink: string;
+            purple: string;
+            red: string;
+            yellow: string;
+        };
+        ThemeSeeds: {
+            accent: string;
+            canvas: string;
+            ink: string;
+            muted: string;
+            overlay: string;
+            palette: components["schemas"]["ThemePalette"];
+            surface: string;
+        };
+        Themes: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/Themes.json
+             */
+            readonly $schema?: string;
+            /** @description The account's opt-in to using its stored custom CSS. */
+            customCss: boolean;
+            /**
+             * Format: int64
+             * @enum {integer}
+             */
+            format: 1;
+            themes: components["schemas"]["Theme"][];
+            /** Format: date-time */
+            updatedAt: string | null;
         };
         ThemesUpdatedEvent: {
             data: components["schemas"]["RevisionUpdate"];
@@ -5451,6 +6022,15 @@ export interface components {
              * @enum {integer}
              */
             v: 1;
+        };
+        "Update-app-themesRequest": {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/Update-app-themesRequest.json
+             */
+            readonly $schema?: string;
+            customCss: boolean;
         };
         Upload: {
             /**
@@ -9534,6 +10114,1175 @@ export interface operations {
             };
             /** @description Error */
             default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-app-appearance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredAppearance"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "save-app-appearance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Save-app-appearanceRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredAppearance"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-app-emoji-catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppEmojiCatalog"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-app-library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Library"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-app-library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LibraryPatch"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Library"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "save-app-gif": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavePickerGIF"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Library"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-app-gif": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the saved GIF. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Library"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-app-preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredPreferences"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "save-app-preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Save-app-preferencesRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredPreferences"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-app-speech-shard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The version of the frontend's bundled model manifests. */
+                version: string;
+                /** @description The backbone or zac model. */
+                model: string;
+                /** @description Name of a shard listed in the shipped model manifest. */
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Found */
+            302: {
+                headers: {
+                    "Cache-Control"?: string;
+                    Location?: string;
+                    "Referrer-Policy"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "head-app-speech-shard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The version of the frontend's bundled model manifests. */
+                version: string;
+                /** @description The backbone or zac model. */
+                model: string;
+                /** @description Name of a shard listed in the shipped model manifest. */
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Found */
+            302: {
+                headers: {
+                    "Cache-Control"?: string;
+                    Location?: string;
+                    "Referrer-Policy"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-app-themes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Themes"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-app-themes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Update-app-themesRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Themes"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "save-app-theme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the personal theme. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveAppThemeInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Themes"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description The theme changed since the edit began. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ThemeConflict"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-app-theme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the personal theme. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Themes"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

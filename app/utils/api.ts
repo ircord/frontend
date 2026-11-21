@@ -1,15 +1,15 @@
 import { $fetch } from '#build/fetch'
 import { normalizeTransport, transportMemberId } from './transport'
 import { createIRCordClient } from '../../shared/api/client'
-import type { Appearance, StoredAppearance } from '../../shared/appearance'
-import type { ClientPreferences, StoredPreferences } from '../../shared/preferences'
-import type { PickerLibrary, SavedGif } from '../../shared/library'
-import type { Theme, ThemeLibrary } from '../../shared/themes'
-import type { EmojiCatalog } from '../../shared/types/media'
-let bases: { api: string; app: string } | undefined
+import { sanitizeAppearance, type Appearance } from '../../shared/appearance'
+import { sanitizePreferences, type ClientPreferences } from '../../shared/preferences'
+import { skinTones, type PickerLibrary } from '../../shared/library'
+import { sanitizeThemeLibrary, type Theme } from '../../shared/themes'
+import type { EmojiCatalog, GifItem } from '../../shared/types/media'
+let bases: { api: string; app: string; demo: boolean } | undefined
 
-export function configureApiBases(config: { apiBase: string; appApiBase: string }) {
-  bases = { api: config.apiBase, app: config.appApiBase }
+export function configureApiBases(config: { apiBase: string; appApiBase: string; demo: boolean }) {
+  bases = { api: config.apiBase, app: config.appApiBase, demo: config.demo }
   client = undefined
 }
 
@@ -17,7 +17,7 @@ export function configureApiBases(config: { apiBase: string; appApiBase: string 
 function base() {
   if (!bases) {
     const config = useRuntimeConfig().public
-    bases = { api: config.apiBase, app: config.appApiBase }
+    bases = { api: config.apiBase, app: config.appApiBase, demo: config.demo }
   }
   return bases
 }
@@ -32,63 +32,127 @@ export function apiClient() {
   }))
 }
 
-/** Frontend-owned routes use their shared sanitizer types, with fixed operation shapes. */
+// Demo builds use their fixture routes. An older backend returns 404 for an unregistered
+// operation. Other failures from Go are returned to the caller.
+async function appRequest<T extends object>(
+  go: () => Promise<T>,
+  path: string,
+  method: 'GET' | 'PUT' | 'PATCH' | 'POST' | 'DELETE' = 'GET',
+  body?: object,
+): Promise<T> {
+  const config = base()
+  if (!config.demo) {
+    try {
+      return await go()
+    } catch (error) {
+      if (errorStatus(error) !== 404) throw error
+    }
+  }
+  return $fetch<object>(`${config.app}${path}`, {
+    credentials: 'include',
+    method,
+    body,
+  }) as Promise<T>
+}
+
 export const appClient = {
-  appearance: () =>
-    $fetch<StoredAppearance>(`${base().app}/appearance`, { credentials: 'include' }),
-  saveAppearance: (settings: Appearance) =>
-    $fetch<StoredAppearance>(`${base().app}/appearance`, {
-      credentials: 'include',
-      method: 'PUT',
-      body: { settings },
-    }),
-  preferences: () =>
-    $fetch<StoredPreferences>(`${base().app}/preferences`, { credentials: 'include' }),
-  savePreferences: (preferences: ClientPreferences) =>
-    $fetch<StoredPreferences>(`${base().app}/preferences`, {
-      credentials: 'include',
-      method: 'PUT',
-      body: { preferences },
-    }),
-  library: () => $fetch<PickerLibrary>(`${base().app}/library`, { credentials: 'include' }),
-  updateLibrary: (body: { uses?: Record<string, number>; recent?: string[]; skinTone?: string }) =>
-    $fetch<PickerLibrary>(`${base().app}/library`, {
-      credentials: 'include',
-      method: 'PATCH',
+  async appearance() {
+    const { settings, updatedAt } = await appRequest(
+      () => apiClient().appAppearance(),
+      '/appearance',
+    )
+    return { settings: settings ? sanitizeAppearance(settings) : null, updatedAt }
+  },
+  async saveAppearance(settings: Appearance) {
+    const saved = await appRequest(
+      () => apiClient().saveAppAppearance(settings),
+      '/appearance',
+      'PUT',
+      { settings },
+    )
+    return {
+      settings: saved.settings ? sanitizeAppearance(saved.settings) : null,
+      updatedAt: saved.updatedAt,
+    }
+  },
+  async preferences() {
+    const saved = await appRequest(() => apiClient().appPreferences(), '/preferences')
+    return {
+      preferences: saved.preferences ? sanitizePreferences(saved.preferences) : null,
+      updatedAt: saved.updatedAt,
+    }
+  },
+  async savePreferences(preferences: ClientPreferences) {
+    const saved = await appRequest(
+      () => apiClient().saveAppPreferences(preferences),
+      '/preferences',
+      'PUT',
+      { preferences },
+    )
+    return {
+      preferences: saved.preferences ? sanitizePreferences(saved.preferences) : null,
+      updatedAt: saved.updatedAt,
+    }
+  },
+  library: () => appRequest<PickerLibrary>(() => apiClient().appLibrary(), '/library'),
+  updateLibrary: (body: {
+    uses?: Record<string, number>
+    recent?: string[]
+    skinTone?: string
+  }) => {
+    const skinTone = skinTones.find((tone) => tone === body.skinTone)
+    return appRequest<PickerLibrary>(
+      () => apiClient().updateAppLibrary({ ...body, skinTone }),
+      '/library',
+      'PATCH',
       body,
-    }),
-  saveGif: (body: SavedGif) =>
-    $fetch<PickerLibrary>(`${base().app}/library/gifs`, {
-      credentials: 'include',
-      method: 'POST',
-      body,
-    }),
+    )
+  },
+  saveGif: (body: GifItem) =>
+    appRequest<PickerLibrary>(() => apiClient().saveAppGif(body), '/library/gifs', 'POST', body),
   removeGif: (id: string) =>
-    $fetch<PickerLibrary>(`${base().app}/library/gifs/${encodeURIComponent(id)}`, {
-      credentials: 'include',
-      method: 'DELETE',
-    }),
-  emojiCatalog: () =>
-    $fetch<EmojiCatalog>(`${base().app}/emoji/catalog`, { credentials: 'include' }),
-  themes: () => $fetch<ThemeLibrary>(`${base().app}/themes`, { credentials: 'include' }),
-  /** `expected` is the version the edit started from; 412 means it changed elsewhere meanwhile. */
-  saveTheme: (theme: Theme, expected: string | null, force = false) =>
-    $fetch<ThemeLibrary>(`${base().app}/themes/${encodeURIComponent(theme.id)}`, {
-      credentials: 'include',
-      method: 'PUT',
-      body: { theme, expected, force },
-    }),
-  deleteTheme: (id: string) =>
-    $fetch<ThemeLibrary>(`${base().app}/themes/${encodeURIComponent(id)}`, {
-      credentials: 'include',
-      method: 'DELETE',
-    }),
-  setCustomCss: (customCss: boolean) =>
-    $fetch<ThemeLibrary>(`${base().app}/themes`, {
-      credentials: 'include',
-      method: 'PATCH',
-      body: { customCss },
-    }),
+    appRequest<PickerLibrary>(
+      () => apiClient().deleteAppGif(id),
+      `/library/gifs/${encodeURIComponent(id)}`,
+      'DELETE',
+    ),
+  async emojiCatalog(): Promise<EmojiCatalog> {
+    try {
+      return await appRequest(() => apiClient().appEmojiCatalog(), '/emoji/catalog')
+    } catch (error) {
+      // Older Go versions require a session on unknown API paths.
+      if (errorStatus(error) !== 401) throw error
+      return $fetch<EmojiCatalog>(`${base().app}/emoji/catalog`)
+    }
+  },
+  themes: async () =>
+    sanitizeThemeLibrary(await appRequest(() => apiClient().appThemes(), '/themes')),
+  /** `expected` is the version the edit started from. A concurrent edit returns 412. */
+  async saveTheme(theme: Theme, expected: string | null, force = false) {
+    const body = { theme, expected, force }
+    return sanitizeThemeLibrary(
+      await appRequest(
+        () => apiClient().saveAppTheme(theme.id, body),
+        `/themes/${encodeURIComponent(theme.id)}`,
+        'PUT',
+        body,
+      ),
+    )
+  },
+  deleteTheme: async (id: string) =>
+    sanitizeThemeLibrary(
+      await appRequest(
+        () => apiClient().deleteAppTheme(id),
+        `/themes/${encodeURIComponent(id)}`,
+        'DELETE',
+      ),
+    ),
+  setCustomCss: async (customCss: boolean) =>
+    sanitizeThemeLibrary(
+      await appRequest(() => apiClient().setAppThemeCss(customCss), '/themes', 'PATCH', {
+        customCss,
+      }),
+    ),
 }
 
 /** HTTP status of a failed request, from either client. */

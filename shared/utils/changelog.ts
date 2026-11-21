@@ -13,7 +13,7 @@ export interface Release {
   notes: string
 }
 
-/** What `/api/app/changelog` answers: the build the server runs and its release history. */
+/** The build currently served by the frontend and its release history. */
 export interface Changelog {
   /** Nuxt build id of the build serving this data; matches `/_nuxt/builds/latest.json`. */
   buildId: string

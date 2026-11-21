@@ -102,6 +102,12 @@ try {
     { owner },
   )
   const page = await context.newPage()
+  const appResponses = new Map()
+  page.on('response', (response) => {
+    const path = new URL(response.url()).pathname
+    if (path.startsWith('/api/v1/app/') && response.request().method() === 'GET')
+      appResponses.set(path, response.status())
+  })
   const cookie = (await context.cookies(ui)).map(({ name, value }) => `${name}=${value}`).join('; ')
   const upgradeStatus = (path, headers) =>
     new Promise((resolve, reject) => {
@@ -207,6 +213,34 @@ try {
         allHistoryMs,
         resumeMs,
       })
+  }
+  if (label !== 'before') {
+    for (const kind of ['appearance', 'preferences', 'library', 'themes'])
+      assert.equal(appResponses.get(`/api/v1/app/${kind}`), 200, `read ${kind} from Go`)
+
+    const appearance = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/v1/app/appearance' &&
+        response.request().method() === 'PUT' &&
+        response.request().postDataJSON().settings.mode === 'dark',
+    )
+    await page.evaluate(() =>
+      document
+        .querySelector('#__nuxt')
+        .__vue_app__.config.globalProperties.$pinia._s.get('appearance')
+        .update({ mode: 'dark' }),
+    )
+    const response = await appearance
+    assert.equal(response.status(), 200)
+    assert.equal((await response.json()).settings.mode, 'dark')
+
+    const shard = '/speech/zonos3/v1/models/backbone/shard-000.bin'
+    const proxy = await context.request.head(ui + shard, { maxRedirects: 0 })
+    const direct = await context.request.head(api + '/api/v1/app' + shard, { maxRedirects: 0 })
+    assert.equal(proxy.status(), 302)
+    assert.equal(direct.status(), 302)
+    assert.equal(proxy.headers().location, direct.headers().location)
+    assert.equal(proxy.headers()['referrer-policy'], 'no-referrer')
   }
   const replayPage = await context.newPage()
   replayPage.on('pageerror', (error) => errors.push(error.message))
