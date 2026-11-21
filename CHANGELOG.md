@@ -5,6 +5,8 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+## v0.8.2 — 2026-11-21
+
 ### Fixed
 
 - Show the sliders for message text size, message spacing, and interface scale in Settings.
