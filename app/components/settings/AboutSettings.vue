@@ -1,5 +1,5 @@
 <script setup vapor lang="ts">
-import { aboutBuild, PROJECT_URL, WEBSITE_URL } from '../../../shared/utils/about'
+import { aboutBuild, ISSUES_URL, PROJECT_URL, WEBSITE_URL } from '../../../shared/utils/about'
 
 /**
  * Settings → About: what IRCord is, which build this page runs, where the source, issues, license
@@ -25,7 +25,7 @@ const links = computed(() => [
   {
     label: t('about.links.report'),
     detail: t('mediaUi.about.githubIssues'),
-    href: `${PROJECT_URL}/issues`,
+    href: ISSUES_URL,
   },
   {
     label: t('about.links.releases'),

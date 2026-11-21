@@ -5,6 +5,10 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+### Fixed
+
+- The report link in Settings → About opens the shared IRCord issue tracker.
+
 ## v0.7.3 — 2026-11-21
 
 ### New

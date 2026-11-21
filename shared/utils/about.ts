@@ -1,5 +1,8 @@
-/** Where IRCord's source, issues, releases and license live. */
+/** Where the IRCord client source, releases, and license live. */
 export const PROJECT_URL = 'https://github.com/ircord/frontend'
+
+/** The issue tracker shared by all IRCord components. */
+export const ISSUES_URL = 'https://github.com/ircord/issues/issues/new/choose'
 
 /** IRCord's public website. */
 export const WEBSITE_URL = 'https://ircord.com'
