@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
@@ -7,12 +6,10 @@ import ts from 'typescript'
 import Ajv from 'ajv/dist/2020.js'
 import standaloneCode from 'ajv/dist/standalone/index.js'
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const check = process.argv.includes('--check')
-const json = execFileSync('go', ['run', './cmd/openapi'], {
-  cwd: resolve(root, 'backend'),
-  encoding: 'utf8',
-})
+const schemaFile = process.env.IRCORD_OPENAPI || resolve(root, '../backend/openapi.json')
+const json = await readFile(schemaFile, 'utf8')
 const schema = JSON.parse(json)
 const ast = await openapiTS(schema, {
   transform(value) {
@@ -70,10 +67,9 @@ const validator =
   standalone
 const declarations = `import type { components } from './api'\ndeclare const validate: (value: unknown) => value is components['schemas']['ServerEvent']\nexport default validate\n`
 const artifacts = new Map([
-  ['backend/openapi.json', json],
-  ['frontend/shared/generated/api.d.ts', types],
-  ['frontend/shared/generated/event-validator.js', validator],
-  ['frontend/shared/generated/event-validator.d.ts', declarations],
+  ['shared/generated/api.d.ts', types],
+  ['shared/generated/event-validator.js', validator],
+  ['shared/generated/event-validator.d.ts', declarations],
 ])
 let stale = false
 for (const [name, content] of artifacts) {
@@ -89,11 +85,11 @@ for (const [name, content] of artifacts) {
   }
 }
 if (stale) {
-  console.error('Run bun run api:generate in frontend/.')
+  console.error('Run bun run api:generate from the frontend repository.')
   process.exitCode = 1
 } else
   console.log(
     check
       ? 'Generated API contract is current.'
-      : 'Generated OpenAPI, TypeScript and WebSocket validator.',
+      : 'Generated TypeScript types and the WebSocket validator.',
   )
