@@ -1,5 +1,5 @@
 // Release notes shown inside the client. The frontend image carries the notes of the release it
-// was built from and of every earlier release (see scripts/release-changelog.mjs), so what a user
+// was built from and of every earlier release, so what a user
 // reads always describes what is actually deployed, never a newer tag that has not rolled out.
 
 export interface Release {
