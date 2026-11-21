@@ -1,3 +1,5 @@
+import type { SpeechService } from '../../shared/speech-service'
+
 export interface DesktopCore {
   invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>
   Channel: new <T>(onmessage: (event: T) => void) => unknown
@@ -32,12 +34,11 @@ function base64(bytes: Uint8Array) {
 }
 
 export function createDesktopClient(core: DesktopCore, serverOrigin: string) {
-  async function fetch(request: Request) {
-    const url = new URL(request.url)
-    if (url.origin !== serverOrigin) throw new TypeError('This request is for another server.')
-    const { signal } = request
-    signal.throwIfAborted()
-    const body = request.body ? base64(new Uint8Array(await request.arrayBuffer())) : null
+  async function invokeRequest<T>(
+    command: string,
+    request: Record<string, unknown>,
+    signal: AbortSignal,
+  ) {
     signal.throwIfAborted()
     const id = crypto.randomUUID()
     let rejectAbort: (reason: unknown) => void
@@ -48,28 +49,41 @@ export function createDesktopClient(core: DesktopCore, serverOrigin: string) {
     }
     signal.addEventListener('abort', abort, { once: true })
     try {
-      const result = await Promise.race([
+      return await Promise.race([
         cancelled,
-        core.invoke<NativeResponse>('api_request', {
-          request: {
-            id,
-            method: request.method,
-            path: url.pathname + url.search,
-            headers: Array.from(request.headers.entries()),
-            body,
-            credentials: request.credentials !== 'omit',
-          },
-        }),
+        core.invoke<T>(command, { request: { ...request, id } }),
       ])
-      const bytes = result.body
-        ? Uint8Array.from(atob(result.body), (char) => char.charCodeAt(0))
-        : null
-      const response = new Response(bytes, { status: result.status, headers: result.headers })
-      Object.defineProperty(response, 'url', { value: request.url })
-      return response
     } finally {
       signal.removeEventListener('abort', abort)
     }
+  }
+
+  async function fetch(request: Request) {
+    const url = new URL(request.url)
+    if (url.origin !== serverOrigin) throw new TypeError('This request is for another server.')
+    request.signal.throwIfAborted()
+    const body = request.body ? base64(new Uint8Array(await request.arrayBuffer())) : null
+    const result = await invokeRequest<NativeResponse>('api_request', {
+      method: request.method,
+      path: url.pathname + url.search,
+      headers: Array.from(request.headers.entries()),
+      body,
+      credentials: request.credentials !== 'omit',
+    }, request.signal)
+    const bytes = result.body
+      ? Uint8Array.from(atob(result.body), (char) => char.charCodeAt(0))
+      : null
+    const response = new Response(bytes, { status: result.status, headers: result.headers })
+    Object.defineProperty(response, 'url', { value: request.url })
+    return response
+  }
+
+  async function speech(service: SpeechService, key: string, input: string, signal: AbortSignal) {
+    const { status, audio } = await invokeRequest<{ status: number; audio: string }>(
+      'speech_request', { ...service, key, input }, signal,
+    )
+    const bytes = audio ? Uint8Array.from(atob(audio), (char) => char.charCodeAt(0)) : null
+    return new Response(bytes, { status, headers: { 'Content-Type': 'audio/mpeg' } })
   }
 
   function openSocket(url: URL): RealtimeSocket {
@@ -116,5 +130,5 @@ export function createDesktopClient(core: DesktopCore, serverOrigin: string) {
     }, failed)
     return socket
   }
-  return { fetch, openSocket }
+  return { fetch, openSocket, speech }
 }

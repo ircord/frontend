@@ -24,6 +24,7 @@ import {
 } from '../../../shared/local-speech'
 
 const reader = useReadAloud()
+const { speechService: nativeSpeechService } = usePlatform()
 const { enabled: readAloudOn, speaking, speechKey, ready } = reader
 const local = useLocalSpeech()
 const preferences = usePreferencesStore()
@@ -441,7 +442,7 @@ async function localTest() {
         ><AppIcon
           name="lock"
           :size="15"
-        /><span>{{ $t('readAloud.serviceNote') }}</span></SettingNote
+        /><span>{{ $t(nativeSpeechService ? 'readAloud.desktopServiceNote' : 'readAloud.serviceNote') }}</span></SettingNote
       >
       <form
         class="speech-service-form grid gap-3.5"
@@ -458,7 +459,7 @@ async function localTest() {
           :maxlength="urlMax"
           :placeholder="baseUrlPlaceholder"
           required
-          :help="$t('readAloud.serviceUrlHelp')"
+          :help="$t(nativeSpeechService ? 'readAloud.desktopServiceUrlHelp' : 'readAloud.serviceUrlHelp')"
           :error="urlError || undefined"
         />
         <AppInput

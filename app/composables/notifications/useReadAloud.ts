@@ -8,6 +8,7 @@ import {
 import { channelTarget } from '../../../shared/utils/irc'
 import {
   maxSpeechAudio,
+  maxSpeechInput,
   sanitizeSpeechKey,
   speechConfigured,
   speechFailure,
@@ -88,7 +89,7 @@ const allowedOrigin = import.meta.client
   : ''
 /** Whether this page can reach the service now, or needs reloading first. */
 export function speechNeedsReload(service: SpeechService) {
-  return !import.meta.dev && speechOrigin(service.baseUrl) !== allowedOrigin
+  return !usePlatform().speechService && !import.meta.dev && speechOrigin(service.baseUrl) !== allowedOrigin
 }
 
 /**
@@ -119,13 +120,20 @@ async function speak(
     )
   controller = new AbortController()
   const { signal } = controller
-  const { url, init } = speechRequest(service, speechKey.value, text)
+  const nativeSpeech = usePlatform().speechService
   let response: Response
   try {
-    response = await fetch(url, { ...init, signal })
+    if (nativeSpeech) {
+      response = await nativeSpeech(service, speechKey.value, text.slice(0, maxSpeechInput), signal)
+    } else {
+      const { url, init } = speechRequest(service, speechKey.value, text)
+      response = await fetch(url, { ...init, signal })
+    }
   } catch (error) {
     if ((error as Error)?.name === 'AbortError') throw error
-    throw new SpeechError(speechFailure(error, undefined, service.baseUrl, translate))
+    throw new SpeechError(nativeSpeech
+      ? translate('workspaceUi.speech.nativeUnavailable')
+      : speechFailure(error, undefined, service.baseUrl, translate))
   }
   if (!response.ok)
     throw new SpeechError(speechFailure(null, response.status, service.baseUrl, translate))

@@ -62,6 +62,7 @@ type ClientWindow = Window &
       serverOrigin?: string
       version?: string
       canCheckForUpdates?: boolean
+      supportsSpeechService?: boolean
     }
     __TAURI__?: DesktopBridge
   }
@@ -179,6 +180,7 @@ export function createPlatform(window: ClientWindow) {
   const titleBar = bridge ? desktop?.titleBar : undefined
   const serverOrigin = bridge ? desktop?.serverOrigin : undefined
   const windowControls = bridge?.window?.getCurrentWindow()
+  const client = bridge && serverOrigin ? createDesktopClient(bridge.core, serverOrigin) : undefined
   return {
     kind: bridge ? ('tauri' as const) : ('web' as const),
     nativeDevice: !!bridge,
@@ -196,7 +198,8 @@ export function createPlatform(window: ClientWindow) {
           await bridge.core.invoke('choose_server')
         }
       : undefined,
-    client: bridge && serverOrigin ? createDesktopClient(bridge.core, serverOrigin) : undefined,
+    client,
+    speechService: desktop?.supportsSpeechService ? client?.speech : undefined,
     windowControls,
     async copyText(text: string) {
       if (bridge) await bridge.core.invoke('plugin:clipboard-manager|write_text', { text })

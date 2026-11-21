@@ -794,6 +794,8 @@
     "apiKey": "API key",
     "apiKeyHelp": "Kept in this browser only; each device needs its own. Removed when you log out.",
     "audioBlocked": "Your browser blocked the audio. Try again.",
+    "desktopServiceNote": "IRCord calls your speech service directly. The address, model, and voice follow your account. This device sends its API key only to the speech service.",
+    "desktopServiceUrlHelp": "Use an OpenAI-compatible speech service. IRCord sends text to its /audio/speech endpoint. Use HTTPS for servers away from this computer.",
     "enabledAnnouncement": "Read aloud enabled",
     "engine": {
       "api": "API",
