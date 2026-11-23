@@ -1,4 +1,5 @@
 import { splitCodeBlocks, textOutsideCode } from './irc'
+import { maskedLinks } from './masked-links'
 import type { components } from '../generated/api'
 
 type Widget = components['schemas']['LinkMediaWidget']
@@ -156,6 +157,9 @@ export function mediaLinkText(text: string) {
   return raw
 }
 
+// eslint-disable-next-line no-control-regex -- preserve IRC monospace/reset codes and URL boundaries
+const proseTokens = /\x11|\x0f|https?:\/\/[^\s<>"'\x00-\x1f]+/g
+
 /** Presentation only: hide successfully rendered prose links without changing code or IRC controls. */
 export function messageMediaText(text: string, rendered: ReadonlySet<string>) {
   if (!rendered.size) return text
@@ -163,11 +167,12 @@ export function messageMediaText(text: string, rendered: ReadonlySet<string>) {
     .map((segment) => {
       if (segment.kind === 'code') return segment.raw
       let mono = false
-      // eslint-disable-next-line no-control-regex -- preserve IRC monospace/reset codes and URL boundaries
-      return segment.raw.replace(/\x11|\x0f|https?:\/\/[^\s<>"'\x00-\x1f]+/g, (token) => {
+      // A masked link shows its text, not its address, so the address is never hidden.
+      const links = maskedLinks(segment.raw)
+      return segment.raw.replace(proseTokens, (token, at: number) => {
         if (token === '\x11') mono = !mono
         else if (token === '\x0f') mono = false
-        else if (!mono) {
+        else if (!mono && !links.some((link) => at >= link.start && at < link.end)) {
           const url = mediaLinkText(token)
           if (rendered.has(url)) return token.slice(url.length)
         }

@@ -1,6 +1,7 @@
 // IRC protocol helpers shared by the browser and the Nitro mock: channel privileges from
 // ISUPPORT, mIRC formatting codes, and raw line validation.
 import type { Conversation, Network } from '../types/chat'
+import { linkTargetsText } from './masked-links'
 
 /** Keep the wire target distinct from the display name, including non-# channels. */
 export function channelTarget(conversation: Pick<Conversation, 'name' | 'target'>) {
@@ -205,13 +206,23 @@ const controls = /[\x02\x03\x04\x0f\x11\x16\x1d\x1e\x1f]/
 /** Splits text into runs with their formatting. Plain text returns a single run. */
 export function parseFormatting(text: string): FormattedRun[] {
   if (!controls.test(text)) return [{ text }]
-  const runs: FormattedRun[] = []
+  return formattingRunsAt(text).map(({ start: _, ...run }) => run)
+}
+
+/**
+ * parseFormatting with each run's offset in `text`. A run's text is the unbroken stretch
+ * `text.slice(start, start + run.text.length)`, because every formatting code ends a run.
+ */
+export function formattingRunsAt(text: string): (FormattedRun & { start: number })[] {
+  if (!controls.test(text)) return text ? [{ text, start: 0 }] : []
+  const runs: (FormattedRun & { start: number })[] = []
   let style: Omit<FormattedRun, 'text'> = {}
   let reverse = false
   let buffer = ''
+  let start = 0
   const flush = () => {
     if (!buffer) return
-    const run: FormattedRun = { text: buffer, ...style }
+    const run: FormattedRun & { start: number } = { text: buffer, ...style, start }
     if (reverse) [run.fg, run.bg] = [style.bg ?? 'var(--main)', style.fg ?? 'var(--body)']
     runs.push(run)
     buffer = ''
@@ -252,7 +263,10 @@ export function parseFormatting(text: string): FormattedRun[] {
         i += match[0].length
         style = { ...style, fg: `#${match[1]}`, bg: match[2] ? `#${match[2]}` : style.bg }
       }
-    } else buffer += char
+    } else {
+      if (!buffer) start = i
+      buffer += char
+    }
   }
   flush()
   return runs
@@ -323,9 +337,12 @@ export function splitCodeBlocks(text: string): CodeSegment[] {
   return segments
 }
 
-/** Text outside code (fenced blocks and IRC monospace), e.g. for finding links to preview. */
+/**
+ * Text outside code (fenced blocks and IRC monospace), e.g. for finding links to preview. A
+ * masked link `[text](url)` reads as its address.
+ */
 export function textOutsideCode(text: string) {
-  return splitCodeBlocks(text)
+  return splitCodeBlocks(linkTargetsText(text))
     .map((segment) =>
       segment.kind === 'code'
         ? ' '

@@ -1,5 +1,6 @@
 <script setup vapor lang="ts">
-import { parseFormatting } from '../../../shared/utils/irc'
+import type { FormattedRun } from '../../../shared/utils/irc'
+import { messagePieces } from '../../../shared/utils/masked-links'
 import { readableOn } from '../../../shared/utils/color'
 import { isGroupMention } from '../../../shared/group-mentions'
 import { messageLinkInText } from '../../../shared/utils/message-links'
@@ -12,7 +13,7 @@ const chat = useChatStore()
 const appearance = useAppearanceStore()
 
 /** IRC colours are adjusted so they stay readable on the current theme. */
-function runStyle(run: ReturnType<typeof parseFormatting>[number]) {
+function runStyle(run: FormattedRun) {
   const background = run.bg?.startsWith('#') ? run.bg : appearance.tokens.main
   return {
     ...(run.fg
@@ -68,9 +69,33 @@ async function openChannel(text: string) {
   if (joined) return chat.activate(joined.id)
   chat.join.mutateAsync(text).catch((error) => chat.notify(errorText(error, t), { error: true }))
 }
-/** Links, mentions, emoji and #channels become interactive; text inside code stays literal. */
+const runClass = (run: FormattedRun) => ({
+  'fmt-bold': run.bold,
+  'fmt-italic': run.italic,
+  'fmt-underline': run.underline,
+  'fmt-strike': run.strike,
+  'fmt-mono': run.mono,
+})
+/**
+ * Links, mentions, emoji and #channels become interactive; text inside code stays literal. A
+ * masked link `[text](url)` shows its text, and names its address on hover and to assistive
+ * technology.
+ */
 const runs = computed(() =>
-  parseFormatting(props.text).map((run) => ({
+  messagePieces(props.text).map((piece) =>
+    piece.kind === 'link'
+      ? {
+          link: piece,
+          runs: piece.runs.map((run) => ({ run, style: runStyle(run) })),
+          run: undefined,
+          style: undefined,
+          parts: [],
+        }
+      : { link: undefined, runs: [], ...textRun(piece.run) },
+  ),
+)
+function textRun(run: FormattedRun) {
+  return {
     run,
     style: runStyle(run),
     parts: run.mono
@@ -98,52 +123,72 @@ const runs = computed(() =>
               self: member?.id === 'you',
             }
           }),
-  })),
-)
+  }
+}
 </script>
 <template>
-  <span
+  <template
     v-for="(segment, i) in runs"
     :key="i"
-    :class="{
-      'fmt-bold': segment.run.bold,
-      'fmt-italic': segment.run.italic,
-      'fmt-underline': segment.run.underline,
-      'fmt-strike': segment.run.strike,
-      'fmt-mono': segment.run.mono,
-    }"
-    :style="segment.style"
-    ><template
-      v-for="(part, index) in segment.parts"
-      :key="index"
-      ><CustomEmoji
-        v-if="part.custom"
-        :item="part.custom"
-      /><a
-        v-else-if="part.kind === 'link'"
+    ><AppTooltip
+      v-if="segment.link"
+      :text="segment.link.masked ? segment.link.href : ''"
+      side="top"
+      ><a
         class="[word-break:break-word] underline decoration-1 underline-offset-2"
-        :href="part.text"
+        :href="segment.link.href"
+        :aria-label="
+          segment.link.masked
+            ? t('workspaceUi.links.masked', { text: segment.link.label, url: segment.link.href })
+            : undefined
+        "
         target="_blank"
         rel="noopener noreferrer"
-        @click="openLink($event, part.text)"
-        >{{ part.text }}</a
-      ><span
-        v-else-if="part.kind === 'mention'"
-        class="inline-mention text-primary bg-selection py-0 px-0.5 rounded-[3px] font-[500] [&.is-self]:text-warning [&.is-self]:bg-[color-mix(in_srgb,var(--yellow)_16%,transparent)]"
-        :class="{ 'is-self': part.self }"
-        >{{ part.text }}</span
-      ><button
-        v-else-if="part.kind === 'channel'"
-        class="inline-channel [font:inherit] text-primary bg-selection py-0 px-[3px] rounded-[3px] font-[500] hover:underline"
-        :title="
-          joinedChannel(part.text)
-            ? t('workspaceUi.links.openChannel', { channel: part.text })
-            : t('workspaceUi.links.joinChannel', { channel: part.text })
-        "
-        @click.stop="openChannel(part.text)"
-      >
-        {{ part.text }}</button
-      ><template v-else>{{ part.text }}</template></template
-    ></span
+        @click="openLink($event, segment.link.href)"
+        ><span
+          v-for="(shown, r) in segment.runs"
+          :key="r"
+          :class="runClass(shown.run)"
+          :style="shown.style"
+          >{{ shown.run.text }}</span
+        ></a
+      ></AppTooltip
+    ><span
+      v-else-if="segment.run"
+      :class="runClass(segment.run)"
+      :style="segment.style"
+      ><template
+        v-for="(part, index) in segment.parts"
+        :key="index"
+        ><CustomEmoji
+          v-if="part.custom"
+          :item="part.custom"
+        /><a
+          v-else-if="part.kind === 'link'"
+          class="[word-break:break-word] underline decoration-1 underline-offset-2"
+          :href="part.text"
+          target="_blank"
+          rel="noopener noreferrer"
+          @click="openLink($event, part.text)"
+          >{{ part.text }}</a
+        ><span
+          v-else-if="part.kind === 'mention'"
+          class="inline-mention text-primary bg-selection py-0 px-0.5 rounded-[3px] font-[500] [&.is-self]:text-warning [&.is-self]:bg-[color-mix(in_srgb,var(--yellow)_16%,transparent)]"
+          :class="{ 'is-self': part.self }"
+          >{{ part.text }}</span
+        ><button
+          v-else-if="part.kind === 'channel'"
+          class="inline-channel [font:inherit] text-primary bg-selection py-0 px-[3px] rounded-[3px] font-[500] hover:underline"
+          :title="
+            joinedChannel(part.text)
+              ? t('workspaceUi.links.openChannel', { channel: part.text })
+              : t('workspaceUi.links.joinChannel', { channel: part.text })
+          "
+          @click.stop="openChannel(part.text)"
+        >
+          {{ part.text }}</button
+        ><template v-else>{{ part.text }}</template></template
+      ></span
+    ></template
   >
 </template>

@@ -153,7 +153,7 @@ onBeforeUnmount(dismiss)
         ref="label"
         data-slot="tooltip-content"
         role="tooltip"
-        class="pointer-events-none fixed z-[90] max-w-[min(17.5rem,calc(100vw_-_16px))] rounded-sm bg-foreground px-2 py-1 text-[length:var(--ui-caption)] leading-[1.4] text-background shadow-control"
+        class="pointer-events-none fixed z-[90] max-w-[min(17.5rem,calc(100vw_-_16px))] rounded-sm bg-foreground px-2 py-1 text-[length:var(--ui-caption)] leading-[1.4] text-background shadow-control [overflow-wrap:anywhere]"
         :style="position ?? { visibility: 'hidden' }"
         >{{ text }}</span
       >
