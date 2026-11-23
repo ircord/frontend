@@ -57,3 +57,28 @@ test('only a changed event run gets replaced, and hidden authors do not group me
   )
   assert.equal(filtered[0]?.kind === 'message' && filtered[0].grouped, false)
 })
+
+test('status mode changes follow the channel activity setting; channel modes stay visible', () => {
+  const join = (id: string, minute: number) =>
+    message(id, minute, { kind: 'event', event: { type: 'join', actorId: 'a' } })
+  const mode = (id: string, minute: number, text: string) =>
+    message(id, minute, { kind: 'event', event: { type: 'mode', actorId: 'a', text } })
+  const speech = message('speech', 0)
+  const after = message('after', 5)
+  const items = [speech, join('j', 1), mode('op', 2, '+o sage'), mode('flag', 3, '+m'), after]
+  const hidden = createTimelineRows()(items, true)
+  assert.deepEqual(
+    hidden.map((row) => row.key),
+    ['speech', 'flag', 'after'],
+  )
+  const folded = createTimelineRows()(
+    [speech, join('j', 1), mode('op', 2, '+o sage'), after],
+    false,
+  )
+  assert.equal(folded[1]?.kind === 'events' && folded[1].events.length, 2)
+  const lone = createTimelineRows()([speech, mode('op', 2, '+v noah'), after], false)
+  assert.equal(lone[1]?.kind === 'events' && lone[1].events.length, 1)
+  // A network's own PREFIX letters decide what counts as status.
+  assert.equal(createTimelineRows()([mode('y', 1, '+Y sage')], true, undefined, 'Yohv').length, 0)
+  assert.equal(createTimelineRows()([mode('y', 1, '+Y sage')], true, undefined, 'ohv').length, 1)
+})

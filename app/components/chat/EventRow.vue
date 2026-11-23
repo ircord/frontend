@@ -4,8 +4,9 @@ import { chatterSummary, isChatter } from '../../../shared/utils/events'
 import { parsePrefix } from '../../../shared/utils/irc'
 import { eventDescription, eventPresentation } from '../../../shared/utils/log'
 /**
- * A quiet activity line. A run of joins, parts, quits and nick changes reads as one summary
- * that expands to every line; moderation and channel changes stand out on rows of their own.
+ * A quiet activity line. A run of joins, parts, quits, nick changes and status mode changes
+ * (people gaining or losing op, voice and similar) reads as one summary that expands to every
+ * line; moderation and channel-wide changes stand out on rows of their own.
  */
 const props = defineProps<{ events: Message[] }>()
 const emit = defineEmits<{ profile: [id: string] }>()

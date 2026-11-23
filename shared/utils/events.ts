@@ -1,7 +1,7 @@
 import type { Message } from '../types/chat'
 import { sharedListFormat, sharedNumberFormat } from './intl'
 
-/** Membership churn that may be folded into one summary row; everything else stands alone. */
+/** Membership churn that may be folded into one summary row. Status mode changes join it below; everything else stands alone. */
 const chatterTypes = new Set(['join', 'part', 'quit', 'nick'])
 
 /**
@@ -171,7 +171,7 @@ export function list(items: string[]) {
 const people = (names: string[]) => (names.length <= 3 ? list(names) : `${names.length} people`)
 
 /**
- * A run of joins, parts, quits and nick changes by outcome rather than by line: someone who
+ * A run of joins, parts, quits, nick changes and status mode changes by outcome rather than by line: someone who
  * left and came back “reconnected”, someone who came and went “joined and left”.
  */
 export function chatterSummary(

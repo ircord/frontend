@@ -10,7 +10,7 @@ import { sanitizeSidebarOrder, type SidebarOrder } from './utils/sidebar-order'
 export interface ClientPreferences {
   /** Startup choice follows the account; the last viewed conversation stays on this device. */
   startup: { mode: 'last' | 'channel'; channelId: string | null }
-  /** Join, part, quit and nick changes: shown, collapsed into one line, or hidden. */
+  /** Join, part, quit, nick and channel status changes: shown, collapsed into one line, or hidden. */
   events: 'show' | 'collapse' | 'hide'
   /** Custom network icons as small image data URLs. */
   networkIcons: Record<string, string>
