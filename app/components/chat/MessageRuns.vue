@@ -132,14 +132,18 @@ function textRun(run: FormattedRun) {
     :key="i"
     ><AppTooltip
       v-if="segment.link"
-      :text="segment.link.masked ? segment.link.href : ''"
+      :text="segment.link.masked ? segment.link.address : ''"
+      :describe="false"
       side="top"
       ><a
         class="[word-break:break-word] underline decoration-1 underline-offset-2"
         :href="segment.link.href"
         :aria-label="
           segment.link.masked
-            ? t('workspaceUi.links.masked', { text: segment.link.label, url: segment.link.href })
+            ? t('workspaceUi.links.masked', {
+                text: segment.link.label,
+                url: segment.link.address,
+              })
             : undefined
         "
         target="_blank"

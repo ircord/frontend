@@ -741,7 +741,7 @@
       "joinConfirmAction": "Join",
       "open": "Open link",
       "link": "link",
-      "masked": "{text}, link to {url}",
+      "masked": "{text}, goes to {url}",
       "failed": "Couldn’t display {host}.",
       "offline": "This link preview is not available offline.",
       "retrying": "Retrying…",

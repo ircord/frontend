@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { markdownToIrc, textOutsideCode } from './irc'
+import { spokenText } from '../read-aloud'
+import { markdownToIrc } from './irc'
 import { messageMediaLinks, messageMediaText } from './link-media'
-import { maskedLinks, messagePieces } from './masked-links'
+import { maskedLinkLabels, maskedLinks, messagePieces, textOutsideCode } from './masked-links'
 
 /** What a reader sees, and where each link goes. */
 function shown(text: string) {
@@ -40,6 +41,7 @@ const cases: [typed: string, visible: string, target: string | null][] = [
   ['[two\nlines](https://example.com)', '[two\nlines](https://example.com)', null],
   // Code spans and blocks stay literal.
   ['`[x](https://example.com)`', '[x](https://example.com)', null],
+  ['`[`x](https://example.com)', '[x](https://example.com)', null],
   ['```\n[x](https://example.com)\n```', '```\n[x](https://example.com)\n```', null],
   // 3. Text that reads as another address shows the real address.
   ['[example.com](https://evil.test/login)', 'https://evil.test/login', null],
@@ -53,13 +55,28 @@ const cases: [typed: string, visible: string, target: string | null][] = [
   ['[EXAMPLE.com](https://example.com.)', 'EXAMPLE.com', 'https://example.com.'],
   ['[https://example.com](https://example.com/a)', 'https://example.com', 'https://example.com/a'],
   ['[me@example.com](mailto:me@example.com)', 'me@example.com', 'mailto:me@example.com'],
-  // Text that only mentions a domain, or has a dot without a host name, still masks.
-  ['[read it on example.com](https://evil.test)', 'read it on example.com', 'https://evil.test'],
+  // Any word naming another host counts, around punctuation and invisible characters.
+  ['[read it on example.com](https://evil.test)', 'https://evil.test', null],
+  ['[bank.test​](https://evil.test)', 'https://evil.test', null],
+  ['[bank.test!](https://evil.test)', 'https://evil.test', null],
+  ['[(bank.test)](https://evil.test)', 'https://evil.test', null],
+  ['[<https://bank.test>](https://evil.test)', 'https://evil.test', null],
+  ['[Login at https://bank.test](https://evil.test)', 'https://evil.test', null],
+  ['[bank.test](https://bаnk.test)', 'https://xn--bnk-6cd.test/', null],
+  // A dot without a host name still masks.
   ['[v1.5](https://example.com/releases)', 'v1.5', 'https://example.com/releases'],
+  ['[see e.g. this](https://example.com)', 'see e.g. this', 'https://example.com'],
   ['[Note: see this](https://example.com)', 'Note: see this', 'https://example.com'],
+  [
+    '[read it on example.com](https://example.com/a)',
+    'read it on example.com',
+    'https://example.com/a',
+  ],
   // 5. Formatting, nested brackets, escapes, parentheses and spacing.
   ['[**bold** and *it*](https://example.com)', 'bold and it', 'https://example.com'],
   ['[a [b] c](https://example.com)', 'a [b] c', 'https://example.com'],
+  // A link inside the text of another wins, as in CommonMark.
+  ['[a [b](https://x.test) c](https://y.test)', '[a b c](https://y.test)', 'https://x.test'],
   ['[a \\] b](https://example.com)', 'a ] b', 'https://example.com'],
   ['[a \\[ b](https://example.com)', 'a [ b', 'https://example.com'],
   ['\\[x](https://example.com)', '\\[x](https://example.com)', null],
@@ -109,6 +126,7 @@ describe('masked links', () => {
       {
         kind: 'link',
         href: 'https://x.test',
+        address: 'https://x.test',
         label: 'b',
         masked: true,
         runs: [{ text: 'b', bold: true }],
@@ -122,11 +140,18 @@ describe('masked links', () => {
       {
         kind: 'link',
         href: 'https://evil.test',
+        address: 'https://evil.test',
         label: 'https://evil.test',
         masked: false,
         runs: [{ text: 'https://evil.test' }],
       },
     ])
+  })
+
+  test('show a non-ASCII web host as browsers do, and open the address as typed', () => {
+    const [link] = messagePieces('[docs](https://bücher.example/a)')
+    assert.equal(link?.kind === 'link' && link.address, 'https://xn--bcher-kva.example/a')
+    assert.equal(link?.kind === 'link' && link.href, 'https://bücher.example/a')
   })
 
   test('report offsets in the wire text', () => {
@@ -137,10 +162,41 @@ describe('masked links', () => {
         textStart: 4,
         textEnd: 5,
         url: 'https://x.test',
+        address: 'https://x.test',
         label: 'a',
         masked: true,
       },
     ])
+  })
+
+  test('scan crafted text in linear time', () => {
+    const inputs = [
+      '['.repeat(40000) + '](https://x.test)',
+      '[a](https://x.test/'.repeat(4000),
+      '[a](('.repeat(10000) + 'https://x.test',
+      '[' + '\\'.repeat(40000) + 'x](https://x.test)',
+      '[a [b] '.repeat(8000) + '](https://x.test)',
+    ]
+    for (const input of inputs) {
+      const started = performance.now()
+      maskedLinks(input)
+      messagePieces(input)
+      assert.ok(performance.now() - started < 500, `${input.slice(0, 20)}… took too long`)
+    }
+  })
+})
+
+describe('masked links read as plain text', () => {
+  test('the link list remark reads the link text', () => {
+    assert.equal(maskedLinkLabels('see [docs](https://x.test) here'), 'see docs here')
+    assert.equal(maskedLinkLabels('[bank.test](https://evil.test)'), 'https://evil.test')
+  })
+
+  test('read aloud says the link text, then where it goes', () => {
+    assert.equal(
+      spokenText({ sender: 'a', text: 'see [the docs](https://example.com/docs) now' }),
+      'a: see the docs a link to example.com now',
+    )
   })
 })
 
@@ -171,6 +227,14 @@ describe('masked links in previews and search', () => {
     assert.equal(
       messageMediaText('https://example.com/a.png', new Set(['https://example.com/a.png'])),
       '',
+    )
+    // A bare link right before a masked link is still hidden.
+    assert.equal(
+      messageMediaText(
+        'https://a.test/p.png[x](https://b.test/q.png)',
+        new Set(['https://a.test/p.png']),
+      ),
+      '[x](https://b.test/q.png)',
     )
   })
 })

@@ -4,6 +4,7 @@
 import type { Conversation, Message } from './types/chat'
 import { isHighlight, notificationFor, type NotificationSettings } from './notifications'
 import { stripFormatting } from './utils/irc'
+import { replaceMaskedLinks } from './utils/masked-links'
 import type { MentionRecipient } from './group-mentions'
 
 /** Longest text spoken for one message, in characters (requests allow up to 1000). */
@@ -41,7 +42,12 @@ export function spokenText(
   const where = input.channel ? ` in ${input.channel}` : ''
   const body = input.gif
     ? (translate?.('workspaceUi.speech.sentGif') ?? 'sent a GIF')
-    : stripFormatting(input.text)
+    : stripFormatting(
+        // A masked link is spoken as its text, then where it goes.
+        replaceMaskedLinks(input.text, (link) =>
+          link.masked ? `${link.label} ${link.url} ` : `${link.url} `,
+        ),
+      )
         .replace(
           /\bhttps?:\/\/([^\s/]+)\S*/gi,
           (_url, host: string) =>

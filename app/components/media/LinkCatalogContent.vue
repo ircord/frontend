@@ -9,6 +9,7 @@ import {
   messageAttachments,
   publicMediaURL,
 } from '../../../shared/utils/link-media'
+import { maskedLinkLabels } from '../../../shared/utils/masked-links'
 import { parseMessageLink } from '../../../shared/utils/message-links'
 import { offlineStatus } from '../../utils/offline-archive'
 import { relativeTime } from '../../../shared/utils/devices'
@@ -50,10 +51,10 @@ const author = (s: LinkSource) =>
   chat.member(s.senderId, s.networkId)?.nick ||
   t('mediaUi.linkCatalog.unknownAuthor')
 const latest = computed(() => props.card.sources[0])
-/** What the post said besides the link itself. */
+/** What the post said besides the link itself. A masked link reads as its text. */
 const remark = computed(() => {
   const text = latest.value?.excerpt ?? ''
-  return text
+  return maskedLinkLabels(text)
     .replace(/\bhttps?:\/\/\S+/gi, '')
     .replace(/[\s:–—-]+$/, '')
     .trim()

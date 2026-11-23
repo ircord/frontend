@@ -1,7 +1,6 @@
 // IRC protocol helpers shared by the browser and the Nitro mock: channel privileges from
 // ISUPPORT, mIRC formatting codes, and raw line validation.
 import type { Conversation, Network } from '../types/chat'
-import { linkTargetsText } from './masked-links'
 
 /** Keep the wire target distinct from the display name, including non-# channels. */
 export function channelTarget(conversation: Pick<Conversation, 'name' | 'target'>) {
@@ -335,22 +334,6 @@ export function splitCodeBlocks(text: string): CodeSegment[] {
   }
   if (pending < text.length) segments.push({ kind: 'text', raw: text.slice(pending) })
   return segments
-}
-
-/**
- * Text outside code (fenced blocks and IRC monospace), e.g. for finding links to preview. A
- * masked link `[text](url)` reads as its address.
- */
-export function textOutsideCode(text: string) {
-  return splitCodeBlocks(linkTargetsText(text))
-    .map((segment) =>
-      segment.kind === 'code'
-        ? ' '
-        : parseFormatting(segment.raw)
-            .map((run) => (run.mono ? ' ' : run.text))
-            .join(''),
-    )
-    .join('')
 }
 
 /**

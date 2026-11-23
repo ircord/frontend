@@ -1,5 +1,5 @@
 import type { Member, Message } from '../types/chat'
-import { textOutsideCode } from './irc'
+import { textOutsideCode } from './masked-links'
 
 /**
  * Message search filters, Discord-style: free text plus `from:`, `mentions:`, `in:`, `has:`,

@@ -1,5 +1,5 @@
-import { splitCodeBlocks, textOutsideCode } from './irc'
-import { maskedLinks } from './masked-links'
+import { splitCodeBlocks } from './irc'
+import { maskedLinks, textOutsideCode } from './masked-links'
 import type { components } from '../generated/api'
 
 type Widget = components['schemas']['LinkMediaWidget']
@@ -167,17 +167,25 @@ export function messageMediaText(text: string, rendered: ReadonlySet<string>) {
     .map((segment) => {
       if (segment.kind === 'code') return segment.raw
       let mono = false
-      // A masked link shows its text, not its address, so the address is never hidden.
-      const links = maskedLinks(segment.raw)
-      return segment.raw.replace(proseTokens, (token, at: number) => {
-        if (token === '\x11') mono = !mono
-        else if (token === '\x0f') mono = false
-        else if (!mono && !links.some((link) => at >= link.start && at < link.end)) {
-          const url = mediaLinkText(token)
-          if (rendered.has(url)) return token.slice(url.length)
-        }
-        return token
-      })
+      const hide = (prose: string) =>
+        prose.replace(proseTokens, (token) => {
+          if (token === '\x11') mono = !mono
+          else if (token === '\x0f') mono = false
+          else if (!mono) {
+            const url = mediaLinkText(token)
+            if (rendered.has(url)) return token.slice(url.length)
+          }
+          return token
+        })
+      // A masked link shows its text, not its address, so it stays whole. It is never inside
+      // monospace, so the monospace state carries across it.
+      let out = ''
+      let at = 0
+      for (const link of maskedLinks(segment.raw)) {
+        out += hide(segment.raw.slice(at, link.start)) + segment.raw.slice(link.start, link.end)
+        at = link.end
+      }
+      return out + hide(segment.raw.slice(at))
     })
     .join('')
 }

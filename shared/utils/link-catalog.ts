@@ -1,5 +1,5 @@
 import type { LinkCard, LinkKind } from '../types/chat'
-import { textOutsideCode } from './irc'
+import { textOutsideCode } from './masked-links'
 
 /** Link kinds in filter order; labels belong to the active locale at the UI call site. */
 export const linkKinds: { value: LinkKind; icon: string }[] = [
