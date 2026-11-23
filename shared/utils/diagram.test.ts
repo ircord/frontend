@@ -67,6 +67,13 @@ describe('diagram source check', () => {
       `flowchart TD\n  A[See ${other}/j]`,
       'flowchart TD\n  A@{ icon: "fa:user", form: "square" }',
       "flowchart TD\n  A@{ shape: rect, IMG: '//h' }",
+      // Shape data is YAML: a `}` inside a quoted value, quoted keys and an alias as the key.
+      'flowchart TD\n  A@{ label: "}", img: "//127.0.0.1:4999/q1.png", h: 60 }',
+      'flowchart TD\n  A@{ "img": "//127.0.0.1:4999/q2.png", label: "x" }',
+      `flowchart TD\n  A@{ 'img': "//127.0.0.1:4999/q3.png", label: "x" }`,
+      'flowchart TD\n  A@{ label: &k img, *k : "//127.0.0.1:4999/q4.png" }',
+      // A sequence participant's icon is drawn as an image.
+      'sequenceDiagram\n  participant A\n  properties A: {"icon": "//127.0.0.1:4999/q6.png"}\n  A->>A: hi',
     ]
     assert.deepEqual(
       refused.filter((source) => diagramSource(source) !== null),
@@ -85,8 +92,10 @@ describe('diagram source check', () => {
       refused.filter((source) => diagramSource(source) !== null),
       [],
     )
-    // Removing one directive leaves no other behind; indented front matter is front matter too.
+    // Removing one directive can form another (`%` + `%{init…}%%`), which is removed too; indented
+    // front matter is front matter too.
     const stripped = [
+      '%%%{x}%%%{init: {}}%%\nflowchart TD',
       '%%{%%{init: {}}%%init: {}}%%\nflowchart TD',
       '  ---\nconfig: {}\n  ---\nflowchart TD',
     ]

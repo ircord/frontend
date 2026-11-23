@@ -24,17 +24,36 @@ const scroller = computed(() => {
       return element
   return null
 })
+/** How far outside the visible part of the list a diagram starts drawing, in pixels. */
+const margin = 400
 /** Mermaid loads, and the diagram draws, only once the block comes near the viewport. */
 const near = ref(false)
-const { stop } = useIntersectionObserver(
+const { stop: stopObserving } = useIntersectionObserver(
   frame,
   ([entry]) => {
-    if (!entry?.isIntersecting) return
-    near.value = true
-    stop()
+    if (entry?.isIntersecting) near.value = true
   },
-  { root: scroller, rootMargin: '400px 0px' },
+  { root: scroller, rootMargin: `${margin}px 0px` },
 )
+/**
+ * The observer can miss a block in a freshly added timeline row scrolling into view (seen in
+ * Chromium: one "outside" report, then none), so scrolling the list also measures the block.
+ */
+const stopScrolling = useEventListener(
+  scroller,
+  'scroll',
+  () => {
+    const block = frame.value?.getBoundingClientRect()
+    const list = scroller.value?.getBoundingClientRect()
+    if (block && list && block.bottom > list.top - margin && block.top < list.bottom + margin)
+      near.value = true
+  },
+  { passive: true },
+)
+watch(near, () => {
+  stopObserving()
+  stopScrolling()
+})
 
 const theme = computed((): DiagramTheme => {
   const tokens = appearance.tokens
@@ -66,6 +85,22 @@ watch(
   },
   { immediate: true },
 )
+
+let retried = ''
+/**
+ * The cache keeps 50 pictures and revokes the URL of one it drops, so a picture shown again (after
+ * Show source, or drawn late in a busy redraw) can fail to load. It is then asked for again, once
+ * per URL; a dropped picture is drawn again.
+ */
+function pictureFailed() {
+  const url = picture.value?.url
+  if (!url || retried === url) return
+  retried = url
+  void renderDiagram(props.code, theme.value).then((value) => {
+    if (value) picture.value = value
+    else failed.value = true
+  })
+}
 
 /** The picture shown in the full-window view, or null while it is closed. */
 const fullscreen = ref<DiagramPicture | null>(null)
@@ -125,7 +160,6 @@ onBeforeUnmount(() => clearTimeout(reset))
         v-if="picture"
         type="button"
         class="diagram-toggle ml-auto px-1.5 h-6 border border-solid border-transparent rounded-[5px] [background:none] text-muted-foreground font-sans text-[11px] cursor-pointer"
-        :aria-pressed="showSource"
         @click.stop="showSource = !showSource"
       >
         {{
@@ -173,6 +207,7 @@ onBeforeUnmount(() => clearTimeout(reset))
         :height="picture.height"
         :alt="$t('workspaceUi.controls.diagramPicture')"
         draggable="false"
+        @error="pictureFailed"
       />
     </div>
     <pre

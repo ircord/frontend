@@ -61,7 +61,7 @@ const blocks = computed((): MessageBlock[] =>
       v-for="(block, b) in blocks"
       :key="b"
       ><LazyDiagramBlock
-        v-if="block.kind === 'code' && block.lang && isDiagramLanguage(block.lang)"
+        v-if="block.kind === 'code' && isDiagramLanguage(block.lang)"
         :code="block.code"
         :lang="block.lang" /><CodeBlock
         v-else-if="block.kind === 'code'"

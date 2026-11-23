@@ -1,9 +1,14 @@
-// Draws Mermaid diagrams as pictures. Mermaid loads the first time a diagram is near the viewport,
-// and only the app configures it: the source check (shared/utils/diagram.ts) removes a diagram's
-// own configuration first. The result is shown as an <img>, which can run no script, load
-// nothing and cannot style the page.
-import type { Mermaid } from 'mermaid'
+// Draws Mermaid diagrams as pictures, in three layers:
+// 1. The source check (shared/utils/diagram.ts) removes a diagram's own configuration and refuses
+//    sources that name a resource.
+// 2. Mermaid runs in a hidden frame with its own document, scripts and policy
+//    (app/workers/diagram-frame.ts), loaded the first time a diagram is near the viewport. The
+//    frame's policy allows scripts from this site and inline styles, nothing else, so a way to
+//    name a resource that the check does not know still loads nothing while Mermaid lays out.
+// 3. The page receives only SVG text and shows it as an <img>, which can run no script, load
+//    nothing and cannot style the page.
 import { diagramSource, maxDiagramBytes, maxDiagramEdges } from '../../shared/utils/diagram'
+import frameScript from '../workers/diagram-frame.ts?worker&url'
 
 /** Literal colours: Mermaid computes its palette from them and cannot read CSS variables. */
 export type DiagramTheme = {
@@ -39,23 +44,47 @@ const secure = [
 ]
 const cacheSize = 50
 
-let library: Promise<Mermaid> | undefined
+/** The frame's whole policy, on top of the page's own, which a srcdoc frame inherits. */
+const framePolicy = "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'"
+
+type DiagramFrame = Window & { drawDiagram?: (source: string, config: string) => Promise<string> }
+
+let frame: Promise<DiagramFrame> | undefined
 /** Mermaid keeps global state while it draws, so diagrams are drawn one at a time. */
 let queue: Promise<unknown> = Promise.resolve()
-let sequence = 0
 const cache = new Map<string, Promise<DiagramPicture | null>>()
 
 function load() {
-  if (!library) {
-    library = import('mermaid').then((module) => module.default)
-    // A failed import (offline before the first diagram) may succeed later.
-    library.catch(() => (library = undefined))
+  if (!frame) {
+    frame = new Promise<DiagramFrame>((resolve, reject) => {
+      const element = document.createElement('iframe')
+      element.setAttribute('aria-hidden', 'true')
+      element.tabIndex = -1
+      // Laid out (Mermaid measures text) but never seen or reached.
+      element.style.cssText =
+        'position:fixed;left:-20000px;top:0;width:1600px;height:1200px;border:0;visibility:hidden;pointer-events:none'
+      element.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${framePolicy}"><script type="module" src="${frameScript}"></script></head><body></body></html>`
+      // Module scripts run before the frame's load event.
+      element.addEventListener(
+        'load',
+        () => {
+          const window = element.contentWindow as DiagramFrame | null
+          if (window?.drawDiagram) return resolve(window)
+          element.remove()
+          reject(new Error('The diagram frame did not start.'))
+        },
+        { once: true },
+      )
+      document.body.append(element)
+    })
+    // A failed load (offline before the first diagram) may succeed later.
+    frame.catch(() => (frame = undefined))
   }
-  return library
+  return frame
 }
 
-function configure(mermaid: Mermaid, theme: DiagramTheme) {
-  mermaid.initialize({
+function configuration(theme: DiagramTheme) {
+  return {
     startOnLoad: false,
     securityLevel: 'strict',
     htmlLabels: false,
@@ -90,7 +119,7 @@ function configure(mermaid: Mermaid, theme: DiagramTheme) {
       ),
     },
     secure,
-  })
+  }
 }
 
 /** A well-formed SVG document that knows its own size, from Mermaid's HTML-flavoured string. */
@@ -110,10 +139,9 @@ function standalone(svg: string) {
 }
 
 async function draw(source: string, theme: DiagramTheme): Promise<DiagramPicture | null> {
-  const mermaid = await load()
-  configure(mermaid, theme)
-  const { svg } = await mermaid.render(`message-diagram-${++sequence}`, source)
-  const picture = standalone(svg)
+  const diagrams = await load()
+  const svg = await diagrams.drawDiagram!(source, JSON.stringify(configuration(theme)))
+  const picture = standalone(String(svg))
   if (!picture) return null
   const url = URL.createObjectURL(new Blob([picture.markup], { type: 'image/svg+xml' }))
   return { url, width: picture.width, height: picture.height }
@@ -146,9 +174,9 @@ export function renderDiagram(code: string, theme: DiagramTheme): Promise<Diagra
   const picture = queue.then(() => draw(source, theme)).catch(() => null)
   queue = picture
   remember(key, picture)
-  // A failed import is not remembered, so the next diagram tries again.
+  // A failed frame load is not remembered, so the next diagram tries again.
   void picture.then((value) => {
-    if (value === null && library === undefined) cache.delete(key)
+    if (value === null && frame === undefined) cache.delete(key)
   })
   return picture
 }

@@ -3,8 +3,12 @@
 // A diagram is drawn by everyone who reads the message, so its source must not make their browser
 // fetch anything: link previews are fetched by the backend for the same reason. The page policy
 // allows images from any https host (GIFs, emotes), so it cannot stop a diagram that asks for one,
-// and Mermaid's own strict mode lets some requests through while it lays a diagram out in the
-// page. This check runs before Mermaid sees the source.
+// and Mermaid's own strict mode lets some requests through while it lays a diagram out. This check
+// runs before Mermaid sees the source; Mermaid then runs in a frame whose own policy loads nothing
+// (app/utils/mermaid.ts), so the check is the first of two layers, not the only one.
+//
+// The check follows Mermaid's syntax, which grows with new releases. The version is pinned exactly
+// for that reason: before raising it, run the hostile diagram corpus in a browser again.
 
 /** Fence languages drawn as diagrams. */
 const diagramLanguages = new Set(['mermaid'])
@@ -15,7 +19,7 @@ export const maxDiagramBytes = 8192
 /** Most edges Mermaid lays out: it blocks the page while it works and cannot be interrupted. */
 export const maxDiagramEdges = 100
 
-export function isDiagramLanguage(lang?: string) {
+export function isDiagramLanguage(lang?: string): lang is string {
   return lang !== undefined && diagramLanguages.has(lang.toLowerCase())
 }
 
@@ -25,11 +29,17 @@ const frontMatter = /^\s*---[ \t]*\n[\s\S]*?\n[ \t]*---[ \t]*(?:\n|$)/
 const directive = /%%\{[\s\S]*?\}%%/g
 /**
  * Anything that can name a resource: a CSS `url(`, `image-set(` or `@import`, any `scheme://`
- * address, the image and icon entries of an `@{ ... }` node, and backslashes, which CSS reads as
- * escapes (`u\72l(` is `url(`).
+ * address, and backslashes, which CSS reads as escapes (`u\72l(` is `url(`).
  */
-const resource =
-  /url\s*\(|(?:image-set|cross-fade)\(|(?<![\w-])(?:image|src)\(|@import|:\/\/|\\|@\{[^}]*\b(?:img|icon)\s*:/i
+const resource = /url\s*\(|(?:image-set|cross-fade)\(|(?<![\w-])(?:image|src)\(|@import|:\/\/|\\/i
+/**
+ * Node shape data (`A@{ ... }`) is YAML: a key can be quoted or an alias, and a quoted value can
+ * hold `}`, so its `img` and `icon` entries cannot be found by position. Any shape data together
+ * with either word anywhere in the source is refused.
+ */
+const shapeImage = (text: string) => /@\{/.test(text) && /\b(?:img|icon)\b/i.test(text)
+/** A sequence diagram's `properties` statement can give a participant an icon image. */
+const properties = /^[ \t]*properties\b/im
 
 /**
  * The source Mermaid may be given, or null when the message shows the source instead. Front
@@ -46,6 +56,7 @@ export function diagramSource(source: string): string | null {
     previous = text
     text = text.replace(directive, '')
   }
-  if (text.includes('%%{') || resource.test(text)) return null
+  if (text.includes('%%{') || resource.test(text) || shapeImage(text) || properties.test(text))
+    return null
   return text.trim() ? text : null
 }
