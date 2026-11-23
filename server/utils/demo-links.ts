@@ -7,7 +7,8 @@
  * filter is not punycode-normalized.
  */
 import type { LinkCard, LinkKind, LinkPage, LinkSource, Message } from '../../shared/types/chat'
-import { stripFormatting, textOutsideCode } from '../../shared/utils/irc'
+import { stripFormatting } from '../../shared/utils/irc'
+import { textOutsideCode } from '../../shared/utils/masked-links'
 import type { DemoSession } from './demo-store'
 
 interface Found {

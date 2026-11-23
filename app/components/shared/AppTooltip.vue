@@ -9,9 +9,15 @@ let dismissCurrent: (() => void) | undefined
  * screens don't show it, so the control still needs its own `aria-label`.
  */
 const props = withDefaults(
-  defineProps<{ text: string; side?: 'top' | 'right' | 'bottom' | 'left' }>(),
+  defineProps<{
+    text: string
+    side?: 'top' | 'right' | 'bottom' | 'left'
+    /** Whether the label describes the control; off when the control's own name carries it. */
+    describe?: boolean
+  }>(),
   {
     side: 'bottom',
+    describe: true,
   },
 )
 
@@ -99,6 +105,7 @@ function show(element: HTMLElement, immediate = false) {
       await nextTick()
       if (anchor !== element) return
       place()
+      if (!props.describe) return
       element.setAttribute(
         'aria-describedby',
         [...new Set([...describedBy(element), id])].join(' '),
@@ -153,7 +160,7 @@ onBeforeUnmount(dismiss)
         ref="label"
         data-slot="tooltip-content"
         role="tooltip"
-        class="pointer-events-none fixed z-[90] max-w-[min(17.5rem,calc(100vw_-_16px))] rounded-sm bg-foreground px-2 py-1 text-[length:var(--ui-caption)] leading-[1.4] text-background shadow-control"
+        class="pointer-events-none fixed z-[90] max-w-[min(17.5rem,calc(100vw_-_16px))] rounded-sm bg-foreground px-2 py-1 text-[length:var(--ui-caption)] leading-[1.4] text-background shadow-control [overflow-wrap:anywhere]"
         :style="position ?? { visibility: 'hidden' }"
         >{{ text }}</span
       >
