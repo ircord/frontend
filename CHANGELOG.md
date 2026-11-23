@@ -5,6 +5,8 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+## v0.9.0 — 2026-11-23
+
 ### New
 
 - Messages now show Markdown tables, headings, horizontal rules and task lists as formatted blocks.
