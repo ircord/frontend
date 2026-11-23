@@ -9,6 +9,10 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 - Wait between attempts when chat repeatedly fails to reconnect.
 
+### Improved
+
+- Hide or fold people gaining or losing op, voice and other channel status along with joins and parts.
+
 ## v0.8.4 — 2026-11-21
 
 ### Fixed

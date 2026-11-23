@@ -3,8 +3,23 @@ import { sharedListFormat, sharedNumberFormat } from './intl'
 
 /** Membership churn that may be folded into one summary row; everything else stands alone. */
 const chatterTypes = new Set(['join', 'part', 'quit', 'nick'])
-export const isChatter = (message: Message) =>
-  message.kind === 'event' && chatterTypes.has(message.event?.type ?? '')
+
+/**
+ * A mode change that only gives or takes people's channel status (op, voice and the other
+ * modes the server's PREFIX lists). A change that also touches the channel itself, such as
+ * “+mo sage”, or a ban, is not status activity.
+ */
+export function isStatusModeChange(text: string | undefined, statusModes = 'qaohv') {
+  const [changes = ''] = (text ?? '').trim().split(/\s+/)
+  const modes = [...changes].filter((char) => char !== '+' && char !== '-')
+  return modes.length > 0 && modes.every((mode) => statusModes.includes(mode))
+}
+
+/** `statusModes` is the network's PREFIX mode letters, such as “qaohv”. */
+export const isChatter = (message: Message, statusModes = 'qaohv') =>
+  message.kind === 'event' &&
+  (chatterTypes.has(message.event?.type ?? '') ||
+    (message.event?.type === 'mode' && isStatusModeChange(message.event.text, statusModes)))
 
 /** A quit or part reason worth showing: empty, bare “Quit:” and “Client Quit” say nothing. */
 export function eventReason(text?: string) {
@@ -166,8 +181,13 @@ export function chatterSummary(
   locale = 'en',
 ) {
   const outcomes = new Map<string, { first: string; last: string; nick?: string }>()
+  let statusChanges = 0
   for (const m of events) {
     const e = m.event!
+    if (e.type === 'mode') {
+      statusChanges++
+      continue
+    }
     const seen = outcomes.get(e.actorId)
     if (e.type === 'nick') {
       if (seen) seen.nick = e.text
@@ -222,6 +242,14 @@ export function chatterSummary(
             { count: new Intl.NumberFormat(locale).format(renames.length) },
             renames.length,
           ) ?? `${renames.length} nick changes`),
+    )
+  if (statusChanges)
+    parts.push(
+      translate?.(
+        'workspaceUi.events.statusChanges',
+        { count: new Intl.NumberFormat(locale).format(statusChanges) },
+        statusChanges,
+      ) ?? `${statusChanges} ${statusChanges === 1 ? 'status change' : 'status changes'}`,
     )
   return parts.join(' · ')
 }

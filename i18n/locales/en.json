@@ -986,7 +986,7 @@
     "animateReduced": "Reduce motion is on, so emoji and picker GIFs show a still frame.",
     "changeInAppearance": "Change in Appearance",
     "channelActivity": "Channel activity",
-    "channelActivityHelp": "Joins, parts, quits and nick changes as small activity lines. Kicks, bans and topic changes remain visible; duplicate history notices go to Server.",
+    "channelActivityHelp": "Joins, parts, quits, nick changes and people gaining or losing op or voice as small activity lines. Kicks, bans, topic changes and channel mode changes remain visible; duplicate history notices go to Server.",
     "clock": "Clock",
     "clock12": "12-hour",
     "clock24": "24-hour",
