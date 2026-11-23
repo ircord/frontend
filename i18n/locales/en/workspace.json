@@ -312,6 +312,8 @@
       "diagramFailed": "This diagram couldn’t be drawn.",
       "showSource": "Show source",
       "showDiagram": "Show diagram",
+      "showFullscreen": "Show fullscreen",
+      "closeFullscreen": "Close fullscreen",
       "copyDiagram": "Copy diagram source",
       "diagramCopied": "Diagram source copied",
       "resizeReset": "{label} · double-click to reset"

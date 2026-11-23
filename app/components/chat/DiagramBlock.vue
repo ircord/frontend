@@ -67,6 +67,17 @@ watch(
   { immediate: true },
 )
 
+/** The picture shown in the full-window view, or null while it is closed. */
+const fullscreen = ref<DiagramPicture | null>(null)
+/**
+ * Opens the same picture full-window. It is asked for again because the cache may have dropped
+ * (and revoked) it since the message drew it; a cached picture comes straight back.
+ */
+async function showFullscreen() {
+  const value = await renderDiagram(props.code, theme.value)
+  if (value) fullscreen.value = value
+}
+
 const copied = ref(false)
 let reset: ReturnType<typeof setTimeout> | undefined
 /** Copies the diagram's source exactly as sent. */
@@ -124,6 +135,15 @@ onBeforeUnmount(() => clearTimeout(reset))
         }}
       </button>
       <button
+        v-if="picture"
+        type="button"
+        class="diagram-toggle px-1.5 h-6 border border-solid border-transparent rounded-[5px] [background:none] text-muted-foreground font-sans text-[11px] cursor-pointer"
+        aria-haspopup="dialog"
+        @click.stop="showFullscreen"
+      >
+        {{ $t('workspaceUi.controls.showFullscreen') }}
+      </button>
+      <button
         type="button"
         class="code-copy grid [place-items:center] w-6 h-6 p-0 border border-solid border-transparent rounded-[5px] [background:none] text-muted-foreground cursor-pointer [opacity:0] [transition:opacity_0.12s_ease]"
         :class="[{ 'is-copied': copied }, picture ? '' : 'ml-auto']"
@@ -167,5 +187,11 @@ onBeforeUnmount(() => clearTimeout(reset))
       aria-live="polite"
       >{{ copied ? $t('workspaceUi.controls.diagramCopied') : '' }}</span
     >
+    <DiagramViewer
+      v-if="fullscreen"
+      :picture="fullscreen"
+      :lang="lang"
+      @close="fullscreen = null"
+    />
   </div>
 </template>
