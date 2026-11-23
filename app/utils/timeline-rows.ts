@@ -28,11 +28,12 @@ export function createTimelineRows() {
     messages: readonly Message[],
     hideEvents: boolean,
     ignored?: (message: Message) => boolean,
+    statusModes?: string,
   ) => {
     const next: TimelineMessageRow[] = []
     for (const message of messages) {
       if (ignored?.(message)) continue
-      const chatter = isChatter(message)
+      const chatter = isChatter(message, statusModes)
       if (chatter && hideEvents) continue
       const last = next.at(-1)
       const before = firstMessageOf(last)
@@ -45,7 +46,7 @@ export function createTimelineRows() {
           chatter &&
           last?.kind === 'events' &&
           before &&
-          isChatter(before) &&
+          isChatter(before, statusModes) &&
           !dayBreak &&
           last.events.length < 50 &&
           current.time - prior!.time <= 5 * 60_000 &&

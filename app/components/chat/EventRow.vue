@@ -1,10 +1,12 @@
 <script setup lang="ts" vapor>
 import type { Message } from '../../../shared/types/chat'
 import { chatterSummary, isChatter } from '../../../shared/utils/events'
+import { parsePrefix } from '../../../shared/utils/irc'
 import { eventDescription, eventPresentation } from '../../../shared/utils/log'
 /**
- * A quiet activity line. A run of joins, parts, quits and nick changes reads as one summary
- * that expands to every line; moderation and channel changes stand out on rows of their own.
+ * A quiet activity line. A run of joins, parts, quits, nick changes and status mode changes
+ * (people gaining or losing op, voice and similar) reads as one summary that expands to every
+ * line; moderation and channel-wide changes stand out on rows of their own.
  */
 const props = defineProps<{ events: Message[] }>()
 const emit = defineEmits<{ profile: [id: string] }>()
@@ -25,7 +27,8 @@ const otherValues = (message: Message) =>
     ([name]) => name !== 'actor' && name !== 'reason',
   )
 const single = computed(() => (props.events.length === 1 ? props.events[0]! : null))
-const important = computed(() => !!single.value && !isChatter(single.value))
+const statusModes = computed(() => parsePrefix(chat.network?.isupport).modes)
+const important = computed(() => !!single.value && !isChatter(single.value, statusModes.value))
 const last = computed(() => props.events.at(-1)!)
 const summary = computed(() => chatterSummary(props.events, nick, translateEvent, locale.value))
 const icons = {

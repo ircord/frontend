@@ -3,7 +3,7 @@ import { errorText } from '../../utils/api'
 import { useQuery } from '@pinia/colada'
 import type { Message } from '../../../shared/types/chat'
 import { HISTORY_PAGE, messagesQuery } from '../../queries/chat'
-import { stripFormatting } from '../../../shared/utils/irc'
+import { parsePrefix, stripFormatting } from '../../../shared/utils/irc'
 import { selectionLog } from '../../../shared/utils/log'
 import { isEditable } from '../../../shared/utils/focus'
 import { attractClock, offscreen, resolveAttract } from '../../../shared/utils/attract'
@@ -95,16 +95,23 @@ type Row = TimelineMessageRow | (typeof headerRows)[keyof typeof headerRows]
 const buildRows = createTimelineRows()
 const messageRows = computed(() => {
   const hideEvents = preferences.preferences.events === 'hide'
-  if (!notifications.settings.ignore.length) return buildRows(messages.value, hideEvents)
+  const { modes } = parsePrefix(chat.network?.isupport)
+  if (!notifications.settings.ignore.length)
+    return buildRows(messages.value, hideEvents, undefined, modes)
   const ignoredSenders = new Map<string, boolean>()
-  return buildRows(messages.value, hideEvents, (message) => {
-    const id = message.senderId
-    const known = ignoredSenders.get(id)
-    if (known !== undefined) return known
-    const ignored = notifications.ignored(chat.member(id)?.nick)
-    ignoredSenders.set(id, ignored)
-    return ignored
-  })
+  return buildRows(
+    messages.value,
+    hideEvents,
+    (message) => {
+      const id = message.senderId
+      const known = ignoredSenders.get(id)
+      if (known !== undefined) return known
+      const ignored = notifications.ignored(chat.member(id)?.nick)
+      ignoredSenders.set(id, ignored)
+      return ignored
+    },
+    modes,
+  )
 })
 const cachedHistoryBatch = HISTORY_PAGE * 2
 const revealedFrom = shallowRef<{ conversation: string; key: string | null }>()

@@ -791,6 +791,7 @@
       "joinedLeft": "{people} joined and left",
       "left": "{people} left",
       "nickChanges": "{count} nick changes | {count} nick change | {count} nick changes",
+      "statusChanges": "{count} status changes | {count} status change | {count} status changes",
       "mode": {
         "founderAdd": "made {nick} a founder",
         "founderRemove": "removed founder from {nick}",
