@@ -1,6 +1,7 @@
-/* Specialist styling for message bodies: IRC formatting codes, Markdown lists, fenced code and
- * its syntax highlighting. These style markup the renderers generate (MessageRuns, NoteBlocks,
- * CodeBlock and highlight.js), so they stay as owned CSS rather than utilities. */
+/* Specialist styling for message bodies: IRC formatting codes, Markdown lists and task items,
+ * tables, headings and rules, fenced code and its syntax highlighting. These style markup the
+ * renderers generate (MessageRuns, MessageTableBlock, NoteBlocks, CodeBlock and highlight.js), so
+ * they stay as owned CSS rather than utilities. */
 
 /* ---- IRC formatting codes ---------------------------------------------------------------- */
 

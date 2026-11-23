@@ -26,9 +26,9 @@ export function delimiter(line: string): TableAlign[] | null {
   const out: TableAlign[] = []
   for (const cell of row) {
     if (!/^:?-+:?$/.test(cell)) return null
-    out.push(
-      cell.startsWith(':') && cell.endsWith(':') ? 'center' : cell.endsWith(':') ? 'right' : 'left',
-    )
+    if (cell.startsWith(':') && cell.endsWith(':')) out.push('center')
+    else if (cell.endsWith(':')) out.push('right')
+    else out.push('left')
   }
   return out
 }
