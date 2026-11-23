@@ -5,6 +5,8 @@
 export interface MessageListItem {
   /** The item's text after its marker, IRC formatting codes included. */
   text: string
+  /** A task item's box (`[ ]` or `[x]`, already removed from `text`); absent on ordinary items. */
+  checked?: boolean
   /** Lists indented under this item. */
   children: MessageList[]
 }
@@ -20,6 +22,8 @@ export type ListBlock = { kind: 'text'; text: string } | { kind: 'list'; list: M
 export const maxListDepth = 5
 
 const itemLine = /^([ \t]*)([-*+]|(\d{1,9})[.)])[ \t]+(?=\S)(.*)$/
+/** A task item's box: `[ ]`, `[x]` or `[X]`, a space and more text. */
+const taskBox = /^\[( |x|X)\][ \t]+(?=\S)/
 const anyItem = /(?:^|\n)[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+\S/
 
 const indentOf = (space: string) => space.replace(/\t/g, '    ').length
@@ -76,7 +80,12 @@ export function splitLists(text: string): ListBlock[] {
       level = undefined
     }
     const list = level?.list ?? open(indent, ordered, number)
-    list.items.push({ text: match[4]!, children: [] })
+    const box = taskBox.exec(match[4]!)
+    list.items.push(
+      box
+        ? { text: match[4]!.slice(box[0].length), checked: box[1] !== ' ', children: [] }
+        : { text: match[4]!, children: [] },
+    )
   }
   flushText()
   return blocks

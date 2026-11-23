@@ -66,7 +66,24 @@ const blocks = computed((): MessageBlock[] =>
         v-else-if="block.kind === 'list'"
         :list="block.list" /><MessageQuoteBlock
         v-else-if="block.kind === 'quote'"
-        :blocks="block.blocks" /><MessageRuns
+        :blocks="block.blocks" /><MessageTableBlock
+        v-else-if="block.kind === 'table'"
+        :align="block.align"
+        :header="block.header"
+        :rows="block.rows" />
+      <div
+        v-else-if="block.kind === 'heading'"
+        class="message-heading"
+        :class="`message-heading-${block.level}`"
+        role="heading"
+        :aria-level="block.level + 4"
+      >
+        <MessageRuns :text="block.text" />
+      </div>
+      <hr
+        v-else-if="block.kind === 'rule'"
+        class="message-rule" />
+      <MessageRuns
         v-else
         :text="block.text"
     /></template>
