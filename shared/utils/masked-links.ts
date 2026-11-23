@@ -20,12 +20,17 @@ export type MaskedLink = {
   /** The offsets of the link text between the brackets. */
   textStart: number
   textEnd: number
+  /** The offsets of the address between the parentheses. */
+  urlStart: number
+  urlEnd: number
+  /** The address in canonical form, as browsers show it (a non-ASCII host in punycode). */
   url: string
-  /** The address as shown to people: `url`, with a non-ASCII web host in punycode. */
-  address: string
   /** The link text without formatting or escapes. */
   label: string
-  /** False when the text names another address: the link then shows `address` itself. */
+  /**
+   * False when the address has user info or the text names another host: the text then stays
+   * as typed and only the address inside it is a link.
+   */
   masked: boolean
 }
 
@@ -46,7 +51,7 @@ export function maskedLinks(text: string): MaskedLink[] {
 
 // eslint-disable-next-line no-control-regex -- spaces and control characters end an address
 const addressEnd = /[\s\x00-\x1f\x7f<>"]/
-const linkScheme = /(?:https?:\/\/|mailto:)/iy
+const linkScheme = /(?:https?|mailto):/iy
 
 function scanLinks(text: string, base: number) {
   const length = text.length
@@ -89,48 +94,63 @@ function scanLinks(text: string, base: number) {
     candidates.push({ open, close, urlEnd })
     opens[open + 1]!++
   }
+  // A candidate whose text holds another is an outer link; one holding an outer link is text.
+  const inside = (open: number, close: number, prefix: Int32Array) =>
+    prefix[close]! - prefix[open + 1]! > 0
+  const outers = new Int32Array(length + 1)
+  for (let i = 0, c = 0; i < length; i++) {
+    const candidate = candidates[c]
+    const outer = candidate?.open === i && inside(i, candidate.close, opens)
+    if (candidate?.open === i) c++
+    outers[i + 1] = outers[i]! + (outer ? 1 : 0)
+  }
   const links: MaskedLink[] = []
   let after = 0
+  let pending: MaskedLink | undefined
+  const flush = () => {
+    if (pending) links.push(pending)
+    after = Math.max(after, pending ? pending.end - base : 0)
+    pending = undefined
+  }
   for (const { open, close, urlEnd } of candidates) {
-    // As in CommonMark, a link inside the text of another wins, and links never overlap.
-    if (open < after || opens[close]! - opens[open + 1]! > 0) continue
-    const url = linkTarget(text.slice(close + 2, urlEnd))
+    if (pending && open >= pending.start - base) flush()
+    if (open < after || inside(open, close, outers)) continue
+    const target = linkTarget(text.slice(close + 2, urlEnd))
     const label = stripFormatting(text.slice(open + 1, close)).replace(/\\([[\]])/g, '$1')
-    if (!url || !label.trim()) continue
-    links.push({
+    if (!target || !label.trim()) continue
+    const link = {
       start: base + open,
       end: base + urlEnd + 1,
       textStart: base + open + 1,
       textEnd: base + close,
-      url,
-      address: shownAddress(url),
+      urlStart: base + close + 2,
+      urlEnd: base + urlEnd,
+      url: target.url,
       label,
-      masked: !namesOtherHost(label, url),
-    })
+      // User info reads as a host (https://bank.test@evil.test), so it never masks.
+      masked: !target.userInfo && !namesOtherHost(label, target.url),
+    }
+    if (inside(open, close, opens)) {
+      // As in CommonMark, the inner link wins. The outer one's text stays text, around the
+      // inner link, and its address after `](` is an ordinary link.
+      pending = { ...link, start: base + close, textStart: base + close, label: '', masked: false }
+      continue
+    }
+    links.push(link)
     after = urlEnd + 1
   }
+  flush()
   return links
 }
 
-/** The address as typed, when it is an absolute http, https or mailto address. */
+/** The canonical address, when `raw` is an absolute http, https or mailto address. */
 function linkTarget(raw: string) {
   try {
     const url = new URL(raw)
-    if (url.protocol === 'mailto:') return url.pathname ? raw : ''
-    return /^https?:$/.test(url.protocol) && url.hostname ? raw : ''
+    const valid = url.protocol === 'mailto:' ? !!url.pathname : !!url.hostname
+    return valid ? { url: url.href, userInfo: !!(url.username || url.password) } : undefined
   } catch {
-    return ''
-  }
-}
-
-/** A web address whose host is not ASCII shows as browsers show it, in punycode. */
-function shownAddress(raw: string) {
-  // eslint-disable-next-line no-control-regex -- any character outside ASCII in the host
-  if (!/^https?:\/\/[^/?#]*[^\x00-\x7f]/i.test(raw)) return raw
-  try {
-    return new URL(raw).href
-  } catch {
-    return raw
+    return undefined
   }
 }
 
@@ -157,44 +177,58 @@ function hostName(host: string) {
 /** A dotted host name such as example.com, with an optional mail user, port and path. */
 const domainText =
   /^(?:[^\s@/]+@)?((?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+\p{L}[\p{L}\p{N}-]*[\p{L}\p{N}])\.?(?::\d+)?(?:[/?#]\S*)?$/iu
-const wordEdges = /^[\p{P}\p{S}]+|[\p{P}\p{S}]+$/gu
+/** Characters that can belong to an address word; anything else separates words. */
+const notAddress = /[^\p{L}\p{N}\p{M}.\-@:/_]+/u
+const wordEdges = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu
+
+/**
+ * The words of link text that could name an address. Look-alike characters become their plain
+ * forms (NFKC, and the dots that host names accept), and invisible characters are dropped.
+ */
+function addressWords(label: string) {
+  return label
+    .normalize('NFKC')
+    .replace(/[。．｡]/g, '.')
+    .replace(/[\p{Cf}\p{Default_Ignorable_Code_Point}]/gu, '')
+    .split(notAddress)
+    .map((word) => word.replace(wordEdges, ''))
+    .filter(Boolean)
+}
+
+/** The host a word names: a scheme address, an IP address or a dotted host name. */
+function wordHost(word: string): string | undefined {
+  if (/^(?:[a-z][a-z\d+.-]*:\/\/|mailto:)/i.test(word)) return urlHost(word)
+  // Only literals that parse are addresses: 12:30:45 is a time.
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(word)) return hostName(word) || undefined
+  if (/^[\da-f]*:[\da-f]*:[\da-f:.]*$/i.test(word)) return hostName(`[${word}]`) || undefined
+  const match = domainText.exec(word)
+  return match ? hostName(match[1]!) : undefined
+}
 
 /**
  * Whether any word of the link text reads as an address or a domain whose host is not the
- * link's host. Invisible characters are ignored, and punctuation around a word is not part of it.
+ * link's host. Hosts compare as browsers compare them: lower case, punycode, no trailing dot.
  */
 function namesOtherHost(label: string, url: string) {
   const target = urlHost(url)
-  for (const word of label.replace(/\p{Cf}/gu, '').split(/\s+/)) {
-    let host: string
-    if (/^[\p{P}\p{S}]*(?:[a-z][a-z\d+.-]*:\/\/|mailto:)/iu.test(word)) {
-      const address = word.replace(/^[\p{P}\p{S}]+/u, '').replace(/[)\]>"'.,;:!?]+$/, '')
-      host = urlHost(address)
-    } else {
-      const match = domainText.exec(word.replace(wordEdges, ''))
-      if (!match) continue
-      host = hostName(match[1]!)
-    }
-    if (!host || host !== target) return true
-  }
-  return false
+  return addressWords(label).some((word) => {
+    const host = wordHost(word)
+    return host !== undefined && (!host || host !== target)
+  })
 }
 
-/** One stretch of formatted text, or one link with the formatted runs it shows. */
+/**
+ * One stretch of formatted text, or one link with the formatted runs it shows. `literal` text
+ * is the typed Markdown around an unmasked link: it shows as typed, without further links.
+ */
 export type MessagePiece =
-  | { kind: 'text'; run: FormattedRun }
-  | {
-      kind: 'link'
-      href: string
-      address: string
-      label: string
-      masked: boolean
-      runs: FormattedRun[]
-    }
+  | { kind: 'text'; run: FormattedRun; literal?: boolean }
+  | { kind: 'link'; href: string; label: string; masked: boolean; runs: FormattedRun[] }
 
 /**
- * Message text as formatted runs, with masked links gathered into link pieces. A link keeps the
- * formatting inside its text and drops the brackets, the address and backslash escapes.
+ * Message text as formatted runs, with links gathered into link pieces. A masked link keeps the
+ * formatting inside its text and drops the brackets, the address and backslash escapes. An
+ * unmasked one keeps its typed text, and only its address is a link.
  */
 export function messagePieces(text: string): MessagePiece[] {
   const links = maskedLinks(text)
@@ -220,24 +254,31 @@ export function messagePieces(text: string): MessagePiece[] {
         at = to
         continue
       }
+      const [shownStart, shownEnd] = link.masked
+        ? [link.textStart, link.textEnd]
+        : [link.urlStart, link.urlEnd]
+      if (at < shownStart || at >= shownEnd) {
+        // Masked: the brackets and the address are hidden. Unmasked: they show as typed.
+        const to = Math.min(end, at < shownStart ? shownStart : link.end)
+        if (!link.masked) pieces.push({ kind: 'text', run: slice(to), literal: true })
+        at = to
+        continue
+      }
       if (!open) {
         open = {
           kind: 'link',
           href: link.url,
-          address: link.address,
-          label: link.masked ? link.label : link.address,
+          label: link.masked ? link.label : link.url,
           masked: link.masked,
-          runs: link.masked ? [] : [{ ...run, text: link.address }],
+          runs: [],
         }
         pieces.push(open)
       }
-      if (link.masked && at >= link.textStart && at < link.textEnd) {
-        const to = Math.min(end, link.textEnd)
-        const shown = slice(to)
-        shown.text = shown.text.replace(/\\([[\]])/g, '$1')
-        if (shown.text) open.runs.push(shown)
-        at = to
-      } else at = Math.min(end, link.masked && at < link.textStart ? link.textStart : link.end)
+      const to = Math.min(end, shownEnd)
+      const shown = slice(to)
+      if (link.masked) shown.text = shown.text.replace(/\\([[\]])/g, '$1')
+      if (shown.text) open.runs.push(shown)
+      at = to
     }
   }
   return pieces
@@ -256,9 +297,11 @@ export function replaceMaskedLinks(text: string, replace: (link: MaskedLink) => 
   return out + text.slice(at)
 }
 
-/** Text as a reader sees it: each masked link as its text, or as its address when unmasked. */
+/** Text with each link as its text, followed by its address when it is not masked. */
 export function maskedLinkLabels(text: string) {
-  return replaceMaskedLinks(text, (link) => (link.masked ? link.label : link.address))
+  return replaceMaskedLinks(text, (link) =>
+    link.masked ? link.label : `${link.label} ${link.url}`,
+  )
 }
 
 /**

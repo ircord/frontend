@@ -1,103 +1,84 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { describe, test } from 'node:test'
 import { spokenText } from '../read-aloud'
-import { markdownToIrc } from './irc'
+import { markdownToIrc, splitCodeBlocks } from './irc'
 import { messageMediaLinks, messageMediaText } from './link-media'
 import { maskedLinkLabels, maskedLinks, messagePieces, textOutsideCode } from './masked-links'
 
-/** What a reader sees, and where each link goes. */
-function shown(text: string) {
-  const pieces = messagePieces(text)
-  return {
-    text: pieces
-      .map((piece) =>
-        piece.kind === 'link' ? piece.runs.map((run) => run.text).join('') : piece.run.text,
-      )
-      .join(''),
-    targets: pieces.flatMap((piece) => (piece.kind === 'link' ? [piece.href] : [])),
-  }
+/** The case list both clients share, byte for byte. */
+const cases: Case[] = JSON.parse(
+  readFileSync(new URL('./masked-links.json', import.meta.url), 'utf8'),
+)
+
+type Case = {
+  name: string
+  /** The message text as it travels on IRC, formatting codes included. */
+  input: string
+  /** What a reader sees: fenced blocks show their code, links their text. */
+  visible: string
+  /** Where each masked link opens, in canonical form. */
+  targets: string[]
+  /** The address of a link that is not masked, shown as an ordinary link. */
+  ordinary: string | null
+  reason: string
 }
 
-/**
- * The shared cases: the text as typed in the composer, the visible text, and the masked link's
- * target (none when nothing masks). Ordinary links in the visible text stay ordinary links.
- */
-const cases: [typed: string, visible: string, target: string | null][] = [
-  // 1. Absolute http, https and mailto addresses mask.
-  ['[docs](https://example.com/docs)', 'docs', 'https://example.com/docs'],
-  ['see [the site](http://example.com) now', 'see the site now', 'http://example.com'],
-  ['[mail me](mailto:me@example.com)', 'mail me', 'mailto:me@example.com'],
-  ['[a](https://a.test) and [b](https://b.test)', 'a and b', 'https://a.test'],
-  // Anything else stays as typed.
-  ['[x](javascript:alert(1))', '[x](javascript:alert(1))', null],
-  ['[x](ftp://example.com)', '[x](ftp://example.com)', null],
-  ['[x](/relative/path)', '[x](/relative/path)', null],
-  ['[x](example.com)', '[x](example.com)', null],
-  ['[x](https://)', '[x](https://)', null],
-  ['[x](https://example.com/a b)', '[x](https://example.com/a b)', null],
-  ['[](https://example.com)', '[](https://example.com)', null],
-  ['[ ](https://example.com)', '[ ](https://example.com)', null],
-  ['[x](https://example.com', '[x](https://example.com', null],
-  ['[two\nlines](https://example.com)', '[two\nlines](https://example.com)', null],
-  // Code spans and blocks stay literal.
+/** What a reader sees, where masked links go, and which links stay ordinary. */
+function shown(text: string) {
+  let visible = ''
+  const targets: string[] = []
+  const ordinary: string[] = []
+  for (const segment of splitCodeBlocks(text)) {
+    if (segment.kind === 'code') {
+      visible += segment.code
+      continue
+    }
+    for (const piece of messagePieces(segment.raw)) {
+      if (piece.kind === 'text') visible += piece.run.text
+      else {
+        visible += piece.runs.map((run) => run.text).join('')
+        ;(piece.masked ? targets : ordinary).push(piece.href)
+      }
+    }
+  }
+  return { visible, targets, ordinary: ordinary[0] ?? null }
+}
+
+/** The case list both clients share. */
+describe('masked links: shared cases', () => {
+  for (const item of cases)
+    test(`${item.name}: ${item.reason}`, () => {
+      assert.deepEqual(shown(item.input), {
+        visible: item.visible,
+        targets: item.targets,
+        ordinary: item.ordinary,
+      })
+    })
+})
+
+/** Further cases this client checks, typed in the composer. */
+const typed: [input: string, visible: string, target: string | null][] = [
   ['`[x](https://example.com)`', '[x](https://example.com)', null],
   ['`[`x](https://example.com)', '[x](https://example.com)', null],
-  ['```\n[x](https://example.com)\n```', '```\n[x](https://example.com)\n```', null],
-  // 3. Text that reads as another address shows the real address.
-  ['[example.com](https://evil.test/login)', 'https://evil.test/login', null],
-  ['[https://bank.test](https://evil.test)', 'https://evil.test', null],
-  ['[www.bank.test/login](https://evil.test)', 'https://evil.test', null],
-  ['[bank.test](https://bank.test@evil.test)', 'https://bank.test@evil.test', null],
-  ['[me@bank.test](mailto:me@evil.test)', 'mailto:me@evil.test', null],
-  ['[**bank.test**](https://evil.test)', 'https://evil.test', null],
-  // The same host may mask: the text tells the truth.
-  ['[example.com](https://example.com/page)', 'example.com', 'https://example.com/page'],
-  ['[EXAMPLE.com](https://example.com.)', 'EXAMPLE.com', 'https://example.com.'],
-  ['[https://example.com](https://example.com/a)', 'https://example.com', 'https://example.com/a'],
-  ['[me@example.com](mailto:me@example.com)', 'me@example.com', 'mailto:me@example.com'],
-  // Any word naming another host counts, around punctuation and invisible characters.
-  ['[read it on example.com](https://evil.test)', 'https://evil.test', null],
-  ['[bank.test​](https://evil.test)', 'https://evil.test', null],
-  ['[bank.test!](https://evil.test)', 'https://evil.test', null],
-  ['[(bank.test)](https://evil.test)', 'https://evil.test', null],
-  ['[<https://bank.test>](https://evil.test)', 'https://evil.test', null],
-  ['[Login at https://bank.test](https://evil.test)', 'https://evil.test', null],
-  ['[bank.test](https://bаnk.test)', 'https://xn--bnk-6cd.test/', null],
-  // A dot without a host name still masks.
-  ['[v1.5](https://example.com/releases)', 'v1.5', 'https://example.com/releases'],
-  ['[see e.g. this](https://example.com)', 'see e.g. this', 'https://example.com'],
-  ['[Note: see this](https://example.com)', 'Note: see this', 'https://example.com'],
+  ['[**bank.test**](https://evil.test)', '[bank.test](https://evil.test)', null],
+  ['[bank.test](https://bаnk.test)', '[bank.test](https://bаnk.test)', null],
+  ['[192.168.1.1](http://192.168.1.1/admin)', '192.168.1.1', 'http://192.168.1.1/admin'],
+  ['[meet at 12:30:45](https://example.com)', 'meet at 12:30:45', 'https://example.com/'],
+  ['[see e.g. this](https://example.com)', 'see e.g. this', 'https://example.com/'],
   [
     '[read it on example.com](https://example.com/a)',
     'read it on example.com',
     'https://example.com/a',
   ],
-  // 5. Formatting, nested brackets, escapes, parentheses and spacing.
-  ['[**bold** and *it*](https://example.com)', 'bold and it', 'https://example.com'],
-  ['[a [b] c](https://example.com)', 'a [b] c', 'https://example.com'],
-  // A link inside the text of another wins, as in CommonMark.
-  ['[a [b](https://x.test) c](https://y.test)', '[a b c](https://y.test)', 'https://x.test'],
-  ['[a \\] b](https://example.com)', 'a ] b', 'https://example.com'],
-  ['[a \\[ b](https://example.com)', 'a [ b', 'https://example.com'],
-  ['\\[x](https://example.com)', '\\[x](https://example.com)', null],
-  [
-    '[Foo](https://en.wikipedia.org/wiki/Foo_(bar))',
-    'Foo',
-    'https://en.wikipedia.org/wiki/Foo_(bar)',
-  ],
-  ['([x](https://example.com/a))', '(x)', 'https://example.com/a'],
-  ['[x](https://example.com/a).', 'x.', 'https://example.com/a'],
-  ['[x] (https://example.com)', '[x] (https://example.com)', null],
-  ['[x]', '[x]', null],
 ]
 
-describe('masked links', () => {
-  for (const [typed, visible, target] of cases)
-    test(JSON.stringify(typed), () => {
-      const wire = markdownToIrc(typed)
-      assert.equal(shown(wire).text, visible)
-      const masked = messagePieces(wire).find((piece) => piece.kind === 'link' && piece.masked)
-      assert.equal(masked?.kind === 'link' ? masked.href : null, target)
+describe('masked links: composer text', () => {
+  for (const [input, visible, target] of typed)
+    test(JSON.stringify(input), () => {
+      const result = shown(markdownToIrc(input))
+      assert.equal(result.visible, visible)
+      assert.deepEqual(result.targets, target ? [target] : [])
     })
 
   test('travel on the wire as typed, apart from inline formatting', () => {
@@ -125,8 +106,7 @@ describe('masked links', () => {
       { kind: 'text', run: { text: 'a ', bold: true } },
       {
         kind: 'link',
-        href: 'https://x.test',
-        address: 'https://x.test',
+        href: 'https://x.test/',
         label: 'b',
         masked: true,
         runs: [{ text: 'b', bold: true }],
@@ -135,23 +115,23 @@ describe('masked links', () => {
     ])
   })
 
-  test('a link whose text names another host shows the address as an ordinary link', () => {
+  test('a link whose text names another host keeps its text, and links its address', () => {
     assert.deepEqual(messagePieces('[bank.test](https://evil.test)'), [
+      { kind: 'text', run: { text: '[bank.test](' }, literal: true },
       {
         kind: 'link',
-        href: 'https://evil.test',
-        address: 'https://evil.test',
-        label: 'https://evil.test',
+        href: 'https://evil.test/',
+        label: 'https://evil.test/',
         masked: false,
         runs: [{ text: 'https://evil.test' }],
       },
+      { kind: 'text', run: { text: ')' }, literal: true },
     ])
   })
 
-  test('show a non-ASCII web host as browsers do, and open the address as typed', () => {
+  test('open and show a non-ASCII host as browsers do', () => {
     const [link] = messagePieces('[docs](https://bücher.example/a)')
-    assert.equal(link?.kind === 'link' && link.address, 'https://xn--bcher-kva.example/a')
-    assert.equal(link?.kind === 'link' && link.href, 'https://bücher.example/a')
+    assert.equal(link?.kind === 'link' && link.href, 'https://xn--bcher-kva.example/a')
   })
 
   test('report offsets in the wire text', () => {
@@ -161,8 +141,9 @@ describe('masked links', () => {
         end: 22,
         textStart: 4,
         textEnd: 5,
-        url: 'https://x.test',
-        address: 'https://x.test',
+        urlStart: 7,
+        urlEnd: 21,
+        url: 'https://x.test/',
         label: 'a',
         masked: true,
       },
@@ -176,6 +157,7 @@ describe('masked links', () => {
       '[a](('.repeat(10000) + 'https://x.test',
       '[' + '\\'.repeat(40000) + 'x](https://x.test)',
       '[a [b] '.repeat(8000) + '](https://x.test)',
+      '[a'.repeat(4000) + '](https://x.test)'.repeat(4000),
     ]
     for (const input of inputs) {
       const started = performance.now()
@@ -186,21 +168,7 @@ describe('masked links', () => {
   })
 })
 
-describe('masked links read as plain text', () => {
-  test('the link list remark reads the link text', () => {
-    assert.equal(maskedLinkLabels('see [docs](https://x.test) here'), 'see docs here')
-    assert.equal(maskedLinkLabels('[bank.test](https://evil.test)'), 'https://evil.test')
-  })
-
-  test('read aloud says the link text, then where it goes', () => {
-    assert.equal(
-      spokenText({ sender: 'a', text: 'see [the docs](https://example.com/docs) now' }),
-      'a: see the docs a link to example.com now',
-    )
-  })
-})
-
-describe('masked links in previews and search', () => {
+describe('masked links in previews, search and plain text', () => {
   test('previews use the real address', () => {
     assert.deepEqual(messageMediaLinks('[pic](https://example.com/a.png)'), [
       'https://example.com/a.png',
@@ -217,7 +185,7 @@ describe('masked links in previews and search', () => {
   test('search and the link list read the address', () => {
     assert.equal(
       textOutsideCode(markdownToIrc('see [it](https://x.test) `code`')),
-      'see  https://x.test   ',
+      'see  https://x.test/   ',
     )
   })
 
@@ -235,6 +203,18 @@ describe('masked links in previews and search', () => {
         new Set(['https://a.test/p.png']),
       ),
       '[x](https://b.test/q.png)',
+    )
+  })
+
+  test('the link list remark reads the link text', () => {
+    assert.equal(maskedLinkLabels('see [docs](https://x.test) here'), 'see docs here')
+    assert.equal(maskedLinkLabels('[bank.test](https://evil.test)'), 'bank.test https://evil.test/')
+  })
+
+  test('read aloud says the link text, then where it goes', () => {
+    assert.equal(
+      spokenText({ sender: 'a', text: 'see [the docs](https://example.com/docs) now' }),
+      'a: see the docs a link to example.com now',
     )
   })
 })

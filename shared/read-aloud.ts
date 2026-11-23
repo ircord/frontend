@@ -44,9 +44,7 @@ export function spokenText(
     ? (translate?.('workspaceUi.speech.sentGif') ?? 'sent a GIF')
     : stripFormatting(
         // A masked link is spoken as its text, then where it goes.
-        replaceMaskedLinks(input.text, (link) =>
-          link.masked ? `${link.label} ${link.url} ` : `${link.url} `,
-        ),
+        replaceMaskedLinks(input.text, (link) => `${link.label} ${link.url} `),
       )
         .replace(
           /\bhttps?:\/\/([^\s/]+)\S*/gi,

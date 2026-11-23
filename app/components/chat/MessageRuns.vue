@@ -1,5 +1,6 @@
 <script setup vapor lang="ts">
 import type { FormattedRun } from '../../../shared/utils/irc'
+import { mediaLinkText } from '../../../shared/utils/link-media'
 import { messagePieces } from '../../../shared/utils/masked-links'
 import { readableOn } from '../../../shared/utils/color'
 import { isGroupMention } from '../../../shared/group-mentions'
@@ -91,38 +92,46 @@ const runs = computed(() =>
           style: undefined,
           parts: [],
         }
-      : { link: undefined, runs: [], ...textRun(piece.run) },
+      : { link: undefined, runs: [], ...textRun(piece.run, piece.literal) },
   ),
 )
-function textRun(run: FormattedRun) {
+const linkStart = /^(https?|ircs?):\/\//
+/** Text runs; code and the typed Markdown around an unmasked link stay literal. */
+function textRun(run: FormattedRun, literal = false) {
   return {
     run,
     style: runStyle(run),
-    parts: run.mono
-      ? [{ text: run.text, kind: 'text', custom: undefined, self: false }]
-      : run.text
-          // A #channel starts a word and doesn't swallow trailing punctuation (“see #dev.”).
-          .split(
-            /(https?:\/\/[^\s]+|ircs?:\/\/[^\s]+|@[\w[\]\\^{}|`-]+|:[\w+-]{1,64}:|(?<![^\s(])#[^\s,#:]*[^\s,#:.!?)'"])/g,
-          )
-          .filter(Boolean)
-          .map((text) => {
-            const member = text.startsWith('@') ? chat.memberByNick(text.slice(1)) : undefined
-            // @here, @everyone, @operator…: IRCord group mentions (a member's own nick wins).
-            const group = !member && text.startsWith('@') && isGroupMention(text)
-            return {
-              text,
-              custom: text.startsWith(':') ? media.byShortcode.get(text.slice(1, -1)) : undefined,
-              kind: /^(https?|ircs?):\/\//.test(text)
-                ? 'link'
-                : member || group
-                  ? 'mention'
-                  : /^#(?!\d+$)[^\s#]/.test(text)
-                    ? 'channel'
-                    : 'text',
-              self: member?.id === 'you',
-            }
-          }),
+    parts:
+      run.mono || literal
+        ? [{ text: run.text, kind: 'text', custom: undefined, self: false }]
+        : run.text
+            // A #channel starts a word and doesn't swallow trailing punctuation (“see #dev.”).
+            .split(
+              /(https?:\/\/[^\s]+|ircs?:\/\/[^\s]+|@[\w[\]\\^{}|`-]+|:[\w+-]{1,64}:|(?<![^\s(])#[^\s,#:]*[^\s,#:.!?)'"])/g,
+            )
+            // A link ends where its preview's address ends, before punctuation and brackets.
+            .flatMap((text) => {
+              const url = linkStart.test(text) ? mediaLinkText(text) : text
+              return url === text ? [text] : [url, text.slice(url.length)]
+            })
+            .filter(Boolean)
+            .map((text) => {
+              const member = text.startsWith('@') ? chat.memberByNick(text.slice(1)) : undefined
+              // @here, @everyone, @operator…: IRCord group mentions (a member's own nick wins).
+              const group = !member && text.startsWith('@') && isGroupMention(text)
+              return {
+                text,
+                custom: text.startsWith(':') ? media.byShortcode.get(text.slice(1, -1)) : undefined,
+                kind: /^(https?|ircs?):\/\//.test(text)
+                  ? 'link'
+                  : member || group
+                    ? 'mention'
+                    : /^#(?!\d+$)[^\s#]/.test(text)
+                      ? 'channel'
+                      : 'text',
+                self: member?.id === 'you',
+              }
+            }),
   }
 }
 </script>
@@ -132,7 +141,7 @@ function textRun(run: FormattedRun) {
     :key="i"
     ><AppTooltip
       v-if="segment.link"
-      :text="segment.link.masked ? segment.link.address : ''"
+      :text="segment.link.masked ? segment.link.href : ''"
       :describe="false"
       side="top"
       ><a
@@ -142,7 +151,7 @@ function textRun(run: FormattedRun) {
           segment.link.masked
             ? t('workspaceUi.links.masked', {
                 text: segment.link.label,
-                url: segment.link.address,
+                url: segment.link.href,
               })
             : undefined
         "
