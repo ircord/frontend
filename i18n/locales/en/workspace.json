@@ -307,6 +307,13 @@
       "codeCopied": "Code copied",
       "taskDone": "Done",
       "taskTodo": "To do",
+      "diagram": "{language} diagram",
+      "diagramPicture": "Diagram. Show the source to read it.",
+      "diagramFailed": "This diagram couldn’t be drawn.",
+      "showSource": "Show source",
+      "showDiagram": "Show diagram",
+      "copyDiagram": "Copy diagram source",
+      "diagramCopied": "Diagram source copied",
       "resizeReset": "{label} · double-click to reset"
     },
     "commandEditor": {

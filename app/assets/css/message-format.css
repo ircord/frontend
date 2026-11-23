@@ -139,6 +139,17 @@ ul.message-list ul.message-list ul.message-list {
     opacity: 1;
   }
 }
+/* Mermaid diagrams: a picture in the code frame, with a toggle back to the source. */
+.diagram-toggle:hover {
+  color: var(--text);
+  background: var(--hover);
+  border-color: var(--border);
+}
+.diagram-toggle:focus-visible,
+.diagram-view:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 /* Syntax highlighting (highlight.js scopes), coloured from the active scheme. */
 .code-block .hljs-keyword,
 .code-block .hljs-selector-tag,

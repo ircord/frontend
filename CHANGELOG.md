@@ -9,6 +9,7 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 - Messages now show Markdown tables, headings, horizontal rules and task lists as formatted blocks.
 - Messages now show Markdown links such as `[release notes](https://example.com)` as their text, with the real address on hover or focus.
+- Show Mermaid code blocks in messages as diagrams, with a button to switch back to the source.
 
 ### Fixed
 

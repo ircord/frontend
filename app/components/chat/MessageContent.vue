@@ -1,5 +1,6 @@
 <script setup vapor lang="ts">
 import { messageBlocks, type MessageBlock } from '../../../shared/utils/blocks'
+import { isDiagramLanguage } from '../../../shared/utils/diagram'
 import { parseFormatting, splitCodeBlocks, stripFormatting } from '../../../shared/utils/irc'
 const props = withDefaults(
   defineProps<{
@@ -59,8 +60,11 @@ const blocks = computed((): MessageBlock[] =>
     ><template
       v-for="(block, b) in blocks"
       :key="b"
-      ><CodeBlock
-        v-if="block.kind === 'code'"
+      ><LazyDiagramBlock
+        v-if="block.kind === 'code' && block.lang && isDiagramLanguage(block.lang)"
+        :code="block.code"
+        :lang="block.lang" /><CodeBlock
+        v-else-if="block.kind === 'code'"
         :code="block.code"
         :lang="block.lang" /><MessageListBlock
         v-else-if="block.kind === 'list'"

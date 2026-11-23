@@ -133,6 +133,7 @@ export default defineNuxtConfig({
         'highlight.js/lib/languages/typescript',
         'highlight.js/lib/languages/xml',
         'highlight.js/lib/languages/yaml',
+        'mermaid',
         'openapi-fetch',
         'satori',
         'tailwind-merge',
@@ -229,6 +230,22 @@ export default defineNuxtConfig({
       // The artwork engine is only used by visible link cards without images.
       for (const [source, chunk] of Object.entries(manifest))
         if (source.includes('/node_modules/satori/')) chunk.prefetch = false
+      // Mermaid and the chunks only it loads (a core, its libraries and one chunk per diagram
+      // type) download when the first diagram comes into view.
+      const loaded = new Set<string>()
+      const walk = (key: string, dynamic: boolean, into: Set<string>) => {
+        if (into.has(key) || !manifest[key]) return
+        into.add(key)
+        for (const next of manifest[key].imports ?? []) walk(next, dynamic, into)
+        if (dynamic)
+          for (const next of manifest[key].dynamicImports ?? []) walk(next, dynamic, into)
+      }
+      for (const [source, chunk] of Object.entries(manifest))
+        if (chunk.isEntry) walk(source, false, loaded)
+      const diagrams = new Set<string>()
+      for (const source of Object.keys(manifest))
+        if (source.includes('/node_modules/mermaid/')) walk(source, true, diagrams)
+      for (const source of diagrams) if (!loaded.has(source)) manifest[source]!.prefetch = false
     },
     'nitro:config'(nitro) {
       const dir = resolve(nitro.buildDir ?? '.nuxt', 'build-info')
