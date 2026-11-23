@@ -305,6 +305,8 @@
       "code": "Code",
       "languageCode": "{language} code",
       "codeCopied": "Code copied",
+      "taskDone": "Done",
+      "taskTodo": "To do",
       "resizeReset": "{label} · double-click to reset"
     },
     "commandEditor": {

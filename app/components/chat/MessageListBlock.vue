@@ -2,6 +2,7 @@
 import type { MessageList } from '../../../shared/utils/lists'
 /** A Markdown list from a message body, nested lists included. Text renders as message runs. */
 defineProps<{ list: MessageList }>()
+const { t } = useI18n()
 </script>
 <template>
   <component
@@ -12,7 +13,18 @@ defineProps<{ list: MessageList }>()
     <li
       v-for="(item, index) in list.items"
       :key="index"
+      :class="{ 'message-task': item.checked !== undefined }"
     >
+      <input
+        v-if="item.checked !== undefined"
+        type="checkbox"
+        class="message-task-box"
+        :checked="item.checked"
+        disabled
+        :aria-label="
+          t(item.checked ? 'workspaceUi.controls.taskDone' : 'workspaceUi.controls.taskTodo')
+        "
+      />
       <MessageRuns :text="item.text" />
       <MessageListBlock
         v-for="(child, c) in item.children"

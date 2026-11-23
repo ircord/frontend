@@ -5,6 +5,10 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+### New
+
+- Messages now show Markdown tables, headings, horizontal rules and task lists as formatted blocks.
+
 ### Fixed
 
 - Wait between attempts when chat repeatedly fails to reconnect.

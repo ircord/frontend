@@ -15,7 +15,24 @@ defineProps<{ blocks: MessageBlock[] }>()
         :code="block.code"
         :lang="block.lang" /><MessageListBlock
         v-else-if="block.kind === 'list'"
-        :list="block.list" /><MessageRuns
+        :list="block.list" /><MessageTableBlock
+        v-else-if="block.kind === 'table'"
+        :align="block.align"
+        :header="block.header"
+        :rows="block.rows" />
+      <div
+        v-else-if="block.kind === 'heading'"
+        class="message-heading"
+        :class="`message-heading-${block.level}`"
+        role="heading"
+        :aria-level="block.level + 4"
+      >
+        <MessageRuns :text="block.text" />
+      </div>
+      <hr
+        v-else-if="block.kind === 'rule'"
+        class="message-rule" />
+      <MessageRuns
         v-else-if="block.kind === 'text'"
         :text="block.text"
     /></template>
