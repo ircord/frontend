@@ -97,6 +97,9 @@ export default defineNuxtConfig({
   css: ['~/assets/css/fonts.css', '~/assets/css/tailwind.css'],
   vite: {
     plugins: [tailwindcss()],
+    // Module output keeps code splitting in worker-style bundles: the diagram frame loads one
+    // Mermaid chunk per diagram type instead of all of them. Every worker starts as a module.
+    worker: { format: 'es' },
     optimizeDeps: {
       // Keep shared dependencies pre-bundled so Vite does not reload on first use.
       include: [
@@ -133,6 +136,7 @@ export default defineNuxtConfig({
         'highlight.js/lib/languages/typescript',
         'highlight.js/lib/languages/xml',
         'highlight.js/lib/languages/yaml',
+        'mermaid',
         'openapi-fetch',
         'satori',
         'tailwind-merge',
@@ -229,6 +233,9 @@ export default defineNuxtConfig({
       // The artwork engine is only used by visible link cards without images.
       for (const [source, chunk] of Object.entries(manifest))
         if (source.includes('/node_modules/satori/')) chunk.prefetch = false
+      // The diagram frame's script (Mermaid) loads when the first diagram comes into view.
+      for (const chunk of Object.values(manifest))
+        if (chunk.file.startsWith('diagram-frame-')) chunk.prefetch = false
     },
     'nitro:config'(nitro) {
       const dir = resolve(nitro.buildDir ?? '.nuxt', 'build-info')

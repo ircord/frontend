@@ -1,5 +1,6 @@
 <script setup vapor lang="ts">
 import type { MessageBlock } from '../../../shared/utils/blocks'
+import { isDiagramLanguage } from '../../../shared/utils/diagram'
 /** A quote from a message body. Its contents keep formatting, code blocks and Markdown lists. */
 defineProps<{ blocks: MessageBlock[] }>()
 </script>
@@ -10,8 +11,11 @@ defineProps<{ blocks: MessageBlock[] }>()
     <template
       v-for="(block, b) in blocks"
       :key="b"
-      ><CodeBlock
-        v-if="block.kind === 'code'"
+      ><LazyDiagramBlock
+        v-if="block.kind === 'code' && isDiagramLanguage(block.lang)"
+        :code="block.code"
+        :lang="block.lang" /><CodeBlock
+        v-else-if="block.kind === 'code'"
         :code="block.code"
         :lang="block.lang" /><MessageListBlock
         v-else-if="block.kind === 'list'"
