@@ -19,9 +19,9 @@ const instanceImage = useInstanceImage()
 /** The blurred banner fallback follows the avatar's rule: only pictures on this instance. */
 const avatarUrl = computed(() => instanceImage(member.value?.avatarSrc, member.value?.avatarUrl))
 /** Their banner and card background, from the backend's same-origin copy when it has one. */
-const bannerUrl = computed(() => instanceImage(member.value?.bannerSrc) ?? member.value?.bannerUrl)
-const backgroundUrl = computed(
-  () => instanceImage(member.value?.profileBackgroundSrc) ?? member.value?.profileBackgroundUrl,
+const bannerUrl = computed(() => instanceImage(member.value?.bannerSrc, member.value?.bannerUrl))
+const backgroundUrl = computed(() =>
+  instanceImage(member.value?.profileBackgroundSrc, member.value?.profileBackgroundUrl),
 )
 const nameStyle = useNameStyle()
 /** Their chosen accent, else their name colour, tints the card so each one looks like its owner. */

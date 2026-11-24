@@ -136,6 +136,11 @@ const previewMember = computed(() =>
           : avatarDataUrl.value === undefined
             ? user.value.avatarUrl
             : avatarDataUrl.value || undefined,
+        // The saved cached copy would hide the picture just picked or removed.
+        avatarSrc:
+          defaultChoice.value || avatarDataUrl.value !== undefined
+            ? undefined
+            : user.value.avatarSrc,
       }
     : undefined,
 )

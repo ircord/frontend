@@ -90,6 +90,8 @@ const previewMember = computed<Member>(() => ({
   nick: nick.value.trim() || savedNick.value,
   displayName: name.value.trim() || fallbackName.value || savedNick.value || '?',
   avatarUrl: previewAvatarUrl.value,
+  // A picked or removed picture must not be hidden by the saved picture's cached copy.
+  avatarSrc: pickedAvatar.value === undefined ? user.value?.avatarSrc : undefined,
 }))
 
 const nickMax = computed(() => nicknameLimit(network.value?.isupport))

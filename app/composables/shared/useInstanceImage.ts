@@ -1,5 +1,4 @@
-import { instanceImageUrl } from '../../../shared/utils/instance-image'
-import { bundledDefaultAvatar, DEFAULT_AVATAR_PATH } from '../../../shared/utils/default-avatars'
+import { pictureSrc } from '../../../shared/utils/instance-image'
 
 /**
  * Returns a check that keeps a profile picture only when this IRCord instance serves it (#278).
@@ -12,34 +11,27 @@ import { bundledDefaultAvatar, DEFAULT_AVATAR_PATH } from '../../../shared/utils
  */
 export function useInstanceImage() {
   const config = useRuntimeConfig().public
+  const desktop = !!usePlatform().serverOrigin
   const server = usePlatform().serverOrigin || config.instanceUrl
+  const origin = (value: string, page: string) => {
+    try {
+      return new URL(value, page).origin
+    } catch {
+      return ''
+    }
+  }
   const origins = () => {
     if (typeof window === 'undefined') return []
     const page = window.location.origin
     const own = [config.apiBase, config.appApiBase, server]
       .filter((value): value is string => typeof value === 'string' && !!value)
-      .map((value) => {
-        try {
-          return new URL(value, page).origin
-        } catch {
-          return ''
-        }
-      })
-    return [...new Set([page, ...own].filter(Boolean))]
+      .map((value) => origin(value, page))
+    // The desktop app's page is not on the instance, so relative addresses resolve against it.
+    const first = desktop && server ? [origin(server, page)] : []
+    return [...new Set([...first, page, ...own].filter(Boolean))]
   }
-  const resolve = (value: string | null | undefined) => {
-    const src = instanceImageUrl(value, origins())
-    if (src && server && typeof window !== 'undefined') {
-      const url = new URL(src, server)
-      if (url.origin === server && url.pathname.startsWith(DEFAULT_AVATAR_PATH)) return url.pathname
-      if (usePlatform().serverOrigin) return url.href
-    }
-    return src
-  }
-  return (value: string | null | undefined, raw?: string | null) => {
-    const own = resolve(value)
-    if (own) return own
-    const bundled = bundledDefaultAvatar(raw)
-    return bundled ? resolve(bundled) : resolve(raw)
-  }
+  return (value: string | null | undefined, raw?: string | null) =>
+    typeof window === 'undefined'
+      ? undefined
+      : pictureSrc(value, raw, { origins: origins(), server: server || undefined, desktop })
 }
