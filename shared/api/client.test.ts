@@ -74,3 +74,17 @@ test('uploads send the message marker only when asked', async () => {
   assert.equal(urls[0], '?networkId=net&use=message')
   assert.equal(urls[1], '?networkId=net')
 })
+
+test('the upload lookup carries the message marker only when asked', async () => {
+  const urls: string[] = []
+  const client = createIRCordClient('https://example.invalid', {
+    fetch: async (request) => {
+      urls.push(new URL(request.url).search)
+      return Response.json({ available: true, maxBytes: 1, types: [] })
+    },
+  })
+  await client.fileProvider('net', 'message')
+  await client.fileProvider('net')
+  assert.equal(urls[0], '?use=message')
+  assert.equal(urls[1], '')
+})
