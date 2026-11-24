@@ -181,7 +181,7 @@ const people = computed(() => {
     nick: string
     displayName: string
     member: Pick<Member, 'displayName'> &
-      Partial<Pick<Member, 'avatarUrl' | 'color' | 'role' | 'device' | 'status'>>
+      Partial<Pick<Member, 'avatarUrl' | 'avatarSrc' | 'color' | 'role' | 'device' | 'status'>>
   }[] = matchingPeople(
     networkPeople(chat.data?.members ?? [], chat.data?.conversations ?? [], chat.networkId),
     needle.value,
@@ -207,6 +207,7 @@ const people = computed(() => {
       member: chat.member(person.memberId ?? '') ?? {
         displayName: person.displayName,
         avatarUrl: person.avatarUrl,
+        avatarSrc: person.avatarSrc,
       },
     })
   }

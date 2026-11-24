@@ -75,7 +75,7 @@ export function useNotifications(viewedConversation: () => string | undefined) {
       title: alert.preview ? title : 'IRCord',
       body: alert.preview ? body.slice(0, 200) : '',
       // The browser fetches the icon, so a picture on another host would reveal you (#278).
-      icon: instanceImage(sender?.avatarUrl) ?? '/icons/icon-192.png',
+      icon: instanceImage(sender?.avatarSrc, sender?.avatarUrl) ?? '/icons/icon-192.png',
       silent: !alert.sound,
       target: { conversationId: alert.conversationId, accountId: auth.account?.id },
     }).catch(() => {})

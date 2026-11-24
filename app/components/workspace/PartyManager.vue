@@ -93,6 +93,7 @@ const members = computed(
         label: member.displayName || member.servicesAccount || member.username,
         detail: member.servicesAccount || member.username,
         avatarUrl: member.avatarUrl,
+        avatarSrc: member.avatarSrc,
         owner: id === party.value?.ownerId,
         me:
           (!!auth.account?.id &&

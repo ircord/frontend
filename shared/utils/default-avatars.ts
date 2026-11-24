@@ -99,3 +99,22 @@ export function defaultAvatarFor(
     return undefined
   }
 }
+
+/**
+ * The bundled copy of a default avatar addressed on any IRCord instance. Every instance ships the
+ * same set, so this needs no request to the other instance. Returns the local path, or undefined
+ * when the address is not a default avatar.
+ */
+export function bundledDefaultAvatar(url: string | null | undefined): string | undefined {
+  if (!url) return undefined
+  try {
+    const parsed = new URL(url, 'https://instance.invalid')
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return undefined
+    if (parsed.username || parsed.password) return undefined
+    if (!parsed.pathname.startsWith(DEFAULT_AVATAR_PATH)) return undefined
+    const file = parsed.pathname.slice(DEFAULT_AVATAR_PATH.length)
+    return FILE.test(file) ? DEFAULT_AVATAR_PATH + file : undefined
+  } catch {
+    return undefined
+  }
+}

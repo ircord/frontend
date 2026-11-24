@@ -2398,6 +2398,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/media/remote/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Show a profile picture from another server
+         * @description Member, person and party projections give this address as avatarSrc, bannerSrc and profileBackgroundSrc when the picture is hosted on another server. This server fetches the picture once, checks it, keeps a copy for a day, and serves it from its own address, so viewers never contact the other server. Only addresses this server issued can be fetched. GIFs are served as a still frame.
+         */
+        get: operations["get-remote-picture"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /**
+         * Show a profile picture from another server
+         * @description Member, person and party projections give this address as avatarSrc, bannerSrc and profileBackgroundSrc when the picture is hosted on another server. This server fetches the picture once, checks it, keeps a copy for a day, and serves it from its own address, so viewers never contact the other server. Only addresses this server issued can be fetched. GIFs are served as a still frame.
+         */
+        head: operations["head-remote-picture"];
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4332,9 +4356,13 @@ export interface components {
             readonly $schema?: string;
             account: string;
             avatarFrame?: string;
+            /** @description Where clients draw the avatar: avatarUrl when it is on this server, otherwise a cached copy on this server. Absent when there is no picture to show. */
+            avatarSrc?: string;
             avatarUrl?: string;
             /** @description The AWAY text while away, when known. */
             awayMessage?: string;
+            /** @description Where clients draw the banner, chosen like avatarSrc. */
+            bannerSrc?: string;
             bannerUrl?: string;
             bio: string;
             color: string;
@@ -4356,6 +4384,8 @@ export interface components {
             nameSource?: "nick" | "realname" | "profile";
             nick: string;
             profileAccentColor?: string;
+            /** @description Where clients draw the profile background, chosen like avatarSrc. */
+            profileBackgroundSrc?: string;
             profileBackgroundUrl?: string;
             pronouns?: string;
             realname?: string;
@@ -4833,6 +4863,8 @@ export interface components {
         };
         PartyCandidate: {
             accountId?: string;
+            /** @description Where clients draw the avatar: avatarUrl when it is on this server, otherwise a cached copy on this server. */
+            avatarSrc?: string;
             avatarUrl?: string;
             backendAccountId?: string;
             displayName: string;
@@ -4887,6 +4919,8 @@ export interface components {
         };
         PartyMember: {
             accountId?: string;
+            /** @description Where clients draw the avatar: avatarUrl when it is on this server, otherwise a cached copy on this server. */
+            avatarSrc?: string;
             avatarUrl?: string;
             backendAccountId?: string;
             displayName: string;
@@ -4997,6 +5031,8 @@ export interface components {
             status: "ready" | "partial" | "unavailable";
         };
         Person: {
+            /** @description Where clients draw the avatar: avatarUrl when it is on this server, otherwise a cached copy on this server. */
+            avatarSrc?: string;
             avatarUrl?: string;
             backendAccountId?: string;
             displayName: string;
@@ -26615,6 +26651,244 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Request failed; see the problem detail. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-remote-picture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A PNG, JPEG, WebP or still image */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": Blob;
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description The key is unknown or the picture is unavailable; show the person's initial instead */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Request failed; see the problem detail. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "head-remote-picture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A PNG, JPEG, WebP or still image */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": Blob;
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description The key is unknown or the picture is unavailable; show the person's initial instead */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Request failed; see the problem detail. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
             };
             /** @description Request failed; see the problem detail. */
             422: {
