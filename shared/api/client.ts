@@ -2,6 +2,12 @@ import createClient from 'openapi-fetch'
 import type { components, paths } from '../generated/api'
 
 type Schema = components['schemas']
+/** What an upload is for; `message` files may be stored on the network's file host. */
+export type UploadUse = NonNullable<
+  NonNullable<paths['/api/v1/uploads']['post']['parameters']['query']>['use']
+>
+/** The purpose callers send for a file attached to a chat message. */
+export const MESSAGE_UPLOAD: UploadUse = 'message'
 export type Body<P extends keyof paths, M extends keyof paths[P]> = paths[P][M] extends {
   requestBody: { content: { 'application/json': infer T } }
 }
@@ -536,8 +542,12 @@ export function createIRCordClient(apiBase: string, options: ClientOptions = {})
     /** keepalive lets the last report of a closing page still reach the server. */
     reportActivity: (body: Schema['Report'], keepalive = false) =>
       empty(client.POST('/api/v1/activity', { body, keepalive })),
-    fileProvider: (id: string) =>
-      read(client.GET('/api/v1/networks/{id}/uploads', { params: { path: { id } } })),
+    fileProvider: (id: string, use?: UploadUse) =>
+      read(
+        client.GET('/api/v1/networks/{id}/uploads', {
+          params: { path: { id }, query: use ? { use } : {} },
+        }),
+      ),
     deleteUpload: (id: string) =>
       empty(client.DELETE('/api/v1/uploads/{id}', { params: { path: { id } } })),
     upload: (
@@ -545,12 +555,14 @@ export function createIRCordClient(apiBase: string, options: ClientOptions = {})
       networkId: string,
       onProgress?: (progress: number) => void,
       signal?: AbortSignal,
+      /** `message` marks a file attached to a chat message, which a server may host on the network. */
+      use?: UploadUse,
     ) => {
       const form = new FormData()
       form.append('file', file)
       return read(
         client.POST('/api/v1/uploads', {
-          params: { query: { networkId } },
+          params: { query: { networkId, ...(use && { use }) } },
           body: { file },
           bodySerializer: () => form,
           fetch: onProgress
@@ -628,6 +640,13 @@ export class UploadError extends Error {
  * upload takes. The backend still limits the time to read one request (90 seconds).
  */
 const UPLOAD_STALL_MS = 60_000
+/**
+ * Once every byte is sent, the browser waits this long for the answer. A message file the
+ * server passes on to the network's file host is sent a second time before it answers. The
+ * frontend server closes an idle request after 255 seconds at most (`server/entry.bun.ts`),
+ * so this stays just above that and a slow relay ends with the server's own message.
+ */
+const UPLOAD_ANSWER_MS = 270_000
 
 function uploadFetch(form: FormData, progress: (value: number) => void) {
   return (request: Request): Promise<Response> =>
@@ -640,13 +659,14 @@ function uploadFetch(form: FormData, progress: (value: number) => void) {
       })
       let stalled = false
       let timer: ReturnType<typeof setTimeout> | undefined
-      // Progress, and the server starting to answer, each restart the wait.
-      const wait = () => {
+      // Progress, and the server starting to answer, each restart the wait. After the last byte
+      // the wait is longer, because the server may pass the file on before it answers.
+      const wait = (ms = UPLOAD_STALL_MS) => {
         clearTimeout(timer)
         timer = setTimeout(() => {
           stalled = true
           xhr.abort()
-        }, UPLOAD_STALL_MS)
+        }, ms)
       }
       const abort = () => xhr.abort()
       request.signal.addEventListener('abort', abort, { once: true })
@@ -658,7 +678,7 @@ function uploadFetch(form: FormData, progress: (value: number) => void) {
         wait()
         if (event.lengthComputable) progress(event.loaded / event.total)
       }
-      xhr.upload.onload = wait
+      xhr.upload.onload = () => wait(UPLOAD_ANSWER_MS)
       xhr.onreadystatechange = () => {
         if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) wait()
       }

@@ -25,7 +25,7 @@ import type {
 } from '../../shared/types/chat'
 import type { GifItem } from '../../shared/types/media'
 import type { components } from '../../shared/generated/api'
-import { ApiError } from '../../shared/api/client'
+import { ApiError, MESSAGE_UPLOAD } from '../../shared/api/client'
 import { sendCopies, type SendCopy } from '../utils/send-copies'
 import { ATTRACT_MS, type AttractTarget } from '../../shared/utils/attract'
 import {
@@ -1200,7 +1200,9 @@ export const useChatStore = defineStore('chat', () => {
     visible: () => document.visibilityState === 'visible',
     open: () => {
       const platform = usePlatform()
-      const url = new URL(realtimeUrl(instanceApiBase(), platform.client ? '' : config.websocketUrl, location))
+      const url = new URL(
+        realtimeUrl(instanceApiBase(), platform.client ? '' : config.websocketUrl, location),
+      )
       url.searchParams.set('sync', '1')
       return platform.client?.openSocket(url) ?? new WebSocket(url)
     },
@@ -2335,8 +2337,26 @@ export const useChatStore = defineStore('chat', () => {
   }
   const checkpointReady = computed(() => checkpointTrusted.value && !pendingReads.value)
 
+  /**
+   * Where files attached to a message go on the open network. That can be the network's own file
+   * host, with its own types and availability, so it is kept apart from `capabilities.upload`,
+   * which describes this server (theme backgrounds and profile pictures stay here).
+   */
+  const messageUpload = shallowRef<{ maxBytes: number; types: string[] }>()
   watch(networkId, async (id) => {
+    messageUpload.value = undefined
     if (!id || data.value?.demo) return
+    void apiClient()
+      .fileProvider(id, MESSAGE_UPLOAD)
+      .then((provider) => {
+        if (networkId.value !== id) return
+        messageUpload.value = provider.available
+          ? { maxBytes: provider.maxBytes, types: provider.types ?? [] }
+          : undefined
+      })
+      .catch(() => {
+        /* Message uploads stay unavailable until provider discovery succeeds. */
+      })
     patchBootstrap((b) => ({ ...b, capabilities: { ...b.capabilities, upload: undefined } }))
     try {
       const provider = await apiClient().fileProvider(id)
@@ -2619,6 +2639,7 @@ export const useChatStore = defineStore('chat', () => {
     resync,
     saveCheckpoint,
     checkpointReady,
+    messageUpload,
     cursor,
     dispose,
   }

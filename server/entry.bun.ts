@@ -30,8 +30,11 @@ declare const Bun: {
   }): BunServer
 }
 
-/** Seconds; Bun allows at most 255. */
-const idleTimeout = 120
+/**
+ * Seconds; Bun allows at most 255. A message file the backend passes on to the network's file
+ * host is answered only after that second transfer, so the limit is the largest Bun allows.
+ */
+const idleTimeout = 255
 /** The largest upload (25 MiB) plus room for its form encoding. */
 const maxRequestBodySize = 32 << 20
 

@@ -1,5 +1,5 @@
 import type { Message, Upload } from '../../../shared/types/chat'
-import { UploadError } from '../../../shared/api/client'
+import { MESSAGE_UPLOAD, UploadError } from '../../../shared/api/client'
 import { channelTarget } from '../../../shared/utils/irc'
 import { formatBytes } from '../../../shared/utils/bytes'
 
@@ -28,7 +28,7 @@ const sending = new Set<string>()
 /** True while any conversation has files attached or uploading; a reload would lose them. */
 export const hasQueuedUploads = () => Object.values(queues).some((list) => list.length > 0)
 
-/** Matches `image/*` style patterns from `capabilities.upload.types`. */
+/** Matches `image/*` style patterns from `capabilities.upload.types` or the message lookup. */
 const accepts = (types: string[], type: string) =>
   types.some((pattern) =>
     pattern.endsWith('/*') ? type.startsWith(pattern.slice(0, -1)) : type === pattern,
@@ -53,7 +53,7 @@ export function useUploads() {
   const chat = useChatStore()
   const instanceOrigin = useInstanceOrigin()
   const { t, n, locale } = useI18n()
-  const capability = computed(() => chat.data?.capabilities?.upload)
+  const capability = computed(() => chat.messageUpload)
   const pending = computed(() => queues[chat.activeId] ?? [])
 
   async function add(files: FileList | File[]) {
@@ -111,6 +111,7 @@ export function useUploads() {
         item.progress = progress
       },
       item.controller.signal,
+      MESSAGE_UPLOAD,
     )
   }
 
