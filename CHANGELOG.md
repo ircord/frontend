@@ -5,6 +5,10 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+### Fixed
+
+- Profile pictures from people on other IRCord servers now show instead of their initial.
+
 ## v0.9.0 — 2026-11-23
 
 ### New

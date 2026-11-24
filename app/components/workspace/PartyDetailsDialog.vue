@@ -9,6 +9,7 @@ const props = defineProps<{
     label: string
     detail: string
     avatarUrl?: string
+    avatarSrc?: string
     owner: boolean
     me: boolean
   }[]
@@ -116,7 +117,11 @@ watch(
             class="flex min-w-0 items-center gap-2 py-1"
           >
             <UserAvatar
-              :member="{ displayName: person.label, avatarUrl: person.avatarUrl }"
+              :member="{
+                displayName: person.label,
+                avatarUrl: person.avatarUrl,
+                avatarSrc: person.avatarSrc,
+              }"
               size="small"
             />
             <span class="min-w-0 flex-1"

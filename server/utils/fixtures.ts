@@ -67,6 +67,7 @@ export function createFixtures(): { bootstrap: Bootstrap; messages: Record<strin
     {
       id: 'mika',
       avatarUrl: '/avatars/mika.jpg',
+      avatarSrc: '/avatars/mika.jpg',
       nick: 'mika',
       displayName: 'Mika',
       color: 'mint',
@@ -79,6 +80,7 @@ export function createFixtures(): { bootstrap: Bootstrap; messages: Record<strin
     {
       id: 'jules',
       avatarUrl: '/avatars/jules.jpg',
+      avatarSrc: '/avatars/jules.jpg',
       nick: 'jules',
       displayName: 'Jules',
       color: 'peach',
@@ -90,7 +92,9 @@ export function createFixtures(): { bootstrap: Bootstrap; messages: Record<strin
     },
     {
       id: 'noah',
-      avatarUrl: '/avatars/noah.jpg',
+      // A picture on another instance: the backend serves its cached copy from this origin.
+      avatarUrl: `https://other.example/files/${'a'.repeat(32)}/${'b'.repeat(48)}/avatar`,
+      avatarSrc: '/avatars/noah.jpg',
       nick: 'noah',
       displayName: 'Noah',
       color: 'blue',
@@ -103,6 +107,7 @@ export function createFixtures(): { bootstrap: Bootstrap; messages: Record<strin
     {
       id: 'sage',
       avatarUrl: '/avatars/sage.jpg',
+      avatarSrc: '/avatars/sage.jpg',
       nick: 'sage',
       displayName: 'Sage',
       color: 'rose',

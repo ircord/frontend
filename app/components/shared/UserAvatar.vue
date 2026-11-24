@@ -3,7 +3,7 @@ import type { Member } from '../../../shared/types/chat'
 const props = withDefaults(
   defineProps<{
     member?: Pick<Member, 'displayName'> &
-      Partial<Pick<Member, 'avatarUrl' | 'color' | 'role' | 'device' | 'status'>>
+      Partial<Pick<Member, 'avatarUrl' | 'avatarSrc' | 'color' | 'role' | 'device' | 'status'>>
     size?: 'tiny' | 'small' | 'normal' | 'large'
     presence?: boolean
     /** /attract: a short sparkle around the avatar. */
@@ -14,7 +14,7 @@ const props = withDefaults(
 const { t } = useI18n()
 const instanceImage = useInstanceImage()
 /** Pictures on another host would reveal the viewer to it, so they show the initial (#278). */
-const avatarUrl = computed(() => instanceImage(props.member?.avatarUrl))
+const avatarUrl = computed(() => instanceImage(props.member?.avatarSrc, props.member?.avatarUrl))
 const imageFailed = ref(false)
 watch(avatarUrl, () => (imageFailed.value = false))
 </script>

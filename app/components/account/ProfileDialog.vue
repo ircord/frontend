@@ -17,7 +17,12 @@ const $t = t
 const member = computed(() => chat.member(props.memberId))
 const instanceImage = useInstanceImage()
 /** The blurred banner fallback follows the avatar's rule: only pictures on this instance. */
-const avatarUrl = computed(() => instanceImage(member.value?.avatarUrl))
+const avatarUrl = computed(() => instanceImage(member.value?.avatarSrc, member.value?.avatarUrl))
+/** Their banner and card background, from the backend's same-origin copy when it has one. */
+const bannerUrl = computed(() => instanceImage(member.value?.bannerSrc) ?? member.value?.bannerUrl)
+const backgroundUrl = computed(
+  () => instanceImage(member.value?.profileBackgroundSrc) ?? member.value?.profileBackgroundUrl,
+)
 const nameStyle = useNameStyle()
 /** Their chosen accent, else their name colour, tints the card so each one looks like its owner. */
 const tint = computed(() =>
@@ -219,8 +224,8 @@ function closeOnChannel(event: MouseEvent) {
     >
       <!-- Their card background, faint behind everything below the banner. -->
       <img
-        v-if="member.profileBackgroundUrl"
-        :src="member.profileBackgroundUrl"
+        v-if="backgroundUrl"
+        :src="backgroundUrl"
         alt=""
         aria-hidden="true"
         class="pointer-events-none absolute inset-0 size-full object-cover opacity-20"
@@ -231,8 +236,8 @@ function closeOnChannel(event: MouseEvent) {
         :class="`tone-${member.color}`"
       >
         <img
-          v-if="member.bannerUrl"
-          :src="member.bannerUrl"
+          v-if="bannerUrl"
+          :src="bannerUrl"
           alt=""
           aria-hidden="true"
           class="absolute inset-0 size-full object-cover"

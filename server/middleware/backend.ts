@@ -39,6 +39,7 @@ export default defineEventHandler(async (event) => {
   if (
     !event.path.startsWith('/api/v1/') &&
     !event.path.startsWith('/files/') &&
+    !event.path.startsWith('/media/remote/') &&
     !event.path.startsWith('/emotes/') &&
     !event.path.startsWith('/schemas/') &&
     !['/docs', '/openapi.json', '/openapi.yaml'].includes(event.path.split('?')[0]!)

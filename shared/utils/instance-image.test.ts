@@ -26,6 +26,20 @@ test('pictures on this instance load', () => {
   )
 })
 
+test('a cached copy of another instance picture loads from this origin', () => {
+  assert.equal(
+    instanceImageUrl(`/media/remote/${'c'.repeat(43)}`, origins),
+    `/media/remote/${'c'.repeat(43)}`,
+  )
+  const absolute = `https://api.chat.example/media/remote/${'c'.repeat(43)}`
+  assert.equal(instanceImageUrl(absolute, origins), absolute)
+  // The same path on another host is still another host.
+  assert.equal(
+    instanceImageUrl(`https://other.example/media/remote/${'c'.repeat(43)}`, origins),
+    undefined,
+  )
+})
+
 test('pictures on any other host do not load', () => {
   assert.equal(instanceImageUrl('https://tracker.example/me.png', origins), undefined)
   assert.equal(instanceImageUrl('https://chat.example.tracker.example/me.png', origins), undefined)

@@ -4332,9 +4332,11 @@ export interface components {
             readonly $schema?: string;
             account: string;
             avatarFrame?: string;
+            avatarSrc?: string;
             avatarUrl?: string;
             /** @description The AWAY text while away, when known. */
             awayMessage?: string;
+            bannerSrc?: string;
             bannerUrl?: string;
             bio: string;
             color: string;
@@ -4356,6 +4358,7 @@ export interface components {
             nameSource?: "nick" | "realname" | "profile";
             nick: string;
             profileAccentColor?: string;
+            profileBackgroundSrc?: string;
             profileBackgroundUrl?: string;
             pronouns?: string;
             realname?: string;
@@ -4833,6 +4836,7 @@ export interface components {
         };
         PartyCandidate: {
             accountId?: string;
+            avatarSrc?: string;
             avatarUrl?: string;
             backendAccountId?: string;
             displayName: string;
@@ -4887,6 +4891,7 @@ export interface components {
         };
         PartyMember: {
             accountId?: string;
+            avatarSrc?: string;
             avatarUrl?: string;
             backendAccountId?: string;
             displayName: string;
@@ -4997,6 +5002,7 @@ export interface components {
             status: "ready" | "partial" | "unavailable";
         };
         Person: {
+            avatarSrc?: string;
             avatarUrl?: string;
             backendAccountId?: string;
             displayName: string;
