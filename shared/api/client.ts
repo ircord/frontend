@@ -545,12 +545,14 @@ export function createIRCordClient(apiBase: string, options: ClientOptions = {})
       networkId: string,
       onProgress?: (progress: number) => void,
       signal?: AbortSignal,
+      /** `message` marks a file attached to a chat message, which a server may host on the network. */
+      use?: 'message',
     ) => {
       const form = new FormData()
       form.append('file', file)
       return read(
         client.POST('/api/v1/uploads', {
-          params: { query: { networkId } },
+          params: { query: { networkId, ...(use && { use }) } },
           body: { file },
           bodySerializer: () => form,
           fetch: onProgress

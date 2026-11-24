@@ -111,6 +111,7 @@ export function useUploads() {
         item.progress = progress
       },
       item.controller.signal,
+      'message',
     )
   }
 

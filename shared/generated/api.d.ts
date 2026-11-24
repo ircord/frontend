@@ -26171,6 +26171,8 @@ export interface operations {
         parameters: {
             query?: {
                 networkId?: string;
+                /** @description Marks a file attached to a chat message. A server set to keep message files on the network's file host may send it there. Other uploads stay on this server. */
+                use?: "message";
             };
             header?: never;
             path?: never;

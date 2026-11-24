@@ -59,3 +59,18 @@ test('a conflicting theme save exposes the stored copy to the editor', async () 
     },
   )
 })
+
+test('uploads send the message marker only when asked', async () => {
+  const urls: string[] = []
+  const client = createIRCordClient('https://example.invalid', {
+    fetch: async (request) => {
+      urls.push(new URL(request.url).search)
+      return Response.json({ id: 'u', name: 'a.png', url: '/files/u/t/a.png' })
+    },
+  })
+  const file = new File(['x'], 'a.png', { type: 'image/png' })
+  await client.upload(file, 'net', undefined, undefined, 'message')
+  await client.upload(file, 'net')
+  assert.equal(urls[0], '?networkId=net&use=message')
+  assert.equal(urls[1], '?networkId=net')
+})
