@@ -3,6 +3,12 @@
 What changed for people using IRCord, newest release first. Each release lists what is **New**,
 **Improved** and **Fixed**, in plain words. Changes nobody using the app would notice are left out.
 
+## v0.9.2 — 2026-11-24
+
+### Improved
+
+- Files attached to a message can be kept on the IRC network's file host when the server is set up for it.
+
 ## v0.9.1 — 2026-11-24
 
 ### Fixed
