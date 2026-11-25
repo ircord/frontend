@@ -5034,7 +5034,7 @@ export interface components {
              */
             sessionsRevoked: number;
             /**
-             * @description completed: IRCord, the associated IRC server and the saved IRC login all use the new password. pending: the reset is saved and the backend keeps retrying the remaining steps; sign-in stays blocked until they finish.
+             * @description A completed reset updates the password in IRCord, the associated IRC server, and the saved IRC login. A pending reset gets up to three automatic attempts. Sign-in stays blocked until the reset finishes.
              * @enum {string}
              */
             status: "completed" | "pending";
