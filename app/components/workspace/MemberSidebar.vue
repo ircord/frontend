@@ -4,6 +4,7 @@ import { useNow } from '@vueuse/core'
 import type { Member } from '../../../shared/types/chat'
 import { parsePrefix } from '../../../shared/utils/irc'
 import { sharedCollator } from '../../../shared/utils/intl'
+import { shownAvatarFrame } from '../../../shared/utils/profile'
 import { memberStatusLabel } from '../../utils/member-status'
 const emit = defineEmits<{ profile: [id: string]; close: [] }>()
 const { t, n, locale } = useI18n()
@@ -236,7 +237,22 @@ const memberStates = (member: Member) =>
             @click="emit('profile', (rows[item.index] as { member: Member }).member.id)"
             @contextmenu="menus.member($event, (rows[item.index] as { member: Member }).member)"
           >
+            <span
+              v-if="shownAvatarFrame((rows[item.index] as { member: Member }).member.avatarFrame)"
+              class="avatar-frame avatar-frame-compact inline-flex shrink-0"
+              :class="`avatar-frame-${shownAvatarFrame((rows[item.index] as { member: Member }).member.avatarFrame)}`"
+              :style="{
+                '--frame':
+                  (rows[item.index] as { member: Member }).member.profileAccentColor ||
+                  nameStyle((rows[item.index] as { member: Member }).member).color,
+              }"
+              ><UserAvatar
+                :member="(rows[item.index] as { member: Member }).member"
+                size="small"
+                presence
+            /></span>
             <UserAvatar
+              v-else
               :member="(rows[item.index] as { member: Member }).member"
               size="small"
               presence
