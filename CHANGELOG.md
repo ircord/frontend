@@ -3,7 +3,7 @@
 What changed for people using IRCord, newest release first. Each release lists what is **New**,
 **Improved** and **Fixed**, in plain words. Changes nobody using the app would notice are left out.
 
-## Unreleased
+## v0.10.0 — 2026-11-25
 
 ### New
 
