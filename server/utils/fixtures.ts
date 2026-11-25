@@ -76,6 +76,7 @@ export function createFixtures(): { bootstrap: Bootstrap; messages: Record<strin
       bio: 'Keeping the lights on. Open source, good coffee, long walks.',
       location: 'Helsinki, Finland',
       account: 'mika',
+      avatarFrame: 'gradient',
     },
     {
       id: 'jules',
@@ -89,6 +90,7 @@ export function createFixtures(): { bootstrap: Bootstrap; messages: Record<strin
       bio: 'Designing little corners of the web. Probably rearranging my desk.',
       location: 'Amsterdam, Netherlands',
       account: 'jules',
+      avatarFrame: 'gold',
     },
     {
       id: 'noah',
@@ -103,6 +105,7 @@ export function createFixtures(): { bootstrap: Bootstrap; messages: Record<strin
       bio: 'Photos, mountains, and the occasional side project.',
       location: 'Bergen, Norway',
       account: 'noah',
+      avatarFrame: 'glow',
     },
     {
       id: 'sage',

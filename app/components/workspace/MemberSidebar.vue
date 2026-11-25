@@ -4,6 +4,7 @@ import { useNow } from '@vueuse/core'
 import type { Member } from '../../../shared/types/chat'
 import { parsePrefix } from '../../../shared/utils/irc'
 import { sharedCollator } from '../../../shared/utils/intl'
+import { shownAvatarFrame } from '../../../shared/utils/profile'
 import { memberStatusLabel } from '../../utils/member-status'
 const emit = defineEmits<{ profile: [id: string]; close: [] }>()
 const { t, n, locale } = useI18n()
@@ -218,7 +219,7 @@ const memberStates = (member: Member) =>
             v-else-if="rows[item.index]"
             :ref="(el) => el && virtualizer.measureElement(el as HTMLElement)"
             :data-index="item.index"
-            class="member-button absolute inset-x-0 top-0 flex items-center gap-2 w-auto m-0 text-left py-0 px-2 rounded-md min-h-[calc(var(--row-height)_+_4px)] text-[length:var(--ui-text)] transition-colors hover:bg-accent [&_.presence]:border-background hover:[&_.presence]:border-accent [&.member-offline_.avatar]:opacity-45 [&.is-ignored_.member-name]:line-through [@media(pointer:coarse)]:min-h-12 [@media(pointer:coarse)]:select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none]"
+            class="member-button absolute inset-x-0 top-0 flex items-center gap-2 w-auto m-0 text-left py-0 px-2 rounded-md min-h-[calc(var(--row-height)_+_4px)] text-[length:var(--ui-text)] transition-colors hover:bg-accent [&_.presence]:border-background hover:[&_.presence]:border-accent [&.member-offline_>.avatar]:opacity-45 [&.member-offline_>.avatar-frame]:opacity-45 [&.is-ignored_.member-name]:line-through [@media(pointer:coarse)]:min-h-12 [@media(pointer:coarse)]:select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none]"
             :class="{
               'member-offline':
                 (rows[item.index] as { member: Member }).member.status === 'offline',
@@ -236,7 +237,22 @@ const memberStates = (member: Member) =>
             @click="emit('profile', (rows[item.index] as { member: Member }).member.id)"
             @contextmenu="menus.member($event, (rows[item.index] as { member: Member }).member)"
           >
+            <span
+              v-if="shownAvatarFrame((rows[item.index] as { member: Member }).member.avatarFrame)"
+              class="avatar-frame avatar-frame-compact inline-flex shrink-0"
+              :class="`avatar-frame-${shownAvatarFrame((rows[item.index] as { member: Member }).member.avatarFrame)}`"
+              :style="{
+                '--frame':
+                  (rows[item.index] as { member: Member }).member.profileAccentColor ||
+                  nameStyle((rows[item.index] as { member: Member }).member).color,
+              }"
+              ><UserAvatar
+                :member="(rows[item.index] as { member: Member }).member"
+                size="small"
+                presence
+            /></span>
             <UserAvatar
+              v-else
               :member="(rows[item.index] as { member: Member }).member"
               size="small"
               presence

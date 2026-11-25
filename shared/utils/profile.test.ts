@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { isAvatarFrame, languageName, localTime, statusDeadline, statusShowing } from './profile'
+import {
+  isAvatarFrame,
+  languageName,
+  localTime,
+  shownAvatarFrame,
+  statusDeadline,
+  statusShowing,
+} from './profile'
 
 test('local time follows the timezone and ignores unknown ones', () => {
   const at = new Date('2026-11-14T12:00:00Z')
@@ -34,4 +41,12 @@ test('status deadlines and frame ids', () => {
   assert.equal(statusDeadline('never', now), null)
   assert.equal(isAvatarFrame('glow'), true)
   assert.equal(isAvatarFrame('sparkles'), false)
+})
+
+test('the frame to draw is a known preset other than none', () => {
+  for (const frame of ['ring', 'glow', 'gradient', 'gold', 'dashed'])
+    assert.equal(shownAvatarFrame(frame), frame)
+  assert.equal(shownAvatarFrame('none'), undefined)
+  assert.equal(shownAvatarFrame('sparkles'), undefined)
+  assert.equal(shownAvatarFrame(undefined), undefined)
 })

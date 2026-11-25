@@ -97,6 +97,11 @@ try {
   await page.waitForURL(`${base}/channel/general`)
   await page.locator('.timeline-scroll .event-summary').first().waitFor()
   assert.equal((await demoAppearance).status(), 200)
+  // The member list draws the avatar frame a person picked, and nothing for people without one.
+  const memberRow = (name) => page.locator('.member-button').filter({ hasText: name })
+  await memberRow('Mika').locator('.avatar-frame-gradient .avatar').waitFor()
+  assert.equal(await memberRow('Jules').locator('.avatar-frame-gold').count(), 1)
+  assert.equal(await memberRow('Sage').locator('.avatar-frame').count(), 0)
   await page.getByRole('button', { name: 'User settings' }).click()
   const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
   assert.equal(await settings.locator('[data-section="device"]').count(), 0)

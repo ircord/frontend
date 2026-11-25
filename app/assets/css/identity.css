@@ -104,3 +104,24 @@
 .avatar-frame-dashed::before {
   border: 2px dashed var(--frame);
 }
+/* The member list's small avatars: the same frames drawn closer and thinner, with a softer glow
+ * so a column of framed rows stays calm. */
+.avatar-frame-compact::before {
+  inset: -3px;
+}
+.avatar-frame-compact.avatar-frame-ring::before {
+  box-shadow: inset 0 0 0 2px var(--frame);
+}
+.avatar-frame-compact.avatar-frame-gradient::before,
+.avatar-frame-compact.avatar-frame-gold::before {
+  padding: 2px;
+}
+.avatar-frame-compact.avatar-frame-glow::before {
+  box-shadow:
+    inset 0 0 0 2px var(--frame),
+    0 0 8px 1px color-mix(in srgb, var(--frame) 55%, transparent);
+  animation: none;
+}
+.avatar-frame-compact.avatar-frame-dashed::before {
+  border-width: 1.5px;
+}

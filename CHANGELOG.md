@@ -3,6 +3,12 @@
 What changed for people using IRCord, newest release first. Each release lists what is **New**,
 **Improved** and **Fixed**, in plain words. Changes nobody using the app would notice are left out.
 
+## Unreleased
+
+### New
+
+- The member list now shows each person's avatar frame, as their profile card does.
+
 ## v0.10.0 — 2026-11-25
 
 ### New

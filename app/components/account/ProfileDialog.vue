@@ -2,7 +2,7 @@
 import { useQuery } from '@pinia/colada'
 import { relativeTime } from '../../../shared/utils/devices'
 import {
-  isAvatarFrame,
+  shownAvatarFrame,
   languageName,
   localTime,
   statusShowing,
@@ -28,10 +28,7 @@ const nameStyle = useNameStyle()
 const tint = computed(() =>
   member.value ? member.value.profileAccentColor || nameStyle(member.value).color : undefined,
 )
-const frame = computed(() => {
-  const value = member.value?.avatarFrame
-  return isAvatarFrame(value) && value !== 'none' ? value : undefined
-})
+const frame = computed(() => shownAvatarFrame(member.value?.avatarFrame))
 const appearance = useAppearanceStore()
 /** Their local time, refreshed each minute while the card is open. */
 const now = ref(new Date())

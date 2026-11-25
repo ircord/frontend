@@ -9,6 +9,12 @@ export type AvatarFrame = (typeof avatarFrames)[number]
 export const isAvatarFrame = (value: string | undefined): value is AvatarFrame =>
   !!value && (avatarFrames as readonly string[]).includes(value)
 
+/** The frame to draw for a stored value, or undefined for none or an unknown preset. */
+export const shownAvatarFrame = (
+  value: string | undefined,
+): Exclude<AvatarFrame, 'none'> | undefined =>
+  isAvatarFrame(value) && value !== 'none' ? value : undefined
+
 /**
  * The time where they are, such as “14:32”, or undefined when the timezone is unknown to this
  * browser. `hour12` follows the reader's clock setting.
