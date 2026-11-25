@@ -73,7 +73,7 @@
 /* ---- Small lights ------------------------------------------------------------------------ */
 /* A message that mentions you glints once as it arrives: the /attract shine, shorter and in the
  * mention colour. It starts invisible, so reduced motion shows nothing. */
-.message-row.is-mention.is-fresh::after {
+.message-row.is-mention.is-fresh:not(.is-attract)::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -119,6 +119,12 @@
     radial-gradient(circle at 12% 86%, var(--yellow) 0 1px, transparent 2px),
     radial-gradient(circle at 88% 86%, var(--accent) 0 1px, transparent 2px);
   animation: reaction-sparks 0.4s ease-out 1;
+}
+/* Touch rows keep their containment (see above), so the burst stays inside the row's edge. */
+@media (hover: none) {
+  .reaction.is-sparking::after {
+    inset: -2px;
+  }
 }
 @keyframes reaction-flash {
   0% {

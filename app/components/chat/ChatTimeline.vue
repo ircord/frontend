@@ -479,6 +479,8 @@ watch(
 
 /** Other people's messages that arrived just now: their rows play the mention glint once. */
 const freshIds = shallowRef<ReadonlySet<string>>(new Set())
+let freshTimer: ReturnType<typeof setTimeout> | undefined
+onBeforeUnmount(() => clearTimeout(freshTimer))
 // Other people's messages glide in as your own do. This runs before the rows render, so the
 // engine eases to the new end instead of snapping to it first. A burst, a hand on the list, a
 // hidden window and the catch-up after coming back all snap, as before.
@@ -489,7 +491,10 @@ watch(
       (m) => m.senderId !== 'you' && m.kind !== 'event' && !m.delivery,
     )
     const visible = document.visibilityState === 'visible'
+    // Only while the glint plays: a row keeps no mark, so /attract's shine on it is its own.
+    clearTimeout(freshTimer)
     freshIds.value = visible && incoming.length ? new Set(incoming.map((m) => m.id)) : new Set()
+    if (freshIds.value.size) freshTimer = setTimeout(() => (freshIds.value = new Set()), 700)
     if (
       glidesToArrivals(incoming.length, {
         reduced: appearance.reducedMotion,

@@ -21,6 +21,24 @@ test('nothing changing, or a change of shape, does not fade', () => {
   assert.equal(fadesBetween(base, compile({ density: 'compact' })), false)
 })
 
+test('each shape setting on its own blocks the fade', () => {
+  const base = compile({})
+  assert.equal(fadesBetween(base, compile({ messageLayout: 'irc' })), false)
+  assert.equal(fadesBetween(base, compile({ font: 'inter' })), false)
+  assert.equal(fadesBetween(base, compile({ groupSpacing: 12 })), false)
+  // The radius alone, with the corner attribute unchanged.
+  const sameAttrs = { ...base, css: base.css.replace('--radius: 8px', '--radius: 3px') }
+  assert.notEqual(sameAttrs.css, base.css)
+  assert.equal(fadesBetween(base, sameAttrs), false)
+})
+
+test('an attribute-only or custom-CSS change fades', () => {
+  const base = compile({})
+  assert.equal(fadesBetween(base, { ...base, attrs: { ...base.attrs, 'data-scheme': 'x' } }), true)
+  assert.equal(fadesBetween(base, { ...base, userCss: '.a { color: red }' }), true)
+  assert.equal(fadesBetween({ ...base, userCss: '' }, base), false)
+})
+
 test('a colour change together with a change of shape does not fade', () => {
   assert.equal(fadesBetween(compile({}), compile({ corners: 'square' }, 'light')), false)
 })

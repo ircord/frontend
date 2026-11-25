@@ -7,6 +7,8 @@
 export interface AppliedAppearance {
   css: string
   attrs: Record<string, string>
+  /** A personal theme's custom CSS, written with the rest. */
+  userCss?: string
 }
 
 /** Declarations that change how big or where things are, not what colour they are. */
@@ -35,7 +37,7 @@ export function fadesBetween(previous: AppliedAppearance, next: AppliedAppearanc
       (name) => declaration(previous.css, name) !== declaration(next.css, name),
     ) || shapeAttributes.some((name) => previous.attrs[name] !== next.attrs[name])
   if (reshaped) return false
-  if (previous.css !== next.css) return true
+  if (previous.css !== next.css || (previous.userCss ?? '') !== (next.userCss ?? '')) return true
   const names = new Set([...Object.keys(previous.attrs), ...Object.keys(next.attrs)])
   return [...names].some((name) => previous.attrs[name] !== next.attrs[name])
 }

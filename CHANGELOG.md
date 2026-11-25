@@ -7,7 +7,7 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ### New
 
-- New messages glide into view, theme changes fade, the sidebar highlight slides to the open conversation, and mentions, reactions, avatar frames and background pictures have small animations. Reduced motion turns them off.
+- New messages and the sidebar highlight now move into place, and color changes fade between looks. Mentions, reactions, mention badges, avatar frames and background pictures have short animations. Reduce motion turns them off.
 
 ## v0.9.2 — 2026-11-24
 

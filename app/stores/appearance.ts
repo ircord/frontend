@@ -155,13 +155,14 @@ export const useAppearanceStore = defineStore('appearance', () => {
   // whatever is newest by then and never an older one.
   let latest: {
     css: string
+    userCss: string
     attrs: Record<string, string>
     themeColor: string
     reduced: boolean
     mode: SchemeMode
   }
   function writeAppearance() {
-    const { css, attrs, themeColor, reduced, mode: scheme } = latest
+    const { css, userCss, attrs, themeColor, reduced, mode: scheme } = latest
     const root = document.documentElement
     for (const [name, value] of Object.entries(attrs)) root.setAttribute(name, value)
     for (const name of optionalAttributes) if (!(name in attrs)) root.removeAttribute(name)
@@ -170,19 +171,30 @@ export const useAppearanceStore = defineStore('appearance', () => {
     const style = themeStyle('ircord-theme')
     if (style.textContent !== css) style.textContent = css
     if (!style.isConnected) document.head.appendChild(style)
+    // A personal theme's custom CSS: only ever the filtered output, after every app stylesheet.
+    // It is written with the rest, so it is part of the fade's "after" picture.
+    if (!userCss) document.getElementById('ircord-user-css')?.remove()
+    else {
+      const custom = themeStyle('ircord-user-css')
+      if (custom.textContent !== userCss) custom.textContent = userCss
+      if (custom !== document.head.lastElementChild) document.head.appendChild(custom)
+    }
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor)
   }
   let applied: AppliedAppearance | undefined
   let fadeStartedAt: number | undefined
-  // A change of colours cross-fades over a fifth of a second: the browser draws the page before
-  // and after and blends the two pictures, which costs the same however many elements there are.
-  // Where it can't, or the reader wants less motion, or the previous fade has only just begun
+  // A change of colours cross-fades over a fifth of a second: the browser blends a picture of the
+  // page before with one after, which costs the same however many elements there are. Colours
+  // that script derives from the theme (name colours, diagrams) switch at the start. While it
+  // runs the browser does not hit-test the page, so a press anywhere ends the fade at once.
+  // Where it can't fade, or the reader wants less motion, or the previous fade has only just begun
   // (a colour picker being dragged), the write is immediate, as it always was.
   watchEffect(() => {
     const { css, attrs, themeColor } = compiled.value
-    latest = { css, attrs, themeColor, reduced: reducedMotion.value, mode: mode.value }
+    const userCss = themes.userCss ?? ''
+    latest = { css, userCss, attrs, themeColor, reduced: reducedMotion.value, mode: mode.value }
     const previous = applied
-    applied = { css, attrs }
+    applied = { css, attrs, userCss }
     const now = performance.now()
     if (
       previous &&
@@ -194,22 +206,15 @@ export const useAppearanceStore = defineStore('appearance', () => {
     ) {
       fadeStartedAt = now
       const transition = document.startViewTransition(writeAppearance)
+      const skip = () => transition.skipTransition()
+      window.addEventListener('pointerdown', skip, { capture: true, once: true })
       void transition.ready.catch(() => undefined)
-      void transition.finished.catch(() => undefined)
+      void transition.finished
+        .catch(() => undefined)
+        .finally(() => window.removeEventListener('pointerdown', skip, { capture: true }))
       return
     }
     writeAppearance()
-  })
-  // A personal theme's custom CSS: only ever the filtered output, after every app stylesheet.
-  watchEffect(() => {
-    const css = themes.userCss
-    if (!css) {
-      document.getElementById('ircord-user-css')?.remove()
-      return
-    }
-    const style = themeStyle('ircord-user-css')
-    if (style.textContent !== css) style.textContent = css
-    if (style !== document.head.lastElementChild) document.head.appendChild(style)
   })
 
   // Another tab changed the appearance.
