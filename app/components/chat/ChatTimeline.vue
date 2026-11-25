@@ -8,6 +8,7 @@ import { selectionLog } from '../../../shared/utils/log'
 import { isEditable } from '../../../shared/utils/focus'
 import { attractClock, offscreen, resolveAttract } from '../../../shared/utils/attract'
 import { unseenSince, type SeenUpTo } from '../../../shared/utils/unseen'
+import { arrivedAfter, glidesToArrivals } from '../../utils/motion-news'
 import {
   createTimelineRows,
   firstMessageOf,
@@ -468,8 +469,7 @@ watch(
     // Nothing is known while history first loads or after switching, and older history arrives
     // above the first known message: neither is news.
     const list = messages.value
-    const first = list.findIndex((m) => known.has(m.id))
-    const added = first < 0 ? [] : list.slice(first).filter((m) => !known.has(m.id))
+    const added = arrivedAfter(known, list)
     known = new Set(list.map((m) => m.id))
     if (added.length && atBottom.value && !wasDetached && !detached.value) announce(added)
     wasDetached = detached.value
@@ -477,6 +477,36 @@ watch(
   { flush: 'post' },
 )
 
+/** Other people's messages that arrived just now: their rows play the mention glint once. */
+const freshIds = shallowRef<ReadonlySet<string>>(new Set())
+// Other people's messages glide in as your own do. This runs before the rows render, so the
+// engine eases to the new end instead of snapping to it first. A burst, a hand on the list, a
+// hidden window and the catch-up after coming back all snap, as before.
+watch(
+  messages,
+  () => {
+    const incoming = arrivedAfter(known, messages.value).filter(
+      (m) => m.senderId !== 'you' && m.kind !== 'event' && !m.delivery,
+    )
+    const visible = document.visibilityState === 'visible'
+    freshIds.value = visible && incoming.length ? new Set(incoming.map((m) => m.id)) : new Set()
+    if (
+      glidesToArrivals(incoming.length, {
+        reduced: appearance.reducedMotion,
+        visible,
+        following: atBottom.value && !detached.value && !wasDetached,
+        interacting: timeline.userInteracting(),
+        catchingUp: resumeUntil > Date.now(),
+      })
+    )
+      timeline.scrollToEnd(true)
+  },
+  { flush: 'pre' },
+)
+watch(
+  () => chat.activeId,
+  () => (freshIds.value = new Set()),
+)
 // Screen readers hear one live region, at most every few seconds. At the latest message a busy
 // channel becomes “4 new messages, latest from jules: …”; scrolled up, only the count is read.
 // The log itself stays silent, so rows are never read twice and loaded history is never read.
@@ -889,6 +919,7 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
               :reaction-id="reactionId"
               :grouped="index !== firstMessageIndex && grouped(row)"
               :highlighted="row.message.id === highlightId"
+              :fresh="freshIds.has(row.message.id)"
               :attract="attractOf(index)"
               :attract-started-at="attract?.startedAt"
               @reply="emit('reply', $event)"

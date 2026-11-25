@@ -56,6 +56,56 @@
     inset 0 0 0 1px color-mix(in srgb, var(--accent) 58%, transparent),
     0 4px 14px color-mix(in srgb, var(--accent) 20%, transparent);
 }
+/* Where the browser can anchor one element to another, the highlight is its own element
+ * (.selection-glide, last in the list) that sits on the selected row and glides to the next one;
+ * the row stops painting it. Elsewhere the rows paint it as above. The search pill keeps its own
+ * highlight. With no selected row in the list the element is hidden. */
+.selection-glide {
+  display: none;
+}
+@supports (anchor-name: --a) and (position-anchor: --a) and (top: anchor(top)) and selector(:has(a)) {
+  .sidebar-content {
+    position: relative;
+    isolation: isolate;
+  }
+  :root .sidebar-content .conversation-link.is-selected:not(.is-pill) {
+    anchor-name: --sidebar-selected;
+    background: transparent;
+    box-shadow: none;
+  }
+  .selection-glide {
+    display: block;
+    position: absolute;
+    z-index: -1;
+    position-anchor: --sidebar-selected;
+    top: anchor(top);
+    left: anchor(left);
+    width: anchor-size(width);
+    height: anchor-size(height);
+    border-radius: 9px;
+    pointer-events: none;
+    background: var(--selection);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 26%, transparent);
+    /* Only the vertical move eases: resizing the sidebar must not lag behind its edge. */
+    transition:
+      top 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      height 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .sidebar-content:not(:has(.conversation-link.is-selected:not(.is-pill))) .selection-glide {
+    display: none;
+  }
+  :root[data-scheme='hibiki'] .selection-glide {
+    background: linear-gradient(
+      95deg,
+      color-mix(in srgb, var(--accent) 52%, var(--sidebar)),
+      color-mix(in srgb, var(--accent) 24%, var(--sidebar))
+    );
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 18%),
+      inset 0 0 0 1px color-mix(in srgb, var(--accent) 58%, transparent),
+      0 4px 14px color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+}
 /* The ambient top glow belongs to the Hibiki schemes only. */
 :root[data-scheme='hibiki'] .chat-main {
   background-image:
@@ -513,6 +563,35 @@
   background-repeat: var(--theme-repeat, no-repeat);
   background-position: var(--theme-position, center);
   filter: blur(var(--theme-blur, 0px));
+}
+/* Depth: the picture drifts up to 16px as the list scrolls, settling to rest over the last 1200px
+ * before the newest message (ending 100px short, so a message gliding in does not twitch it).
+ * The list's scroll position is named and made visible to the element that carries the picture;
+ * the picture bleeds 16px further so its edge never shows. Where the browser has no
+ * scroll-driven animation the picture stays still. Reduced motion stills it (presence.css). */
+@supports (animation-timeline: scroll()) and (timeline-scope: --a) {
+  .timeline-scroll {
+    scroll-timeline: --timeline-end block;
+  }
+  :root[data-theme-background='conversation'] .chat-main,
+  :root[data-theme-background='app'] .workspace {
+    timeline-scope: --timeline-end;
+  }
+  :root[data-theme-background='conversation'] .chat-main::before,
+  :root[data-theme-background='app'] .workspace::before {
+    inset: calc(var(--theme-blur, 0px) * -2 - 16px);
+    animation: theme-background-drift linear both;
+    animation-timeline: --timeline-end;
+    animation-range: calc(100% - 1200px) calc(100% - 100px);
+  }
+}
+@keyframes theme-background-drift {
+  from {
+    translate: 0 16px;
+  }
+  to {
+    translate: 0 0;
+  }
 }
 /* Behind the conversation: the surface color covers the image by the dim amount. */
 :root[data-theme-background='conversation'] .chat-main::before {

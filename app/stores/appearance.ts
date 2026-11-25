@@ -9,6 +9,7 @@ import {
 } from '../../shared/appearance'
 import { compiledAppearanceKey } from '../../shared/appearance-boot'
 import type { SchemeMode } from '../../shared/schemes'
+import { fadesBetween, quietSince, type AppliedAppearance } from '../utils/theme-fade'
 
 interface LocalAppearance {
   settings: Appearance
@@ -150,17 +151,54 @@ export const useAppearanceStore = defineStore('appearance', () => {
     attrs,
   })
 
-  watchEffect(() => {
-    const { css, attrs, themeColor } = compiled.value
+  // The newest look to write. A fading write runs a moment after it was asked for, so it writes
+  // whatever is newest by then and never an older one.
+  let latest: {
+    css: string
+    attrs: Record<string, string>
+    themeColor: string
+    reduced: boolean
+    mode: SchemeMode
+  }
+  function writeAppearance() {
+    const { css, attrs, themeColor, reduced, mode: scheme } = latest
     const root = document.documentElement
     for (const [name, value] of Object.entries(attrs)) root.setAttribute(name, value)
     for (const name of optionalAttributes) if (!(name in attrs)) root.removeAttribute(name)
-    root.dataset.motion = reducedMotion.value ? 'reduced' : 'full'
-    root.style.colorScheme = mode.value
+    root.dataset.motion = reduced ? 'reduced' : 'full'
+    root.style.colorScheme = scheme
     const style = themeStyle('ircord-theme')
     if (style.textContent !== css) style.textContent = css
     if (!style.isConnected) document.head.appendChild(style)
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor)
+  }
+  let applied: AppliedAppearance | undefined
+  let fadeStartedAt: number | undefined
+  // A change of colours cross-fades over a fifth of a second: the browser draws the page before
+  // and after and blends the two pictures, which costs the same however many elements there are.
+  // Where it can't, or the reader wants less motion, or the previous fade has only just begun
+  // (a colour picker being dragged), the write is immediate, as it always was.
+  watchEffect(() => {
+    const { css, attrs, themeColor } = compiled.value
+    latest = { css, attrs, themeColor, reduced: reducedMotion.value, mode: mode.value }
+    const previous = applied
+    applied = { css, attrs }
+    const now = performance.now()
+    if (
+      previous &&
+      !latest.reduced &&
+      typeof document.startViewTransition === 'function' &&
+      document.visibilityState === 'visible' &&
+      quietSince(fadeStartedAt, now) &&
+      fadesBetween(previous, applied)
+    ) {
+      fadeStartedAt = now
+      const transition = document.startViewTransition(writeAppearance)
+      void transition.ready.catch(() => undefined)
+      void transition.finished.catch(() => undefined)
+      return
+    }
+    writeAppearance()
   })
   // A personal theme's custom CSS: only ever the filtered output, after every app stylesheet.
   watchEffect(() => {

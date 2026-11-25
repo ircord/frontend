@@ -13,6 +13,7 @@ import {
   publicMediaURL,
 } from '../../../shared/utils/link-media'
 import { selectEmbed } from '../../utils/embed'
+import { reactionCounts, risenReactions } from '../../utils/motion-news'
 import { isPlainMessageText } from '../../../shared/utils/blocks'
 import type { useMessageActions } from '../../composables/chat/useMessageActions'
 import type { useMenus } from '../../composables/workspace/useMenus'
@@ -24,6 +25,8 @@ const props = defineProps<{
   reactionId: string
   grouped?: boolean
   highlighted?: boolean
+  /** Arrived just now: a message that mentions you glints once. */
+  fresh?: boolean
   /** /attract: shine across this row, sparkle on its avatar, or both. */
   attract?: 'row' | 'avatar' | 'both'
   /** When the /attract effect started, so a row mounted mid-effect joins it in step. */
@@ -66,6 +69,24 @@ const mentionsMe = computed(() => {
     c ? chat.recipientFor(c, props.message) : chat.user?.nick,
   )
 })
+// A reaction chip whose count rises after the row appeared sparks once. This is tracked here, not
+// in the extras, which only mount when the first reaction does. The row opens its containment for
+// the burst (timeline.css), so the dots are not cut off at the row's edge.
+const sparking = ref<ReadonlySet<string>>(new Set())
+let reactionsBefore = reactionCounts(props.message.reactions)
+let sparkTimer: ReturnType<typeof setTimeout> | undefined
+watch(
+  () => props.message.reactions.map((r) => `${r.emoji}:${r.memberIds.length}`).join('|'),
+  () => {
+    const risen = risenReactions(reactionsBefore, props.message.reactions)
+    reactionsBefore = reactionCounts(props.message.reactions)
+    if (!risen.length || appearance.reducedMotion) return
+    sparking.value = new Set(risen)
+    clearTimeout(sparkTimer)
+    sparkTimer = setTimeout(() => (sparking.value = new Set()), 450)
+  },
+)
+onBeforeUnmount(() => clearTimeout(sparkTimer))
 const irc = computed(() => appearance.settings.messageLayout === 'irc')
 const action = computed(() => props.message.kind === 'action')
 /** URL presentation is known before paint; stored text still drives copy, export and editing. */
@@ -330,6 +351,7 @@ function react(item: EmojiItem) {
       'is-highlighted': highlighted,
       'is-attract': attract === 'row' || attract === 'both',
       'is-mention': mentionsMe,
+      'is-fresh': fresh,
       'is-pending': message.delivery === 'pending' || message.delivery === 'queued',
       'is-failed': message.delivery === 'failed',
       'is-mine': message.senderId === 'you',
@@ -521,6 +543,7 @@ function react(item: EmojiItem) {
           v-if="hasExtras"
           :message="message"
           :media-links="mediaLinks"
+          :sparking="sparking"
         />
       </div>
     </div>
@@ -529,6 +552,7 @@ function react(item: EmojiItem) {
       v-if="irc && hasExtras"
       :message="message"
       :media-links="mediaLinks"
+      :sparking="sparking"
     />
 
     <ol

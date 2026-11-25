@@ -1,7 +1,12 @@
 <script setup vapor lang="ts">
 import type { Message } from '../../../shared/types/chat'
-/** Link content, file downloads, reactions and delivery state under a message. */
-const props = defineProps<{ message: Message; mediaLinks: string[] }>()
+/** Link content, file downloads, reactions and delivery state under a message. `sparking` names
+ * the chips whose count just rose; they play the burst once. */
+const props = defineProps<{
+  message: Message
+  mediaLinks: string[]
+  sparking?: ReadonlySet<string>
+}>()
 const emit = defineEmits<{ mediaReady: [url: string, ready: boolean] }>()
 const chat = useChatStore()
 const { t: $t, n: $n } = useI18n()
@@ -36,7 +41,10 @@ const reactionReason = computed(() => chat.messageActionReason(props.message, 'r
         v-for="reaction in message.reactions"
         :key="reaction.emoji"
         class="reaction flex items-center gap-1.5 h-6.5 px-2.5 rounded-full text-[13px] bg-secondary/75 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--border)_65%,transparent)] transition-colors hover:bg-accent hover:shadow-[inset_0_0_0_1px_var(--border)] disabled:opacity-100 [&_.inline-custom-emoji]:size-4.5 [&.is-reacted]:[background:linear-gradient(90deg,color-mix(in_srgb,var(--accent)_24%,var(--raised)),color-mix(in_srgb,var(--accent)_10%,var(--raised)))] [&.is-reacted]:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_45%,transparent)] [&.is-reacted_.reaction-count]:text-primary [@media(pointer:coarse)]:min-h-[44px] [@media(pointer:coarse)]:min-w-[44px]"
-        :class="{ 'is-reacted': reaction.memberIds.includes('you') }"
+        :class="{
+          'is-reacted': reaction.memberIds.includes('you'),
+          'is-sparking': sparking?.has(reaction.emoji),
+        }"
         :aria-label="
           $t(
             'workspaceUi.message.reactionCount',
