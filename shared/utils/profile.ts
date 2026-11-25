@@ -8,6 +8,7 @@ export const avatarFrames = ['none', 'ring', 'glow', 'gradient', 'gold', 'dashed
 export type AvatarFrame = (typeof avatarFrames)[number]
 export const isAvatarFrame = (value: string | undefined): value is AvatarFrame =>
   !!value && (avatarFrames as readonly string[]).includes(value)
+
 /** The frame to draw for a stored value, or undefined for none or an unknown preset. */
 export const shownAvatarFrame = (
   value: string | undefined,
