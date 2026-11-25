@@ -2374,6 +2374,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/voice/rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list-voice-rooms"];
+        put?: never;
+        post: operations["create-voice-room"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/voice/rooms/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete-voice-room"];
+        options?: never;
+        head?: never;
+        patch: operations["update-voice-room"];
+        trace?: never;
+    };
+    "/api/v1/voice/rooms/{id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["join-voice-room"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/voice/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["leave-voice-room"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/files/{id}/{token}/{filename}": {
         parameters: {
             query?: never;
@@ -2733,6 +2797,8 @@ export interface components {
             themes?: components["schemas"]["ThemeCapability"];
             /** @description Application upload service availability and limits; distinct from IRC network features. */
             upload?: components["schemas"]["UploadCapability"];
+            /** @description This instance supports server-wide voice rooms for signed-in accounts. */
+            voice?: boolean;
         };
         ChannelAvailability: {
             /**
@@ -3184,6 +3250,19 @@ export interface components {
             type: "conversation.updated";
             /** @enum {integer} */
             v: 1;
+        };
+        Credential: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/Credential.json
+             */
+            readonly $schema?: string;
+            id: string;
+            /** @description Subscribe-only credential for the private microphone test. */
+            playbackToken?: string;
+            token: string;
+            url: string;
         };
         Credentials: {
             /**
@@ -5292,6 +5371,36 @@ export interface components {
         RevisionUpdate: {
             revision: string;
         };
+        Room: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/Room.json
+             */
+            readonly $schema?: string;
+            available: boolean;
+            /** Format: int64 */
+            bitrateKbps: number;
+            /** Format: int64 */
+            capacity: number;
+            id: string;
+            name: string;
+            participants: string[];
+        };
+        RoomSettings: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/RoomSettings.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @enum {integer}
+             */
+            bitrateKbps: 24 | 32 | 48 | 64 | 96 | 128 | 160 | 192;
+            name: string;
+        };
         RoutingSnapshot: {
             /**
              * Format: uri
@@ -5532,7 +5641,7 @@ export interface components {
             replyToId?: string;
             text: string;
         };
-        ServerEvent: components["schemas"]["MessageCreatedEvent"] | components["schemas"]["InvitationReceivedEvent"] | components["schemas"]["InvitationRemovedEvent"] | components["schemas"]["MessageUpdatedEvent"] | components["schemas"]["ConversationUpdatedEvent"] | components["schemas"]["ConversationCountsEvent"] | components["schemas"]["ChannelServicesUpdatedEvent"] | components["schemas"]["NetworkUpdatedEvent"] | components["schemas"]["ProfileUpdatedEvent"] | components["schemas"]["MemberUpdatedEvent"] | components["schemas"]["ConversationRemovedEvent"] | components["schemas"]["PartyUpdatedEvent"] | components["schemas"]["PartyRemovedEvent"] | components["schemas"]["NetworkRemovedEvent"] | components["schemas"]["HistorySyncedEvent"] | components["schemas"]["HistoryGapEvent"] | components["schemas"]["HistoryFailedEvent"] | components["schemas"]["ConnectionUpdatedEvent"] | components["schemas"]["ServerLineEvent"] | components["schemas"]["ServerLogUpdatedEvent"] | components["schemas"]["AppearanceUpdatedEvent"] | components["schemas"]["LibraryUpdatedEvent"] | components["schemas"]["PreferencesUpdatedEvent"] | components["schemas"]["NotificationsUpdatedEvent"] | components["schemas"]["ThemesUpdatedEvent"] | components["schemas"]["SavedAddedEvent"] | components["schemas"]["SavedRemovedEvent"] | components["schemas"]["InboxAddedEvent"] | components["schemas"]["InboxUpdatedEvent"] | components["schemas"]["SessionReady"] | components["schemas"]["SessionResync"] | components["schemas"]["SessionSynced"] | components["schemas"]["CommandError"] | components["schemas"]["TypingEvent"] | components["schemas"]["AttractEvent"] | components["schemas"]["EmotesUpdatedEvent"] | components["schemas"]["DevicesUpdatedEvent"] | components["schemas"]["NotificationAlertEvent"] | components["schemas"]["NotificationRoutingEvent"];
+        ServerEvent: components["schemas"]["MessageCreatedEvent"] | components["schemas"]["InvitationReceivedEvent"] | components["schemas"]["InvitationRemovedEvent"] | components["schemas"]["MessageUpdatedEvent"] | components["schemas"]["ConversationUpdatedEvent"] | components["schemas"]["ConversationCountsEvent"] | components["schemas"]["ChannelServicesUpdatedEvent"] | components["schemas"]["NetworkUpdatedEvent"] | components["schemas"]["ProfileUpdatedEvent"] | components["schemas"]["MemberUpdatedEvent"] | components["schemas"]["ConversationRemovedEvent"] | components["schemas"]["PartyUpdatedEvent"] | components["schemas"]["PartyRemovedEvent"] | components["schemas"]["NetworkRemovedEvent"] | components["schemas"]["HistorySyncedEvent"] | components["schemas"]["HistoryGapEvent"] | components["schemas"]["HistoryFailedEvent"] | components["schemas"]["ConnectionUpdatedEvent"] | components["schemas"]["ServerLineEvent"] | components["schemas"]["ServerLogUpdatedEvent"] | components["schemas"]["AppearanceUpdatedEvent"] | components["schemas"]["LibraryUpdatedEvent"] | components["schemas"]["PreferencesUpdatedEvent"] | components["schemas"]["NotificationsUpdatedEvent"] | components["schemas"]["ThemesUpdatedEvent"] | components["schemas"]["SavedAddedEvent"] | components["schemas"]["SavedRemovedEvent"] | components["schemas"]["InboxAddedEvent"] | components["schemas"]["InboxUpdatedEvent"] | components["schemas"]["SessionReady"] | components["schemas"]["SessionResync"] | components["schemas"]["SessionSynced"] | components["schemas"]["CommandError"] | components["schemas"]["TypingEvent"] | components["schemas"]["AttractEvent"] | components["schemas"]["VoiceRosterEvent"] | components["schemas"]["EmotesUpdatedEvent"] | components["schemas"]["DevicesUpdatedEvent"] | components["schemas"]["NotificationAlertEvent"] | components["schemas"]["NotificationRoutingEvent"];
         ServerLine: {
             command: string;
             id: string;
@@ -6064,6 +6173,18 @@ export interface components {
             readonly $schema?: string;
             available: boolean;
             reason?: string;
+        };
+        VoiceRosterEvent: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "voice.updated";
+            /**
+             * Format: int64
+             * @enum {integer}
+             */
+            v: 1;
         };
         WhoisDetails: {
             /**
@@ -26260,6 +26381,789 @@ export interface operations {
         };
     };
     "delete-api-v1-uploads-by-id": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Request failed; see the problem detail. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-voice-rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Room"][] | null;
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "create-voice-room": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoomSettings"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Room"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-voice-room": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Request failed; see the problem detail. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-voice-room": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoomSettings"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Room"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "join-voice-room": {
+        parameters: {
+            query?: {
+                /** @description Open a private microphone test for the requesting account. */
+                echo?: boolean;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Credential"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Request failed; see the problem detail. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "leave-voice-room": {
         parameters: {
             query?: never;
             header?: never;

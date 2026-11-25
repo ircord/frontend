@@ -16,6 +16,7 @@ import type { MessageLink } from '../../../shared/utils/message-links'
  * overlays everything else opens through useWorkspaceActions().
  */
 const chat = useChatStore()
+const voice = useVoiceStore()
 const { t, n } = useI18n()
 const $t = t
 const router = useRouter()
@@ -678,6 +679,7 @@ useHead({
     }`,
 })
 onBeforeUnmount(() => {
+  void voice.leave()
   clearTimeout(highlightTimer)
   clearTimeout(navMotionTimer)
   clearTimeout(sidebarPhaseTimer)

@@ -41,6 +41,7 @@ export default defineEventHandler(async (event) => {
     !event.path.startsWith('/files/') &&
     !event.path.startsWith('/emotes/') &&
     !event.path.startsWith('/schemas/') &&
+    !['/voice/rtc/validate', '/voice/rtc/v1/validate'].includes(path) &&
     !['/docs', '/openapi.json', '/openapi.yaml'].includes(event.path.split('?')[0]!)
   )
     return

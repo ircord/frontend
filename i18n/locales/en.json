@@ -1409,9 +1409,60 @@
       "privacy": "Privacy",
       "profile": "Profile",
       "readAloud": "Read aloud",
-      "shortcuts": "Shortcuts"
+      "shortcuts": "Shortcuts",
+      "voiceVideo": "Voice & video"
+    },
+    "voiceVideo": {
+      "audio": "Audio",
+      "microphoneHelp": "Choose the microphone you use in voice channels.",
+      "microphoneDiscovery": "Run the microphone test to grant access and see device names.",
+      "unavailableMicrophone": "Unavailable microphone",
+      "noiseOff": "Off",
+      "noiseStandard": "Standard",
+      "noiseEnhanced": "Enhanced",
+      "noiseHelp": "Enhanced uses RNNoise to reduce background sounds such as typing and fans.",
+      "noiseMuteToChange": "Mute your microphone to change noise suppression.",
+      "noiseUnsupported": "Enhanced mode is unavailable in this browser.",
+      "testHelp": "Record four seconds in private. Speak while typing to compare noise suppression. Check speaker echo in a call with speakers on.",
+      "testProcessing": "Noise suppression mode was {mode}.",
+      "testEchoOn": "The browser reports echo cancellation was on.",
+      "testEchoOff": "The browser reports echo cancellation was off.",
+      "testEchoUnknown": "The browser did not report an echo cancellation setting.",
+      "leaveToTest": "Leave your current voice call to test the microphone.",
+      "joinToTest": "A voice channel must be available to test your microphone.",
+      "startTest": "Start test"
     },
     "index": {
+      "voice-microphone": {
+        "description": "Choose the microphone for voice channels.",
+        "keywords": ["audio", "mic", "microphone", "input device"],
+        "label": "Microphone"
+      },
+      "voice-microphone-test": {
+        "description": "Record a short clip through the voice server and listen to it.",
+        "keywords": ["audio", "microphone", "mic test", "echo test", "playback"],
+        "label": "Test microphone"
+      },
+      "voice-noise-suppression": {
+        "description": "Choose how the microphone filters background noise.",
+        "keywords": ["audio", "microphone", "noise cancellation", "background noise", "rnnoise"],
+        "label": "Noise suppression"
+      },
+      "voice-echo-cancellation": {
+        "description": "Reduce sound from your speakers that reaches your microphone.",
+        "keywords": ["audio", "microphone", "echo cancellation", "speakers"],
+        "label": "Echo cancellation"
+      },
+      "voice-automatic-gain": {
+        "description": "Let the browser keep your voice at a steady level.",
+        "keywords": ["audio", "microphone", "automatic gain", "volume", "level"],
+        "label": "Automatic gain"
+      },
+      "voice-microphone-gain": {
+        "description": "Set how loud you sound to others. Mute your microphone to change this during a call.",
+        "keywords": ["audio", "microphone", "input gain", "volume", "level"],
+        "label": "Microphone gain"
+      },
       "device-sessions": {
         "description": "See where you’re signed in and sign out a device.",
         "keywords": ["devices", "sessions", "browser", "sign out", "phone", "computer"],

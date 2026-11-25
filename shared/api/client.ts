@@ -108,6 +108,21 @@ export function createIRCordClient(apiBase: string, options: ClientOptions = {})
       empty(client.POST('/api/v1/auth/password', { body })),
     completeOnboarding: () => empty(client.POST('/api/v1/auth/onboarding/complete')),
     logout: () => empty(client.POST('/api/v1/auth/logout')),
+    listVoiceRooms: () => read(client.GET('/api/v1/voice/rooms')),
+    createVoiceRoom: (body: Schema['RoomSettings']) =>
+      read(client.POST('/api/v1/voice/rooms', { body })),
+    updateVoiceRoom: (id: string, body: Schema['RoomSettings']) =>
+      read(client.PATCH('/api/v1/voice/rooms/{id}', { params: { path: { id } }, body })),
+    deleteVoiceRoom: (id: string) =>
+      empty(client.DELETE('/api/v1/voice/rooms/{id}', { params: { path: { id } } })),
+    joinVoiceRoom: (id: string, echo = false) =>
+      read(
+        client.POST('/api/v1/voice/rooms/{id}/join', {
+          params: { path: { id }, query: echo ? { echo } : undefined },
+        }),
+      ),
+    leaveVoiceRoom: (id: string) =>
+      empty(client.DELETE('/api/v1/voice/sessions/{id}', { params: { path: { id } } })),
     appAppearance: () => read(client.GET('/api/v1/app/appearance')),
     saveAppAppearance: (settings: Schema['Appearance']) =>
       read(client.PUT('/api/v1/app/appearance', { body: { settings } })),

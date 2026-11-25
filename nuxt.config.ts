@@ -101,6 +101,7 @@ export default defineNuxtConfig({
       // Keep shared dependencies pre-bundled so Vite does not reload on first use.
       include: [
         '@lucide/vue',
+        '@sapphi-red/web-noise-suppressor',
         '@tanstack/vue-virtual',
         'ajv/dist/runtime/ucs2length.js',
         'class-variance-authority',
@@ -133,6 +134,7 @@ export default defineNuxtConfig({
         'highlight.js/lib/languages/typescript',
         'highlight.js/lib/languages/xml',
         'highlight.js/lib/languages/yaml',
+        'livekit-client',
         'openapi-fetch',
         'satori',
         'tailwind-merge',
@@ -171,7 +173,7 @@ export default defineNuxtConfig({
         'X-Content-Type-Options': 'nosniff',
         'X-Frame-Options': 'DENY',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
-        'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+        'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(), payment=()',
         'Cross-Origin-Opener-Policy': 'same-origin',
       },
     },

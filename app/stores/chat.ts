@@ -845,6 +845,11 @@ export const useChatStore = defineStore('chat', () => {
       void queryCache.invalidateQueries({ key: ['emoji', 'instance'] }).catch(() => {})
   }
 
+  function refreshVoiceRooms() {
+    if (data.value?.capabilities.voice && auth.account)
+      void queryCache.invalidateQueries({ key: ['voice-rooms', auth.account.id] }).catch(() => {})
+  }
+
   function applyEvent(event: ServerEvent) {
     if (event.v !== 1) return
     lastEventAt.value = Date.now()
@@ -875,11 +880,13 @@ export const useChatStore = defineStore('chat', () => {
       if (event.cursor !== cursor.value) return void resync()
       flushMembers()
       recovery.synced()
+      refreshVoiceRooms()
       return
     }
     if (event.type === 'session.resync') return void resync()
     if (event.type === 'typing') return setTyping(event.data)
     if (event.type === 'attract') return setAttract(event.data)
+    if (event.type === 'voice.updated') return refreshVoiceRooms()
     if (event.type === 'emotes.updated') return refreshEmotes(event.data.version)
     if (event.type === 'notification.routing') {
       const current = routingSnapshot.value

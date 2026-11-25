@@ -4,6 +4,7 @@ import {
   searchSettings,
   settingsDestination,
   settingsGroups,
+  settingsSectionAvailable,
   settingsSections,
   type SettingResult,
   type SettingsAccess,
@@ -22,6 +23,7 @@ const media = useMediaStore()
 const notifications = useNotificationStore()
 const appearance = useAppearanceStore()
 const preferences = usePreferencesStore()
+const voice = useVoiceStore()
 /** Every change saves as it is made; the top bar says so only once something was changed. */
 const saveStatus = computed(() =>
   appearance.saveState === 'saving' || preferences.saveState === 'saving'
@@ -42,6 +44,7 @@ const { nativeDevice, notifications: platformNotifications } = usePlatform()
 
 const access = computed<SettingsAccess>(() => ({
   nativeDevice,
+  voice: voice.enabled,
   emoteAdd: !!(media.instanceQuery.data?.canAdd ?? media.instanceQuery.data?.canManage),
   notificationTest: notifications.mode === platformNotifications.testMode,
   quietHours: notifications.settings.quietHours.enabled,
@@ -59,7 +62,7 @@ const current = computed(() => settingsSections.find((t) => t.id === tab.value)!
 /** Phone-sized touch screens leave out Shortcuts: keyboard shortcuts need a hardware keyboard. */
 const keyboardless = useMediaQuery('(max-width: 700px) and (pointer: coarse)')
 const listed = (id: SettingsSectionId) =>
-  (nativeDevice || id !== 'device') && !(keyboardless.value && id === 'shortcuts')
+  settingsSectionAvailable(id, access.value) && !(keyboardless.value && id === 'shortcuts')
 const allGroups = settingsGroups.map((group) => ({
   ...group,
   headingId: useId(),
@@ -445,6 +448,12 @@ function keydown(event: KeyboardEvent) {
             <ReadAloudSettings />
           </div>
           <PrivacySettings v-else-if="tab === 'privacy'" />
+          <div
+            v-else-if="tab === 'voice-video'"
+            class="contents"
+          >
+            <VoiceVideoSettings v-if="access.voice && !searching && pages.view !== 'list'" />
+          </div>
           <EmoteSettings v-else-if="tab === 'emotes'" />
           <NotificationDevice v-else-if="nativeDevice && tab === 'device'" />
           <div

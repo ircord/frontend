@@ -4,6 +4,7 @@ import { settingsDestination, type SettingsAccess } from './settings-index'
 
 const access: SettingsAccess = {
   nativeDevice: false,
+  voice: false,
   emoteAdd: false,
   notificationTest: false,
   quietHours: false,
@@ -47,10 +48,13 @@ test('Device holds native settings and Account holds sessions on both platforms'
     section: 'device',
     setting: 'notifications-device',
   })
-  assert.deepEqual(settingsDestination('notifications-test', { ...desktop, notificationTest: true }), {
-    section: 'device',
-    setting: 'notifications-test',
-  })
+  assert.deepEqual(
+    settingsDestination('notifications-test', { ...desktop, notificationTest: true }),
+    {
+      section: 'device',
+      setting: 'notifications-test',
+    },
+  )
   assert.deepEqual(settingsDestination('notifications-device', access), {
     section: 'notifications',
     setting: 'notifications-device',
@@ -65,6 +69,22 @@ test('privacy settings open in Privacy', () => {
   for (const id of ['nsfw-content', 'ask-before-embeds', 'ignored-people'])
     assert.equal(settingsDestination(id, access).section, 'privacy')
   assert.deepEqual(settingsDestination('privacy', access), { section: 'privacy' })
+})
+
+test('voice controls open in Voice & video when voice is available', () => {
+  const enabled = { ...access, voice: true }
+  assert.deepEqual(settingsDestination('voice-video', enabled), { section: 'voice-video' })
+  for (const setting of [
+    'voice-microphone',
+    'voice-noise-suppression',
+    'voice-microphone-test',
+    'voice-echo-cancellation',
+    'voice-automatic-gain',
+    'voice-microphone-gain',
+  ]) {
+    assert.deepEqual(settingsDestination(setting, enabled), { section: 'voice-video', setting })
+    assert.deepEqual(settingsDestination(setting, access), { section: 'appearance' })
+  }
 })
 
 test('the speech service settings open the voice source selector while the voice model is chosen', () => {

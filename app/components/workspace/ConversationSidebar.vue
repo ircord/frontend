@@ -14,6 +14,7 @@ const props = defineProps<{ docked: boolean; phase?: 'idle' | 'covering' | 'reve
 const { t, n: $n } = useI18n()
 const $t = t
 const chat = useChatStore()
+const voice = useVoiceStore()
 const statusNow = useNow({ interval: 1000 })
 const route = useRoute()
 const navigation = useConversationNavigation()
@@ -448,10 +449,14 @@ const drafts = computed(() => draftCount(chat.drafts))
               {{ $t('workspaceUi.sidebar.noConversations') }}
             </p>
           </div>
+          <VoiceChannels v-if="section.id === 'channels'" />
         </section>
       </div>
-      <SidebarConnection />
     </div>
+    <SidebarConnection
+      v-if="showExpanded || !props.docked || voice.active"
+      :compact="!showExpanded && props.docked"
+    />
     <slot />
   </aside>
 </template>

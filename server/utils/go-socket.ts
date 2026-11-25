@@ -4,19 +4,23 @@ import type { Peer } from 'crossws'
 /** One upstream socket per browser socket; authorization remains entirely in Go. */
 export class GoSocket {
   private peer?: Peer
-  private early: string[] = []
+  private early: (string | Buffer)[] = []
   private earlyBytes = 0
   private readonly socket: WebSocket
   private readonly bindTimer: ReturnType<typeof setTimeout>
   readonly ready: Promise<void>
-  constructor(backend: string, request: { url: string; headers: Headers }) {
+  constructor(
+    backend: string,
+    request: { url: string; headers: Headers },
+    private readonly media = false,
+  ) {
     const url = new URL(
       backend.replace(/\/$/, '') + new URL(request.url).pathname + new URL(request.url).search,
     )
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
     this.socket = new WebSocket(url, {
       headers: {
-        Cookie: request.headers.get('cookie') ?? '',
+        ...(!media && { Cookie: request.headers.get('cookie') ?? '' }),
         Origin: request.headers.get('origin') ?? '',
       },
       handshakeTimeout: 5000,
@@ -35,22 +39,23 @@ export class GoSocket {
       })
       this.socket.once('error', () => reject(new Response('Backend unavailable', { status: 503 })))
     })
-    this.socket.on('message', (data) => {
-      const text = Array.isArray(data)
-        ? Buffer.concat(data).toString('utf8')
+    this.socket.on('message', (data, binary) => {
+      const bytes = Array.isArray(data)
+        ? Buffer.concat(data)
         : Buffer.isBuffer(data)
-          ? data.toString('utf8')
-          : Buffer.from(data).toString('utf8')
+          ? data
+          : Buffer.from(data)
+      const frame = media && binary ? bytes : bytes.toString('utf8')
       if (this.peer) {
         if ((this.peer.websocket.bufferedAmount ?? 0) > 1 << 20) {
           this.peer.close(1013, 'Client fell behind')
           this.close()
           return
         }
-        this.peer.send(text)
-      } else if (this.early.length < 512 && this.earlyBytes + Buffer.byteLength(text) <= 1 << 20) {
-        this.early.push(text)
-        this.earlyBytes += Buffer.byteLength(text)
+        this.peer.send(frame)
+      } else if (this.early.length < 512 && this.earlyBytes + bytes.length <= 1 << 20) {
+        this.early.push(frame)
+        this.earlyBytes += bytes.length
       } else this.close()
     })
     this.socket.on('close', (code, reason) => {
@@ -76,8 +81,11 @@ export class GoSocket {
     this.early = []
     this.earlyBytes = 0
   }
-  send(message: string) {
-    if (Buffer.byteLength(message) > 32768 || this.socket.bufferedAmount > 65536) {
+  send(message: string | Uint8Array) {
+    if (
+      Buffer.byteLength(message) > (this.media ? 65536 : 32768) ||
+      this.socket.bufferedAmount > 65536
+    ) {
       this.peer?.close(1008, 'Invalid event frame')
       this.close()
       return

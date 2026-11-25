@@ -5,6 +5,20 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+### New
+
+- Join a server-wide voice channel and keep talking as you browse other conversations.
+- Choose and test your microphone in Settings → Voice & video.
+- Reduce background noise in voice calls with Enhanced noise suppression.
+- Adjust microphone gain and echo cancellation, and set each caller’s volume on your device.
+- Create, rename, or delete voice channels and set their audio bitrate as a server owner.
+- Deafen during a voice call to mute your microphone and silence incoming audio.
+
+### Improved
+
+- Find voice rooms beside text channels and manage your call from the bottom-left connection panel.
+- Choose 128, 160, or 192 kbps for a voice channel.
+
 ### Fixed
 
 - Wait between attempts when chat repeatedly fails to reconnect.

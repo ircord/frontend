@@ -53,6 +53,13 @@ export const settingsSections = [
     tone: 'red',
     group: 'app',
   },
+  {
+    id: 'voice-video',
+    name: 'settings.sections.voiceVideo',
+    icon: 'headphones',
+    tone: 'cyan',
+    group: 'app',
+  },
   { id: 'device', name: 'settings.sections.device', icon: 'laptop', tone: 'blue', group: 'app' },
   {
     id: 'privacy',
@@ -90,6 +97,8 @@ export const scopeLabels = {
 export interface SettingsAccess {
   /** The app can show settings for native features on this device. */
   nativeDevice: boolean
+  /** This client can join voice channels. */
+  voice: boolean
   /** This account can add server emoji. */
   emoteAdd: boolean
   /** The current delivery mode supports sending a test notification. */
@@ -251,6 +260,14 @@ export const settingsIndex: readonly SettingEntry[] = [
     fallback: 'local-speech',
   },
 
+  // Voice & video
+  { id: 'voice-microphone', section: 'voice-video', requires: 'voice' },
+  { id: 'voice-noise-suppression', section: 'voice-video', requires: 'voice' },
+  { id: 'voice-echo-cancellation', section: 'voice-video', requires: 'voice' },
+  { id: 'voice-automatic-gain', section: 'voice-video', requires: 'voice' },
+  { id: 'voice-microphone-gain', section: 'voice-video', requires: 'voice' },
+  { id: 'voice-microphone-test', section: 'voice-video', requires: 'voice' },
+
   // Emotes
   { id: 'add-emote', section: 'emotes', requires: 'emoteAdd' },
   { id: 'server-emotes', section: 'emotes' },
@@ -385,6 +402,10 @@ export function sectionName(id: SettingsSectionId, t: (key: string) => string): 
   return section ? t(section.name) : id
 }
 
+export function settingsSectionAvailable(id: SettingsSectionId, access: SettingsAccess) {
+  return (id !== 'device' || access.nativeDevice) && (id !== 'voice-video' || access.voice)
+}
+
 const retiredSections: Record<string, string> = {
   devices: 'device-sessions',
   'read-aloud': 'read-aloud-device',
@@ -404,10 +425,13 @@ export function settingsDestination(
 ): { section: SettingsSectionId; setting?: string } {
   // Sections that were merged into others still open, at their first setting.
   const id = retiredSections[target] ?? target
-  const section = settingsSections.find((s) => s.id === id && (id !== 'device' || access.nativeDevice))
+  const section = settingsSections.find(
+    (s) => s.id === id && settingsSectionAvailable(s.id, access),
+  )
   if (section) return { section: section.id }
   const entry = byId.get(id)
-  if (!entry) return { section: 'appearance' }
+  if (!entry || !settingsSectionAvailable(settingSection(entry, access), access))
+    return { section: 'appearance' }
   if (entry.requires && !access[entry.requires]) {
     const fallback = entry.fallback ? byId.get(entry.fallback) : undefined
     return fallback
