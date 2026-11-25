@@ -2391,7 +2391,7 @@ export interface paths {
         delete?: never;
         /**
          * Describe the network file host
-         * @description The IRC network's file host (draft/FILEHOST). Answers without a login. Accept-Post lists the accepted types. Only a server set up as the IRC network's file host answers this; others reply 404.
+         * @description The IRC network's file host (draft/FILEHOST). Answers without a login. Accept-Post lists the accepted types. Allow lists DELETE: senders read it to learn that this host deletes files on request, which the standard has no word for. Only a server set up as the IRC network's file host answers this; others reply 404.
          */
         options: operations["filehost-options"];
         head?: never;
@@ -2414,7 +2414,7 @@ export interface paths {
         post?: never;
         /**
          * Delete a file from the network file host
-         * @description An IRCord addition to the standard. Authorization is HTTP Basic with the IRC login of the account that uploaded the file. 204 when deleted, 404 when no such file belongs to that account. Only a server set up as the IRC network's file host answers this; others reply 404.
+         * @description An IRCord addition to the standard. Authorization is HTTP Basic with the IRC login of the account that uploaded the file. 204 when deleted, 404 when there is no such file or the token is wrong, and 403 when another account owns it. The list of accounts that may upload does not apply: an account can always delete its own files. A server that is not the network's file host replies 405.
          */
         delete: operations["filehost-delete"];
         options?: never;
@@ -26863,16 +26863,14 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Request failed; see the problem detail. */
+            /** @description The file belongs to another account, or this server has no account for the login. */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
+                content?: never;
             };
-            /** @description No such file for this account. */
+            /** @description No such file, or a wrong token. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -26931,14 +26929,19 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
             };
-            /** @description Request failed; see the problem detail. */
+            /** @description The file could not be deleted from storage. Try again. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Logins or accounts are unavailable. */
             503: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
+                content?: never;
             };
         };
     };
