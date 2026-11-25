@@ -46,6 +46,7 @@
   box-shadow:
     inset 0 0 0 2px var(--frame),
     0 0 18px 2px color-mix(in srgb, var(--frame) 65%, transparent);
+  animation: frame-glow 3s ease-in-out infinite alternate;
 }
 .avatar-frame-gradient::before {
   padding: 3px;
@@ -53,13 +54,52 @@
   mask:
     linear-gradient(#000 0 0) content-box exclude,
     linear-gradient(#000 0 0);
+  animation: frame-spin 8s linear infinite;
 }
 .avatar-frame-gold::before {
   padding: 3px;
-  background: linear-gradient(135deg, #fde68a, #b45309 45%, #fcd34d 70%, #92400e);
+  background:
+    linear-gradient(115deg, transparent 42%, rgb(255 255 255 / 75%) 50%, transparent 58%) 100% 0 /
+      300% 100% no-repeat,
+    linear-gradient(135deg, #fde68a, #b45309 45%, #fcd34d 70%, #92400e);
   mask:
     linear-gradient(#000 0 0) content-box exclude,
     linear-gradient(#000 0 0);
+  animation: frame-glint 4s ease-in-out infinite;
+}
+/* The frames live while the profile card or the frame picker is open. The ring turns once in 8 s
+ * (it is round, so its mask turns with it), the gold ring glints every 4 s and the glow breathes
+ * between two strengths. Reduced motion stills them with every other animation (presence.css). */
+@keyframes frame-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes frame-glint {
+  0%,
+  35% {
+    background-position:
+      100% 0,
+      0 0;
+  }
+  75%,
+  100% {
+    background-position:
+      0% 0,
+      0 0;
+  }
+}
+@keyframes frame-glow {
+  from {
+    box-shadow:
+      inset 0 0 0 2px var(--frame),
+      0 0 10px 1px color-mix(in srgb, var(--frame) 40%, transparent);
+  }
+  to {
+    box-shadow:
+      inset 0 0 0 2px var(--frame),
+      0 0 20px 3px color-mix(in srgb, var(--frame) 70%, transparent);
+  }
 }
 .avatar-frame-dashed::before {
   border: 2px dashed var(--frame);

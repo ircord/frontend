@@ -9,6 +9,7 @@ import { channelShortcuts, chordUsers } from '../../../shared/utils/shortcuts'
 import { isConversationPath } from '../../../shared/utils/workspace-routes'
 import { presenceLabel } from '../../utils/accessible-labels'
 import { memberStatusLabel } from '../../utils/member-status'
+import { badgeRose } from '../../utils/motion-news'
 const emit = defineEmits<{ search: []; drafts: []; join: []; close: [] }>()
 const props = defineProps<{ docked: boolean; phase?: 'idle' | 'covering' | 'revealing' }>()
 const { t, n: $n } = useI18n()
@@ -127,6 +128,26 @@ const sections = computed(() =>
       }
     }),
 )
+// A mention badge whose count rises rings once. Badges there when the app loads, or that appear
+// with a conversation, stay quiet.
+const appearance = useAppearanceStore()
+const ringing = ref<ReadonlySet<string>>(new Set())
+let mentionCounts = new Map<string, number>()
+let ringTimer: ReturnType<typeof setTimeout> | undefined
+watch(
+  () => chat.data?.conversations.map((c) => [c.id, c.mentionCount] as const),
+  (counts) => {
+    const next = new Map(counts ?? [])
+    const rose = [...next].filter(([id, count]) => badgeRose(mentionCounts.get(id), count))
+    mentionCounts = next
+    if (!rose.length || appearance.reducedMotion) return
+    ringing.value = new Set(rose.map(([id]) => id))
+    clearTimeout(ringTimer)
+    ringTimer = setTimeout(() => (ringing.value = new Set()), 700)
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => clearTimeout(ringTimer))
 const serverId = computed(() => serverViewId(chat.networkId))
 const drafts = computed(() => draftCount(chat.drafts))
 </script>
@@ -424,6 +445,7 @@ const drafts = computed(() => draftCount(chat.drafts))
               </span>
               <span
                 v-if="c.mentionCount"
+                :class="{ 'is-ringing': ringing.has(c.id) }"
                 class="mention-badge flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold tabular-nums text-rail"
                 aria-hidden="true"
                 >{{ $n(c.mentionCount) }}</span
@@ -449,6 +471,11 @@ const drafts = computed(() => draftCount(chat.drafts))
             </p>
           </div>
         </section>
+        <!-- The open conversation's highlight, placed on its row by CSS anchoring so it glides. -->
+        <span
+          class="selection-glide"
+          aria-hidden="true"
+        />
       </div>
       <SidebarConnection />
     </div>

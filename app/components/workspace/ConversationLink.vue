@@ -41,6 +41,8 @@ const states = computed(() =>
             ? 'bg-field/80 text-muted-foreground shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--border)_75%,transparent)] hover:bg-accent hover:text-body [&>svg]:text-faint [&_.presence]:border-sidebar hover:[&_.presence]:border-accent'
             : 'text-muted-foreground hover:bg-accent hover:text-body [&>svg]:text-faint [&_.presence]:border-sidebar hover:[&_.presence]:border-accent',
         {
+          // Pills keep their own highlight; the sidebar's glide (workspace-layout.css) is a rounded box.
+          'is-pill': pill,
           'has-unread': unread,
           'font-semibold text-foreground': unread && !active,
           'is-muted': muted,

@@ -247,3 +247,17 @@
   transition: none !important;
   scroll-behavior: auto !important;
 }
+
+/* ---- Mention badge ring ------------------------------------------------------------------ */
+/* The sidebar's mention badge rings once when its count rises (ConversationSidebar). */
+.mention-badge.is-ringing {
+  animation: badge-ring 0.6s ease-out 1;
+}
+@keyframes badge-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 70%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}

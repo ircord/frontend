@@ -46,3 +46,11 @@
   --shadow-popover: var(--shadow);
   --shadow-control: var(--shadow-small);
 }
+
+/* The cross-fade when colours change (stores/appearance.ts). The browser does not hit-test the
+ * page while it runs; the store ends it on the first press. */
+::view-transition-group(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 200ms;
+}

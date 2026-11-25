@@ -3,6 +3,12 @@
 What changed for people using IRCord, newest release first. Each release lists what is **New**,
 **Improved** and **Fixed**, in plain words. Changes nobody using the app would notice are left out.
 
+## Unreleased
+
+### New
+
+- New messages and the sidebar highlight now move into place, and color changes fade between looks. Mentions, reactions, mention badges, avatar frames and background pictures have short animations. Reduce motion turns them off.
+
 ## v0.9.2 — 2026-11-24
 
 ### Improved
