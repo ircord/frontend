@@ -154,7 +154,8 @@ export function useMenus(messageActions = useMessageActions()) {
         c.kind === 'direct' &&
         !c.party &&
         c.networkId === networkId &&
-        chat.directPartner(c)?.id === person.id,
+        (chat.directPartner(c)?.id === person.id ||
+          c.name.toLowerCase() === person.nick.toLowerCase()),
     )
     if (existing && e2ee.isEncrypted(existing.id))
       return [

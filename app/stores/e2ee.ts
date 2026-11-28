@@ -593,21 +593,21 @@ export const useE2eeStore = defineStore('e2ee', () => {
   }
   /**
    * What stops encryption with a person before a direct conversation exists, for the person menu.
-   * An account the network has not reported yet does not block: the dialog looks it up.
+   * An account the network has not reported yet does not block, and neither do the person's
+   * keys: the dialog looks both up again, so a stale answer here would not lock anyone out.
    */
   function personBlocker(person: Member, networkId: string): StartBlocker | undefined {
-    const peer =
-      person.account === '*'
-        ? ''
-        : person.account || whoisAccounts[person.nick.toLowerCase()] || undefined
+    const known =
+      person.account && person.account !== '*'
+        ? person.account
+        : whoisAccounts[person.nick.toLowerCase()]
     return startBlockerFor({
       networkId,
       homeNetworkId: homeNetwork.value?.id,
       selfAccount: account.value,
       bot: person.role === 'bot',
-      peer,
+      peer: known || (person.account === '*' ? '' : undefined),
       ready: ready.value,
-      peerHasKeys: peer ? peerKeys[peer.toLowerCase()] : undefined,
     })
   }
   /** Whether people have published keys, as far as this session checked. */
