@@ -14,6 +14,7 @@ const sections = [
   { id: 'users', name: 'administration.users', icon: 'users', tone: 'green' },
   { id: 'welcome', name: 'administration.welcome', icon: 'compass', tone: 'purple' },
   { id: 'emoji', name: 'administration.emoji', icon: 'smile', tone: 'yellow' },
+  { id: 'encryption', name: 'administration.encryptionTitle', icon: 'lock', tone: 'cyan' },
 ] as const
 type Section = (typeof sections)[number]['id']
 const tab = ref<Section>('status')
@@ -77,6 +78,7 @@ const { t: $t } = useI18n()
         <AdminDatabase v-else-if="tab === 'database'" />
         <AdminWelcome v-else-if="tab === 'welcome'" />
         <AdminEmoji v-else-if="tab === 'emoji'" />
+        <AdminEncryption v-else-if="tab === 'encryption'" />
         <AdminUsers v-else /></div></SettingsLayout
   ></AppDialog>
 </template>
