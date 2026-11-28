@@ -109,6 +109,11 @@ export interface ConversationRecord {
   transport?: 'irc'
   /** A group's title, as its MLS state says. */
   title?: string
+  /**
+   * Accounts the creator invited to a group before they had set up encryption. They join once
+   * their keys appear. Kept on the creator's devices only.
+   */
+  pending?: string[]
 }
 
 /** One line of an encrypted group's timeline, from a commit this device applied. */

@@ -5,6 +5,10 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+### Fixed
+
+- Experimental: New encrypted group now suggests people as you type, with their names and pictures: people you have direct messages with first, then people from your channels, then everyone else on the network. Chosen people appear as removable chips, and you can still add an account name nobody matches. People who cannot join, such as bots, say why. People who have not set up encryption yet get a short message from you and join the group on their own once they set it up; until then the group's details list them as waiting, and you can cancel their invitation.
+
 ## v0.12.0 — 2026-11-28
 
 ### New

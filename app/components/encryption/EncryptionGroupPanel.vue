@@ -42,6 +42,12 @@ const people = computed(() =>
     fresh: !!changed(m.account),
   })),
 )
+/** People invited before they set up encryption: they join once they do. */
+const pending = computed(() =>
+  (record.value?.pending ?? []).filter(
+    (p) => !(view.value?.members ?? []).some((m) => sameAccount(m.account, p)),
+  ),
+)
 /** People in the channel whose account is not in the encrypted group. */
 const outside = computed(() => {
   const members = view.value?.members ?? []
@@ -304,6 +310,46 @@ async function leave(close: boolean) {
               :peer="p.account"
               :name="p.nick"
             />
+          </li>
+          <li
+            v-for="person in pending"
+            :key="`pending:${person}`"
+            class="grid gap-1 rounded-md border border-dashed border-border px-3 py-2"
+            :data-group-pending="person"
+          >
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-[600]">{{ nickOf(person) }}</span>
+              <span
+                v-if="nickOf(person) !== person"
+                class="text-muted-foreground"
+                >{{ person }}</span
+              >
+              <span class="ml-auto flex items-center gap-1 text-muted-foreground">
+                <AppIcon
+                  name="clock"
+                  :size="13"
+                />{{ t('encryption.group.pending') }}
+              </span>
+            </div>
+            <p class="m-0 text-[12px] text-muted-foreground">
+              {{
+                e2ee.canAddPending(conversation.id)
+                  ? t('encryption.group.pendingHelp')
+                  : t('encryption.group.pendingStalled')
+              }}
+            </p>
+            <div class="flex flex-wrap gap-1.5">
+              <UiButton
+                size="sm"
+                variant="ghost"
+                class="text-destructive"
+                :disabled="!!busy"
+                :aria-label="t('encryption.group.cancelPendingFor', { name: nickOf(person) })"
+                @click="run(`pending:${person}`, () => e2ee.cancelPending(conversation.id, person))"
+              >
+                {{ t('encryption.group.cancelPending') }}
+              </UiButton>
+            </div>
           </li>
         </ul>
       </section>
