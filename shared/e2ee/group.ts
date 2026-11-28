@@ -91,24 +91,9 @@ export function commitEvents(
       push('added', m.account)
       continue
     }
-    if (m.devices.some((d) => !was.devices.includes(d))) {
-      out.push({
-        id: `${after.groupId}:${applied.epoch}:${out.length}`,
-        groupId: after.groupId,
-        at,
-        kind: 'device-added',
-        by: m.account,
-      })
-    }
-    if (was.devices.some((d) => !m.devices.includes(d))) {
-      out.push({
-        id: `${after.groupId}:${applied.epoch}:${out.length}`,
-        groupId: after.groupId,
-        at,
-        kind: 'device-removed',
-        by: m.account,
-      })
-    }
+    // The committer made the change; the member whose devices changed is its subject.
+    if (m.devices.some((d) => !was.devices.includes(d))) push('device-added', m.account)
+    if (was.devices.some((d) => !m.devices.includes(d))) push('device-removed', m.account)
   }
   for (const [key, m] of old) if (!now.has(key) && !left.has(key)) push('removed', m.account)
   if (before) {

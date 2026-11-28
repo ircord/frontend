@@ -90,6 +90,11 @@ type ChatChangeMeta = {
   members?: string[]
 }
 
+/** Errors of the worker or storage, not of the object: what failed may work on the next try. */
+const RETRYABLE = new Set(['storage', 'worker', 'stopped', 'error'])
+/** How long an admin waits before removing a device an account's own list left out. */
+const STALE_GRACE = 10 * 60_000
+
 /** The largest encrypted group: 32 accounts (wire.md 7.4). */
 export const GROUP_MAX_ACCOUNTS = 32
 
@@ -408,10 +413,26 @@ export const useE2eeStore = defineStore('e2ee', () => {
   // ---- The group log ---------------------------------------------------------------------------
 
   let syncing: Promise<void> | undefined
-  /** Joins groups from waiting Welcomes and applies new commits, one sync at a time. */
-  function sync() {
+  /** Set when a sync is asked for while one runs: that run may have read too early. */
+  let syncAgain = false
+  /**
+   * Joins groups from waiting Welcomes and applies new commits, one sync at a time. Asked for
+   * during a run, it runs once more after it, so a commit that settled meanwhile is not left
+   * for the next poll.
+   */
+  function sync(): Promise<void> {
     if (phase.value !== 'ready') return Promise.resolve()
-    syncing ??= flow(syncNow).finally(() => (syncing = undefined))
+    if (syncing) {
+      syncAgain = true
+      return syncing
+    }
+    syncing = flow(syncNow).finally(() => {
+      syncing = undefined
+      if (syncAgain) {
+        syncAgain = false
+        void sync()
+      }
+    })
     return syncing
   }
 
@@ -448,6 +469,13 @@ export const useE2eeStore = defineStore('e2ee', () => {
     await tendGroups()
     await topUp()
     await publishDeviceList().catch(() => {})
+    // New epochs may make messages readable that failed before; a run that follows this one
+    // reads newer commits first.
+    if (retryAfterSync && !syncAgain) {
+      retryAfterSync = false
+      failures.clear()
+      retries.value++
+    }
   }
 
   // ---- Chats carried over IRC (phase 2) --------------------------------------------------------
@@ -539,12 +567,56 @@ export const useE2eeStore = defineStore('e2ee', () => {
           await noteIdentityChange(error)
           continue // Kept until the person acknowledges the new keys.
         }
-        // A Welcome this device cannot open: it is not among the devices added.
+        // Storage or the worker failed: the Welcome stays for the next sync.
+        if (!(error instanceof E2eeError) || RETRYABLE.has(error.code)) continue
+        // Otherwise this device cannot open it: it is not among the devices added.
       }
       await apiClient()
         .e2eeDeleteChatWelcome(w.id)
         .catch(() => {})
     }
+  }
+
+  /**
+   * Whether a conversation is the channel of exactly this group: a group's channel is named after
+   * its ID, so a server cannot bind a group to another conversation, such as a direct one.
+   */
+  function groupChannelOf(conversationId: string, groupId: string) {
+    const c = chat.conversationSettings(conversationId)
+    return !!c && c.kind === 'channel' && !c.party && groupOfChannel(c.name) === groupId
+  }
+
+  /**
+   * Whether a conversation is the direct one with `peer` on the home network, as the network
+   * reports the person's account: the server's word alone does not bind a chat to it.
+   */
+  async function directWith(conversationId: string, peer: string) {
+    const c = chat.data?.conversations.find((x) => x.id === conversationId)
+    if (!c || !peer || !eligible(conversationId) || c.kind !== 'direct') return false
+    return samePeer(await resolvePeer(c), peer)
+  }
+
+  /** Records an encrypted group for its channel, once the channel is this group's. */
+  async function saveGroupRecord(conversationId: string, groupId: string, by?: string) {
+    // The channel conversation appears once the server reports it.
+    for (let i = 0; i < 40 && !chat.conversationSettings(conversationId); i++)
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    const view = groups[groupId]
+    if (!view || !groupChannelOf(conversationId, groupId)) return false
+    const current = conversations[conversationId]
+    if (current?.groupId === groupId && (current.title === view.title || !current.on)) return true
+    await saveConversation({
+      conversationId,
+      groupId,
+      peer: '',
+      on: current?.groupId === groupId ? current.on : true,
+      kind: 'group',
+      transport: 'irc',
+      title: view.title,
+      by: current?.by ?? by,
+      at: current?.at ?? Date.now(),
+    })
+    return true
   }
 
   /**
@@ -555,25 +627,14 @@ export const useE2eeStore = defineStore('e2ee', () => {
   async function reconcileChats() {
     for (const [groupId, c] of Object.entries(chats)) {
       if (c.kind === 'group') {
-        const view = groups[groupId]
-        if (!view || c.state !== 'joined' || !c.conversationId) continue
-        const current = conversations[c.conversationId]
-        if (current?.groupId === groupId && (current.title === view.title || !current.on)) continue
-        await saveConversation({
-          conversationId: c.conversationId,
-          groupId,
-          peer: '',
-          on: current?.on ?? true,
-          kind: 'group',
-          transport: 'irc',
-          title: view.title,
-          by: current?.by ?? c.inviter,
-          at: current?.at ?? (Date.parse(c.createdAt) || Date.now()),
-        })
+        if (groups[groupId] && c.state === 'joined' && c.conversationId)
+          await saveGroupRecord(c.conversationId, groupId, c.inviter)
         continue
       }
-      // A direct chat counts only if MLS says its group is a DM with the chat's person.
+      // A direct chat counts only if MLS says its group is a DM with the chat's person, and the
+      // conversation the server names is the direct one with that person.
       if (!samePeer(groupPeers[groupId], c.peer)) continue
+      if (c.conversationId && !(await directWith(c.conversationId, c.peer ?? ''))) continue
       const existing = c.conversationId ? conversations[c.conversationId] : undefined
       if (existing?.groupId === groupId) continue
       // Both people started a chat at once: the one the account sorting first started wins on
@@ -594,7 +655,8 @@ export const useE2eeStore = defineStore('e2ee', () => {
         if (!answer) continue
         chats[groupId] = joined = answer
       }
-      if (!joined.conversationId) continue
+      if (!joined.conversationId || !(await directWith(joined.conversationId, c.peer ?? '')))
+        continue
       const current = conversations[joined.conversationId]
       if (current?.groupId === groupId || !joinTurnsOn(current, groupId)) continue
       await saveConversation({
@@ -622,31 +684,48 @@ export const useE2eeStore = defineStore('e2ee', () => {
    */
   async function catchUpChat(groupId: string) {
     const serverId = groupIdToServer(groupId)
+    /** The epochs at which this device's own commit was merged in this run. */
+    const own = new Set<number>()
     for (let round = 0; round < 200; round++) {
       const epoch = await call<number>('epoch', groupId).catch(() => -1)
-      if (epoch < 0) return
+      if (epoch < 0) return own
       const page = await apiClient()
         .e2eeChatCommits(serverId, epoch)
         .catch(() => undefined)
-      const candidates = page?.items.filter((c) => c.epoch === epoch) ?? []
-      if (!candidates.length) return
+      if (!page) return own
+      const candidates = page.items.filter((c) => c.epoch === epoch)
+      // Commits only for later epochs: the log no longer reaches back to this device's epoch.
+      const later = page.items.some((c) => c.epoch > epoch)
+      if (!candidates.length) {
+        if (later) await fallOut(groupId)
+        return own
+      }
       const before = groups[groupId]
       const result = await call<Candidates>(
         'applyCandidates',
         groupId,
         candidates.map((c) => fromBase64(c.commit)),
       ).catch(() => undefined)
-      if (!result) return
+      if (!result) return own
       if (!result.accepted) {
-        await fallOut(groupId)
-        return
+        // None applies. With later epochs, the others moved on without this device; without,
+        // the candidates were bad and every honest device ignores them alike.
+        if (later) await fallOut(groupId)
+        return own
       }
+      if (fellOut[groupId]) delete fellOut[groupId]
       const at = Date.parse(candidates[result.accepted.index]?.position.at ?? '') || Date.now()
-      if (result.accepted.own) {
-        await refreshGroupView(groupId)
-        continue
-      }
-      const applied = result.accepted.applied
+      const applied: Pick<AppliedCommit, 'committer' | 'epoch' | 'removedSelf'> & {
+        identityChanges: AppliedCommit['identityChanges']
+      } = result.accepted.own
+        ? {
+            committer: { account: account.value, deviceId: info.value.deviceId! },
+            epoch,
+            removedSelf: false,
+            identityChanges: [],
+          }
+        : result.accepted.applied
+      if (result.accepted.own) own.add(epoch)
       for (const change of applied.identityChanges) await noteIdentityChange(change)
       if (!before) continue // A direct chat: nothing to show.
       const after = await refreshGroupView(groupId)
@@ -655,12 +734,13 @@ export const useE2eeStore = defineStore('e2ee', () => {
           commitEvents(before, before, { ...applied, removedSelf: true }, at, new Set()),
         )
         await removedFrom(groupId)
-        return
+        return own
       }
       await recordEvents(
         commitEvents(before, after, applied, at, new Set(leftGroup[groupId] ?? [])),
       )
     }
+    return own
   }
 
   /**
@@ -705,43 +785,43 @@ export const useE2eeStore = defineStore('e2ee', () => {
     meta: ChatChangeMeta = {},
   ) {
     const serverId = groupIdToServer(groupId)
+    if (fellOut[groupId]) throw new Error(t('encryption.group.fellOutComposer'))
     for (let attempt = 0; attempt < 3; attempt++) {
       await catchUpChat(groupId)
-      // A commit made but never sent, after a crash or a failed post, would block this one. A
-      // sent one is among the candidates by now, and the catch-up above settled it.
+      if (fellOut[groupId]) throw new Error(t('encryption.group.fellOutComposer'))
+      // A commit made but never sent would block this one. One that was sent is among the
+      // candidates by now (a post answers only after the server's echo), and the catch-up
+      // above settled it; a post that failed waits below until its commit settles.
       await call('discardCommit', groupId).catch(() => {})
-      const before = groups[groupId]
       const change = await make()
-      const result = await apiClient().e2eePostChatCommit(serverId, {
-        epoch: change.epoch,
-        commit: toBase64(change.commit),
-        ...(change.welcome && meta.added?.length && { welcome: toBase64(change.welcome) }),
-        ...(meta.added?.length && { added: meta.added }),
-        ...(meta.removed?.length && { removed: meta.removed }),
-        ...(meta.admins?.length && { admins: meta.admins }),
-        ...(meta.members?.length && { members: meta.members }),
-      })
+      let result: Awaited<ReturnType<ReturnType<typeof apiClient>['e2eePostChatCommit']>>
+      try {
+        result = await apiClient().e2eePostChatCommit(serverId, {
+          epoch: change.epoch,
+          commit: toBase64(change.commit),
+          ...(change.welcome && meta.added?.length && { welcome: toBase64(change.welcome) }),
+          ...(meta.added?.length && { added: meta.added }),
+          ...(meta.removed?.length && { removed: meta.removed }),
+          ...(meta.admins?.length && { admins: meta.admins }),
+          ...(meta.members?.length && { members: meta.members }),
+        })
+      } catch (error) {
+        // The lines may have gone out before the answer was lost: never discard a commit that
+        // others may have merged. Its candidates settle it once they are listed.
+        await new Promise((resolve) => setTimeout(resolve, 3000))
+        await catchUpChat(groupId)
+        throw error
+      }
       // The candidates of the epoch settle a sent commit, on every device alike: the core merges
       // this device's own when it came first, and drops it for the winner otherwise
-      // (wire.md 7.5). confirmCommit is for the phase 1 log only.
-      await catchUpChat(groupId)
-      if (!result.accepted) continue
+      // (wire.md 7.5). confirmCommit is for the phase 1 log only. The core decides, not the
+      // server's answer: both agree unless an earlier candidate was invalid.
+      const merged = (await catchUpChat(groupId)).has(change.epoch)
+      if (!merged) continue
       for (const warning of result.warnings) chat.notify(warning, { error: true })
-      const after = before && (await refreshGroupView(groupId))
-      if (before && after)
-        await recordEvents(
-          commitEvents(
-            before,
-            after,
-            {
-              committer: { account: account.value, deviceId: info.value.deviceId! },
-              epoch: change.epoch,
-              removedSelf: false,
-            },
-            Date.parse(result.position.at) || Date.now(),
-            new Set(leftGroup[groupId] ?? []),
-          ),
-        )
+      // The server sends the Welcome and changes channel rights only for a commit it saw win.
+      if (!result.accepted && meta.added?.length)
+        chat.notify(t('encryption.group.welcomeNotSent'), { error: true })
       client?.announce('groups')
       return true
     }
@@ -756,7 +836,8 @@ export const useE2eeStore = defineStore('e2ee', () => {
   async function tendGroups() {
     for (const [groupId, view] of Object.entries(groups)) {
       const c = chats[groupId]
-      if (!c || c.state !== 'joined') continue
+      // A device out of step changes nothing until it is back in.
+      if (!c || c.state !== 'joined' || fellOut[groupId]) continue
       const admin = isGroupAdmin(view, account.value)
       const rejoins = await apiClient()
         .e2eeRejoins(groupIdToServer(groupId))
@@ -826,14 +907,27 @@ export const useE2eeStore = defineStore('e2ee', () => {
       ).catch(() => undefined)
       if (!checked) continue
       for (const [groupId, view] of Object.entries(groups)) {
-        const stale = staleDevices(view, person, checked.devices)
-        if (stale.length && chats[groupId] && isGroupAdmin(view, account.value))
+        if (!chats[groupId] || fellOut[groupId] || !isGroupAdmin(view, account.value)) continue
+        // The person's own devices remove a signed-out device first. An admin steps in only
+        // when the list still leaves it out a while later, so a device approved just before its
+        // list was published is not removed.
+        const stale = staleDevices(view, person, checked.devices).filter((d) => {
+          const key = `${groupId}:${d.deviceId}`
+          const since = staleSince.get(key) ?? Date.now()
+          staleSince.set(key, since)
+          return Date.now() - since > STALE_GRACE
+        })
+        if (stale.length) {
+          listChecked.delete(key)
           await commitChat(groupId, () => call<Change>('removeDevices', groupId, stale)).catch(
             () => {},
           )
+        } else if (staleDevices(view, person, checked.devices).length) listChecked.delete(key)
       }
     }
   }
+  /** When an admin's device first saw another account's device left out of its list. */
+  const staleSince = new Map<string, number>()
 
   /** The server says an encrypted chat changed: sync now instead of at the next poll. */
   let changeTimer: ReturnType<typeof setTimeout> | undefined
@@ -850,12 +944,12 @@ export const useE2eeStore = defineStore('e2ee', () => {
     }
     clearTimeout(changeTimer)
     changeTimer = setTimeout(() => {
-      void sync().then(() => {
-        failures.clear()
-        retries.value++
-      })
+      retryAfterSync = true
+      void sync()
     }, 250)
   }
+  /** Messages this device could not read are tried again after the next complete sync. */
+  let retryAfterSync = false
 
   // A commit this device made and posted, until it knows whether the log took it. It is kept in
   // this browser's storage, so a tab that closes in between leaves the answer to the next one.
@@ -1104,7 +1198,13 @@ export const useE2eeStore = defineStore('e2ee', () => {
 
   // ---- Conversations ---------------------------------------------------------------------------
 
-  const isEncrypted = (conversationId: string) => !!conversations[conversationId]?.on
+  /**
+   * Whether a conversation never takes plaintext from this device: an encrypted chat, and any
+   * encrypted group's channel, also one this device cannot read.
+   */
+  const isEncrypted = (conversationId: string) =>
+    !!conversations[conversationId]?.on ||
+    (!!acrossServers.value && isGroupChannel(chat.conversationSettings(conversationId)))
   /** Each group's other person, as MLS (not the server) says. */
   const groupPeers = reactive<Record<string, string>>({})
   async function refreshGroups() {
@@ -1397,6 +1497,8 @@ export const useE2eeStore = defineStore('e2ee', () => {
   /** Why sending into an encrypted conversation is paused, if it is. */
   function sendPause(conversationId: string) {
     const record = conversations[conversationId]
+    // A group's channel this device has no record of: it cannot read or send there.
+    if (!record && isEncrypted(conversationId)) return t('encryption.group.notMember')
     if (!record?.on) return undefined
     if (!ready.value)
       return phase.value === 'needs-approval' || phase.value === 'reset-elsewhere'
@@ -1404,7 +1506,14 @@ export const useE2eeStore = defineStore('e2ee', () => {
         : t('encryption.composer.notReady')
     if (record.kind === 'group') {
       if (fellOut[record.groupId]) return t('encryption.group.fellOutComposer')
-      if (!groups[record.groupId]) return t('encryption.group.notMember')
+      const view = groups[record.groupId]
+      if (!view) return t('encryption.group.notMember')
+      // Someone you verified has new keys: you send again once you acknowledged the change.
+      const changed = notices.value.find(
+        (n) =>
+          pins[n.account]?.verified && view.members.some((m) => sameAccount(m.account, n.account)),
+      )
+      if (changed) return t('encryption.reset.acknowledgeFirst', { name: changed.account })
       return undefined
     }
     if (notices.value.some((n) => n.account === record.peer))
@@ -1909,19 +2018,9 @@ export const useE2eeStore = defineStore('e2ee', () => {
           subject: view?.title ?? title,
         },
       ])
-      if (answer.chat.conversationId)
-        await saveConversation({
-          conversationId: answer.chat.conversationId,
-          groupId: created.groupId,
-          peer: '',
-          on: true,
-          kind: 'group',
-          transport: 'irc',
-          title: view?.title ?? title,
-          by: account.value,
-          at: Date.now(),
-        })
-      return answer.chat.conversationId ?? ''
+      const id = answer.chat.conversationId ?? ''
+      if (id && !(await saveGroupRecord(id, created.groupId, account.value))) return ''
+      return id
     })
   }
 
@@ -1929,21 +2028,10 @@ export const useE2eeStore = defineStore('e2ee', () => {
   async function joinInvitation(groupId: string) {
     const answer = await apiClient().e2eeJoinChat(groupIdToServer(groupId))
     chats[groupId] = answer
-    const view = groups[groupId]
-    if (answer.conversationId && view)
-      await saveConversation({
-        conversationId: answer.conversationId,
-        groupId,
-        peer: '',
-        on: true,
-        kind: 'group',
-        transport: 'irc',
-        title: view.title,
-        by: answer.inviter,
-        at: Date.now(),
-      })
+    const id = answer.conversationId ?? ''
+    const saved = !!id && (await saveGroupRecord(id, groupId, answer.inviter))
     void sync()
-    return answer.conversationId ?? ''
+    return saved ? id : ''
   }
 
   /** Declines an invitation: the inviter's client removes this account from the group. */
@@ -2247,15 +2335,22 @@ export const useE2eeStore = defineStore('e2ee', () => {
       if (own.devices.some((d) => d.deviceId === request.deviceId && d.keyPackages > 0)) break
       await new Promise((resolve) => setTimeout(resolve, 2000))
     }
-    await addOwnDevice(request.deviceId)
+    // The signed list names the new device before any group adds it, so no admin elsewhere
+    // takes it for a signed-out one.
     await publishDeviceList().catch(() => {})
+    await addOwnDevice(request.deviceId)
   }
 
-  /** Adds one of this account's devices to every group this device is in. */
+  /**
+   * Adds one of this account's devices to every group this device is in. Chats carried over IRC
+   * are left out: their Welcomes reach other accounts' servers only, so the device could not
+   * join them.
+   */
   async function addOwnDevice(deviceId: string) {
     await flow(async () => {
       const list = await call<{ groupId: string }[]>('coreConversations')
       for (const group of list) {
+        if (chats[group.groupId]) continue
         const members = await call<{ account: string; deviceId: string }[]>(
           'members',
           group.groupId,

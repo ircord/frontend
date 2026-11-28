@@ -37,6 +37,9 @@ const text = computed(() => {
     }
     if (e.kind === 'added' && sameAccount(e.subject, e2ee.account))
       return t('encryption.group.event.addedYou', values)
+    // Someone else's devices: an admin let them back in or removed a signed-out device.
+    if ((e.kind === 'device-added' || e.kind === 'device-removed') && !sameAccount(e.by, e.subject))
+      return t(`encryption.group.event.${e.kind}-for`, values)
     return t(`encryption.group.event.${e.kind}`, values)
   }
   const control = props.message.e2ee?.control

@@ -69,10 +69,10 @@ test("a member's new or signed-out device is that member's line", () => {
   const after = groupView(id, settings(), [...devices('peter', 'p1'), ...devices('alex', 'a2')])
   const lines = commitEvents(before, after, { committer, epoch: 5, removedSelf: false }, 10)
   assert.deepEqual(
-    lines.map((l) => [l.kind, l.by]),
+    lines.map((l) => [l.kind, l.by, l.subject]),
     [
-      ['device-added', 'alex'],
-      ['device-removed', 'alex'],
+      ['device-added', 'peter', 'alex'],
+      ['device-removed', 'peter', 'alex'],
     ],
   )
 })
