@@ -1,6 +1,7 @@
 import { acceptHMRUpdate, defineStore } from 'pinia'
 import type { Conversation, Member, Message } from '../../shared/types/chat'
 import { startBlockerFor, type StartBlocker } from '../../shared/e2ee/start'
+import { eventChange, joinTurnsOn } from '../../shared/e2ee/state'
 import type {
   Attachment,
   ConversationRecord,
@@ -134,6 +135,10 @@ export const useE2eeStore = defineStore('e2ee', () => {
   let client: E2eeClient | undefined
   let syncTimer: ReturnType<typeof setInterval> | undefined
   let booted = false
+  // Settles once boot has read this device's conversation records. History that is decrypted or
+  // replayed before then would be judged against no record and could overwrite the stored one.
+  let markLoaded = () => {}
+  const loaded = new Promise<void>((resolve) => (markLoaded = resolve))
 
   const capability = computed(() => chat.data?.capabilities.encryption)
   const enabled = computed(() => !!capability.value)
@@ -172,6 +177,7 @@ export const useE2eeStore = defineStore('e2ee', () => {
         .configure('setTagBudget', Math.min(3840, (capability.value?.maxPayload ?? 3800) + 4))
         .catch(() => {})
       await reload('all')
+      markLoaded()
       // Ask the browser not to clear this site's storage under pressure: it holds the keys.
       void navigator.storage?.persist?.().catch(() => false)
       await settle()
@@ -181,6 +187,8 @@ export const useE2eeStore = defineStore('e2ee', () => {
     } catch (error) {
       phase.value = 'failed'
       failure.value = error instanceof Error ? error.message : String(error)
+    } finally {
+      markLoaded()
     }
   }
 
@@ -481,6 +489,32 @@ export const useE2eeStore = defineStore('e2ee', () => {
     client?.announce('conversations')
   }
 
+  /**
+   * Binds this account's side of a conversation to a group on the server, only if the server
+   * already names that group as the conversation's current one. A device that joined or read a
+   * group never changes which group is current: a Welcome or a message read late would otherwise
+   * bring back a group that was turned off since. Starting encryption replaces groups; this never.
+   * A Welcome can arrive just before its starter binds the group, so the group's "turned on"
+   * event tries again; once bound, a group is not asked for again in this session.
+   */
+  const boundGroups = new Set<string>()
+  async function bindExisting(conversationId: string, groupId: string, peer: string) {
+    if (boundGroups.has(`${conversationId}:${groupId}`)) return
+    await apiClient()
+      .e2eeBindConversation(conversationId, { groupId, peer, replaces: groupId })
+      .then(() => boundGroups.add(`${conversationId}:${groupId}`))
+      .catch(() => {})
+  }
+
+  /**
+   * Ends the server's binding of a conversation to a group, if that group is still current. The
+   * call changes nothing when the group was turned off or replaced already.
+   */
+  async function unbind(conversationId: string, groupId: string) {
+    boundGroups.delete(`${conversationId}:${groupId}`)
+    await apiClient().e2eeTurnOff(conversationId, groupId)
+  }
+
   /** A group this device joined: the conversation with that person is encrypted from now on. */
   async function bindJoined(groupId: string, peer: string, conversationId?: string) {
     const c = conversationId
@@ -488,7 +522,7 @@ export const useE2eeStore = defineStore('e2ee', () => {
       : conversationWith(peer)
     if (!c) return
     const current = conversations[c.id]
-    if (current?.groupId === groupId && current.on) return
+    if (!joinTurnsOn(current, groupId)) return
     await saveConversation({
       conversationId: c.id,
       groupId,
@@ -500,13 +534,7 @@ export const useE2eeStore = defineStore('e2ee', () => {
     pins[peer] = {
       verified: (await call<{ verified: boolean } | undefined>('pin', peer))?.verified ?? false,
     }
-    await apiClient()
-      .e2eeBindConversation(c.id, {
-        groupId,
-        peer,
-        ...(current && current.groupId !== groupId && { replaces: current.groupId }),
-      })
-      .catch(() => {})
+    await bindExisting(c.id, groupId, peer)
   }
 
   async function noteIdentityChange(error: E2eeError) {
@@ -622,6 +650,40 @@ export const useE2eeStore = defineStore('e2ee', () => {
     return peerKeys[peer.toLowerCase()]
   }
 
+  /**
+   * Makes a group this device just started the conversation's current group, replacing `current`
+   * when the server named one. After encryption was turned off the server names none to this
+   * side, yet an older client that missed the "off" may have made an old group current again, and
+   * the server then refuses with 409. That group is one this device shares with the person, so
+   * each of those is tried as the one to replace.
+   */
+  async function bindStarted(conversationId: string, groupId: string, peer: string, current = '') {
+    const bind = (replaces: string) =>
+      apiClient().e2eeBindConversation(conversationId, {
+        groupId,
+        peer,
+        ...(replaces && replaces !== groupId && { replaces }),
+      })
+    try {
+      await bind(current)
+    } catch (error) {
+      if (!status409(error)) throw error
+      await refreshGroups()
+      const older = Object.keys(groupPeers).filter(
+        (id) => id !== groupId && id !== current && samePeer(groupPeers[id], peer),
+      )
+      for (const old of older) {
+        try {
+          await bind(old)
+          return
+        } catch (retry) {
+          if (!status409(retry)) throw retry
+        }
+      }
+      throw error
+    }
+  }
+
   /** Turns on encryption in a direct conversation. Throws an Error with a readable message. */
   async function start(c: Conversation) {
     await resolvePeer(c)
@@ -676,11 +738,7 @@ export const useE2eeStore = defineStore('e2ee', () => {
       const server = await apiClient()
         .e2eeConversation(c.id)
         .catch(() => undefined)
-      await apiClient().e2eeBindConversation(c.id, {
-        groupId: started.groupId,
-        peer,
-        ...(server?.groupId && server.groupId !== started.groupId && { replaces: server.groupId }),
-      })
+      await bindStarted(c.id, started.groupId, peer, server?.groupId)
       await saveConversation({
         conversationId: c.id,
         groupId: started.groupId,
@@ -701,7 +759,24 @@ export const useE2eeStore = defineStore('e2ee', () => {
     const record = conversations[c.id]
     if (!record?.on) return
     await sendPayload(c.id, { v: 1, id: newPayloadId(), t: 'control', op: 'encryption-off' })
-    await apiClient().e2eeTurnOff(c.id, record.groupId)
+    try {
+      await unbind(c.id, record.groupId)
+    } catch (error) {
+      // 404: this account has no binding left, because the other person's client already ended
+      // it on reading the notice. Nothing is left to undo.
+      if (!status404(error)) {
+        if (!status409(error)) throw error
+        // 409: the server still names another group, bound again by a client that missed an
+        // earlier "off". When it is one of this person's groups, it ends too; otherwise the
+        // server would keep refusing plaintext while this side shows encryption as off.
+        const server = await apiClient()
+          .e2eeConversation(c.id)
+          .catch(() => undefined)
+        await refreshGroups()
+        if (!server?.groupId || !samePeer(groupPeers[server.groupId], record.peer)) throw error
+        await unbind(c.id, server.groupId)
+      }
+    }
     await saveConversation({ ...toRaw(record), on: false, by: account.value, at: Date.now() })
   }
 
@@ -835,6 +910,7 @@ export const useE2eeStore = defineStore('e2ee', () => {
   }
 
   async function receiveAll(messages: Message[]) {
+    await loaded
     let synced = false
     for (const message of messages) {
       const payload = message.encrypted!.payload
@@ -920,24 +996,23 @@ export const useE2eeStore = defineStore('e2ee', () => {
     const payload = record.payload
     if (!payload || record.own) return
     const current = conversations[message.conversationId]
-    // A message from a group this device is in, in a conversation it has no record of yet: the
-    // group came with a Welcome, so the conversation is encrypted (control events decide below).
-    if (payload.t !== 'control') {
-      if (!current) await turnedOn(message.conversationId, record)
-      return
-    }
-    // Only a newer event changes the state, so replaying history cannot undo a later choice.
-    if (current?.at && current.at > record.at) return
-    if (payload.op === 'encryption-on') await turnedOn(message.conversationId, record)
-    // Only the conversation's own current group can turn it off: a server cannot replay a
-    // genuine "off" from another chat here.
-    else if (current?.on && record.groupId === current.groupId)
-      await saveConversation({ ...toRaw(current), on: false, by: record.account, at: record.at })
+    // History is read again on every load and late on a device that was offline: the rules are
+    // in shared/e2ee/state.ts. Only the conversation's own current group can turn it off, so a
+    // server cannot replay a genuine "off" from another chat here.
+    const op = payload.t === 'control' ? payload.op : undefined
+    const change = eventChange(current, { groupId: record.groupId, op, at: record.at })
+    if (change === 'on') await turnedOn(message.conversationId, record)
+    else if (change === 'off') {
+      await saveConversation({ ...toRaw(current!), on: false, by: record.account, at: record.at })
+      // A device of this account may have bound the group after the other person turned it off.
+      await unbind(message.conversationId, record.groupId).catch(() => {})
+    } else if (op === 'encryption-on' && current?.on && current.groupId === record.groupId)
+      await bindExisting(message.conversationId, record.groupId, current.peer)
   }
 
   /**
-   * Records a conversation as encrypted in the record's group, here and on the server: only when
-   * MLS says that group is a DM with this conversation's person.
+   * Records a conversation as encrypted in the record's group: only when MLS says that group is a
+   * DM with this conversation's person. The server binding follows when that group is current.
    */
   async function turnedOn(conversationId: string, record: PlainRecord) {
     const c = chat.conversationSettings(conversationId)
@@ -946,7 +1021,6 @@ export const useE2eeStore = defineStore('e2ee', () => {
     const peer = groupPeers[record.groupId]
     const expected = conversations[conversationId]?.peer || (await resolvePeer(c))
     if (!samePeer(peer, expected) || !peer) return
-    const current = conversations[conversationId]
     await saveConversation({
       conversationId,
       groupId: record.groupId,
@@ -958,20 +1032,14 @@ export const useE2eeStore = defineStore('e2ee', () => {
     pins[peer] = {
       verified: (await call<{ verified: boolean } | undefined>('pin', peer))?.verified ?? false,
     }
-    await apiClient()
-      .e2eeBindConversation(conversationId, {
-        groupId: record.groupId,
-        peer,
-        ...(current?.groupId &&
-          current.groupId !== record.groupId && { replaces: current.groupId }),
-      })
-      .catch(() => {})
+    await bindExisting(conversationId, record.groupId, peer)
   }
 
   /** Loads what this device stored for a conversation: edits and reactions apply to older messages. */
   const serverChecked = new Set<string>()
   async function open(conversationId: string) {
     if (!client) return
+    await loaded
     if (!stored.has(conversationId)) {
       const records = await call<PlainRecord[]>('conversationPlain', conversationId).catch(() => [])
       stored.set(conversationId, records)
