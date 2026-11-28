@@ -5,6 +5,8 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+## v0.12.0 — 2026-11-28
+
 ### New
 
 - Experimental: create encrypted groups with a title and the people you choose, from the lock next to Direct messages. People can be on any IRCord server of the same network, and each gets an invitation to join or decline. The creator and the admins they appoint add and remove people, everyone can leave, and the group’s details show each person’s devices and how many of them you verified. Every message in an encrypted group notifies you, unless you mute the group.
