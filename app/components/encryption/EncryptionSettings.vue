@@ -22,6 +22,8 @@ const stateText = computed(() => {
       return t('encryption.settings.state.needsApproval')
     case 'reset-elsewhere':
       return t('encryption.settings.state.resetElsewhere')
+    case 'elsewhere':
+      return t('encryption.settings.state.elsewhere')
     case 'failed':
       return t('encryption.settings.state.failed', { reason: e2ee.failure })
     default:

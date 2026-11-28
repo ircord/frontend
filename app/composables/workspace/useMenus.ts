@@ -1,6 +1,6 @@
 import type { Conversation, Member, Message, Network } from '../../../shared/types/chat'
 import { emojiText } from '../../../shared/utils/media'
-import type { NotifyLevel } from '../../../shared/notifications'
+import { notifiesLikeDirect, type NotifyLevel } from '../../../shared/notifications'
 import { channelRights, channelTarget, topPrefix, stripFormatting } from '../../../shared/utils/irc'
 import { serverViewId } from '../../stores/chat'
 import { savable } from '../../stores/saved'
@@ -94,7 +94,8 @@ export function useMenus(messageActions = useMessageActions()) {
     ]
   }
   function notificationItems(c: Conversation): MenuEntry[] {
-    if (c.kind === 'channel' && !c.party) return channelNotificationItems(c)
+    if (c.kind === 'channel' && !c.party && !notifiesLikeDirect(c))
+      return channelNotificationItems(c)
     const current = notifications.settings.levels[c.id]
     const choice = (value: NotifyLevel | null, label: string) => ({
       label,

@@ -1,5 +1,6 @@
 import { alertText, type NotificationAlert } from '../../../shared/utils/activity'
 import { claimNotification } from '../../utils/notification-ledger'
+import { notifiesLikeDirect } from '../../../shared/notifications'
 
 /**
  * Alerts for the open app: in-page notifications when this device is set to “while open”
@@ -24,7 +25,7 @@ export function useNotifications(viewedConversation: () => string | undefined) {
     () =>
       chat.data?.conversations.reduce((sum, c) => {
         if (notifications.level(c) === 'none') return sum
-        return sum + (c.kind === 'direct' || c.party ? c.unreadCount : c.mentionCount)
+        return sum + (notifiesLikeDirect(c) ? c.unreadCount : c.mentionCount)
       }, 0) ?? 0,
   )
   watch(
@@ -71,14 +72,16 @@ export function useNotifications(viewedConversation: () => string | undefined) {
     })
     // A direct conversation from the server lists only you; directPartner matches them by nick.
     const sender = c?.kind === 'direct' ? chat.directPartner(c) : undefined
-    await platform.notifications.show({
-      title: alert.preview ? title : 'IRCord',
-      body: alert.preview ? body.slice(0, 200) : '',
-      // The browser fetches the icon, so a picture on another host would reveal you (#278).
-      icon: instanceImage(sender?.avatarSrc, sender?.avatarUrl) ?? '/icons/icon-192.png',
-      silent: !alert.sound,
-      target: { conversationId: alert.conversationId, accountId: auth.account?.id },
-    }).catch(() => {})
+    await platform.notifications
+      .show({
+        title: alert.preview ? title : 'IRCord',
+        body: alert.preview ? body.slice(0, 200) : '',
+        // The browser fetches the icon, so a picture on another host would reveal you (#278).
+        icon: instanceImage(sender?.avatarSrc, sender?.avatarUrl) ?? '/icons/icon-192.png',
+        silent: !alert.sound,
+        target: { conversationId: alert.conversationId, accountId: auth.account?.id },
+      })
+      .catch(() => {})
   }
   const stopAlerts = chat.onAlert(alerted)
 

@@ -148,9 +148,11 @@ const target = computed(() =>
     ? (chat.network?.name ?? t('workspaceUi.composer.server'))
     : chat.active?.party
       ? partyName(chat.active.party, auth.account?.id, t('workspaceUi.party.unnamed'))
-      : chat.active?.kind === 'channel'
-        ? `#${chat.active.name}`
-        : `@${chat.active ? (chat.directPartner(chat.active)?.nick ?? chat.active.name) : ''}`,
+      : e2ee.isGroupChannel(chat.active)
+        ? (e2ee.groupOf(chat.active!.id)?.title ?? `#${chat.active!.name}`)
+        : chat.active?.kind === 'channel'
+          ? `#${chat.active.name}`
+          : `@${chat.active ? (chat.directPartner(chat.active)?.nick ?? chat.active.name) : ''}`,
 )
 const placeholder = computed(() =>
   !enabled.value

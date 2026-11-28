@@ -2,21 +2,26 @@
 /**
  * The conversation header's lock: open when the chat is not encrypted, closed when it is, with a
  * check once you verified the person, and a warning when something needs your attention. It opens
- * the encryption panel, where encryption starts, is verified and turned off.
+ * the encryption panel, where encryption starts, is verified and turned off. In an encrypted
+ * group it counts the people you verified and opens the group's details.
  */
 const { t } = useI18n()
 const chat = useChatStore()
 const e2ee = useE2eeStore()
 const conversation = computed(() =>
-  !chat.serverView && chat.active?.kind === 'direct' && !chat.active.party
+  !chat.serverView &&
+  !chat.active?.party &&
+  (chat.active?.kind === 'direct' || e2ee.isGroupChannel(chat.active))
     ? chat.active
     : undefined,
 )
+const group = computed(() => e2ee.isGroupChannel(conversation.value))
 const shown = computed(
   () =>
     e2ee.enabled &&
     !!conversation.value &&
-    (e2ee.isEncrypted(conversation.value.id) ||
+    (group.value ||
+      e2ee.isEncrypted(conversation.value.id) ||
       conversation.value.networkId === e2ee.homeNetwork?.id),
 )
 const record = computed(() =>
@@ -27,13 +32,26 @@ const name = computed(() =>
     ? (chat.directPartner(conversation.value)?.nick ?? conversation.value.name)
     : '',
 )
+const groupLock = computed(() =>
+  conversation.value && group.value ? e2ee.groupLockFor(conversation.value.id) : undefined,
+)
 const state = computed(() => {
+  if (groupLock.value) return record.value?.on ? groupLock.value.state : 'attention'
   const r = record.value
   if (!r?.on) return 'off'
   if (e2ee.notices.some((n) => n.account === r.peer) || !e2ee.ready) return 'attention'
   return e2ee.pins[r.peer]?.verified ? 'verified' : 'on'
 })
-const label = computed(() => t(`encryption.lock.${state.value}`, { name: name.value }))
+const label = computed(() => {
+  const lock = groupLock.value
+  if (lock)
+    return state.value === 'verified'
+      ? t('encryption.group.lockVerified')
+      : state.value === 'attention'
+        ? t('encryption.group.lockAttention')
+        : t('encryption.group.lockOn', { verified: lock.verified, total: lock.total })
+  return t(`encryption.lock.${state.value}`, { name: name.value })
+})
 </script>
 <template>
   <AppTooltip

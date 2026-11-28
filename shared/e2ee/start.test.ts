@@ -30,6 +30,18 @@ test('each missing condition gives its own reason, in order', () => {
   assert.equal(startBlockerFor({ ...ok, selfAccount: '', bot: true, ready: false }), 'selfAccount')
 })
 
+test('across servers, missing keys and a silent server have their own reasons', () => {
+  assert.equal(
+    startBlockerFor({ ...ok, peerHasKeys: false, acrossServers: true }),
+    'peerNoKeysAcross',
+  )
+  assert.equal(
+    startBlockerFor({ ...ok, peerUnreachable: true, acrossServers: true }),
+    'peerNoAnswer',
+  )
+  assert.equal(startBlockerFor({ ...ok, ready: false, peerUnreachable: true }), 'deviceNotReady')
+})
+
 test('facts the client has not checked yet do not block', () => {
   assert.equal(startBlockerFor({ ...ok, peer: undefined, peerHasKeys: undefined }), undefined)
 })

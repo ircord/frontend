@@ -75,8 +75,12 @@ const favorites = computed(() =>
 const channels = computed(() =>
   order.items(chat.networkId, 'channels').filter((c) => shown.value.has(c.id)),
 )
+const e2ee = useE2eeStore()
+/** Direct messages, parties and encrypted groups, which are listed by their title. */
 const directs = computed(() =>
-  inNetwork.value.filter((c) => (c.kind === 'direct' || c.party) && !c.favorite),
+  inNetwork.value.filter(
+    (c) => (c.kind === 'direct' || c.party || e2ee.isGroupChannel(c)) && !c.favorite,
+  ),
 )
 /** The jump key (Ctrl or ⌘ with 1 to 9) of each of the first nine channels, while it is free. */
 const channelNavigation = useChannelNavigation()
@@ -365,6 +369,21 @@ const drafts = computed(() => draftCount(chat.drafts))
                   name="plus"
                   :size="14" /></UiButton
             ></AppTooltip>
+            <AppTooltip
+              v-if="section.action === 'search' && e2ee.groupsAvailable && e2ee.ready"
+              :text="$t('encryption.group.newGroup')"
+              side="top"
+              ><UiButton
+                variant="ghost"
+                size="icon-sm"
+                class="size-[22px] rounded-full"
+                :aria-label="$t('encryption.group.newGroup')"
+                data-new-encrypted-group
+                @click="e2ee.groupDialog = true"
+                ><AppIcon
+                  name="lock"
+                  :size="13" /></UiButton
+            ></AppTooltip>
           </div>
           <div :id="`sidebar-section-${section.id}`">
             <ConversationLink
@@ -401,6 +420,12 @@ const drafts = computed(() => draftCount(chat.drafts))
                 v-if="c.party"
                 name="users"
                 :size="15"
+              />
+              <AppIcon
+                v-else-if="e2ee.isGroupChannel(c)"
+                name="lock"
+                :size="15"
+                class="text-success"
               />
               <UserAvatar
                 v-else-if="c.kind === 'direct'"

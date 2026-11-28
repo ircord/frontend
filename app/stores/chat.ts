@@ -25,6 +25,7 @@ import type {
 } from '../../shared/types/chat'
 import type { GifItem } from '../../shared/types/media'
 import type { EncryptedUpload } from '../../shared/e2ee/types'
+import { notifiesLikeDirect } from '../../shared/notifications'
 import type { components } from '../../shared/generated/api'
 import { ApiError, MESSAGE_UPLOAD, type Body } from '../../shared/api/client'
 import { sendCopies, type SendCopy } from '../utils/send-copies'
@@ -1014,6 +1015,11 @@ export const useChatStore = defineStore('chat', () => {
       case 'invitation.received':
         patchBootstrap((b) => ({ ...b, invitations: upsert(b.invitations ?? [], event.data) }))
         break
+      // Encrypted chats carried over IRC: a commit settled, a Welcome or rejoin request arrived,
+      // or someone's devices changed. The encryption store syncs now instead of at its next poll.
+      case 'e2ee.changed':
+        useE2eeStore().changed(event.data)
+        break
       case 'invitation.removed':
         patchBootstrap((b) => ({
           ...b,
@@ -1125,11 +1131,10 @@ export const useChatStore = defineStore('chat', () => {
     const notifications = useNotificationStore()
     if (notifications.ignored(member(message.senderId)?.nick)) return
     // IRC servers don't count mentions; the client does: an @mention of your nick on that
-    // network, a highlight word or a group mention that includes you.
+    // network, a highlight word or a group mention that includes you. In an encrypted group the
+    // text is ciphertext, so every message counts, as in a direct conversation.
     const mention =
-      c.kind === 'direct' ||
-      !!c.party ||
-      notifications.highlights(message.text, recipientFor(c, message))
+      notifiesLikeDirect(c) || notifications.highlights(message.text, recipientFor(c, message))
     if (data.value?.demo)
       putConversation({
         ...c,

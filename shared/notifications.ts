@@ -164,15 +164,26 @@ export function isQuiet(settings: NotificationSettings, now = new Date()) {
 
 /** A conversation as far as notification levels need it. */
 export type LevelTarget = Pick<Conversation, 'id' | 'kind'> &
-  Partial<Pick<Conversation, 'channelSettings' | 'party'>>
+  Partial<Pick<Conversation, 'channelSettings' | 'party' | 'name'>>
+
+/**
+ * Conversations whose every message notifies, as a direct message does: direct messages, parties,
+ * and encrypted groups, whose server cannot see mentions (their channel is `#e2ee-` and the
+ * group's ID in hex). The backend follows the same rule for push.
+ */
+export const notifiesLikeDirect = (c: LevelTarget) =>
+  c.kind === 'direct' ||
+  !!c.party ||
+  (c.kind === 'channel' && /^#?e2ee-[0-9a-f]{32}$/i.test(c.name ?? ''))
 
 /**
  * The effective level. A channel's level is channel-wide (set by its operators); its Default
  * uses your own channel default. Per-conversation levels you save apply to direct messages
- * only, so an old personal value for a channel never overrides the channel's setting.
+ * and encrypted groups only, so an old personal value for a channel never overrides the
+ * channel's setting.
  */
 export function levelFor(settings: NotificationSettings, c: LevelTarget): NotifyLevel {
-  if (c.kind === 'direct' || c.party) return settings.levels[c.id] ?? settings.directDefault
+  if (notifiesLikeDirect(c)) return settings.levels[c.id] ?? settings.directDefault
   const shared = c.channelSettings?.notifications
   return shared && shared !== 'default' ? shared : settings.channelDefault
 }
@@ -232,7 +243,7 @@ export function notificationFor(
   if (isIgnored(settings, senderNick, sender?.username, sender?.host)) return null
   const level = levelFor(settings, c)
   if (level === 'none') return null
-  const mention = c.kind === 'direct' || !!c.party || isHighlight(settings, message.text, ownNick)
+  const mention = notifiesLikeDirect(c) || isHighlight(settings, message.text, ownNick)
   if (mention) return 'mention'
   return level === 'all' ? 'message' : null
 }

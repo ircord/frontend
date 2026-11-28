@@ -20,18 +20,26 @@ export function useSidebarOrder() {
   const preferences = usePreferencesStore()
   const auth = useAuthStore()
   const { t } = useI18n()
+  const e2ee = useE2eeStore()
+  /** An encrypted group is listed by its title, which only its members can read. */
+  const groupTitle = (c: Conversation) =>
+    e2ee.isGroupChannel(c) ? e2ee.groupOf(c.id)?.title || t('encryption.group.untitled') : undefined
   const name = (c: Conversation) =>
     c.party
       ? partyName(c.party, auth.account?.id, t('workspaceUi.party.unnamed'))
       : c.kind === 'direct'
         ? (chat.directPartner(c)?.displayName ?? c.name)
-        : c.name
+        : (groupTitle(c) ?? c.name)
   const collator = sharedCollator(undefined, { numeric: true, sensitivity: 'base' })
   const byName = (a: Conversation, b: Conversation) => collator.compare(name(a), name(b))
 
-  /** Which section lists a conversation in the sidebar. */
+  /** Which section lists a conversation in the sidebar. Encrypted groups go with direct messages. */
   const sectionOf = (c: Conversation) =>
-    c.favorite ? 'favorites' : c.kind === 'channel' && !c.party ? 'channels' : 'directs'
+    c.favorite
+      ? 'favorites'
+      : c.kind === 'channel' && !c.party && !e2ee.isGroupChannel(c)
+        ? 'channels'
+        : 'directs'
   const stored = (networkId: string, section: SortableSection) =>
     preferences.preferences.sidebarOrder[sectionKey(networkId, section)]
   const custom = (networkId: string, section: string) =>

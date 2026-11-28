@@ -5,7 +5,7 @@
  * encrypted events and are applied here to the message they name.
  */
 import type { Message } from '../types/chat'
-import type { Attachment, ConversationRecord, PlainRecord } from './types'
+import type { Attachment, ConversationRecord, GroupEventRecord, PlainRecord } from './types'
 
 /** What a presented message carries about its encryption. */
 export interface E2eePresentation {
@@ -17,9 +17,13 @@ export interface E2eePresentation {
   reason?: string
   /** The payload ID, which replies, edits and reactions refer to. */
   innerId?: string
-  /** A control event: encryption was turned on or off, by you or the other person. */
-  control?: 'encryption-on' | 'encryption-off'
+  /** A control event: encryption was turned on or off, or someone left a group. */
+  control?: 'encryption-on' | 'encryption-off' | 'left'
   controlBy?: 'you' | 'peer'
+  /** The account that sent the control event, as MLS verified it. */
+  controlAccount?: string
+  /** A line of an encrypted group's timeline from a commit, such as "Peter added Alex". */
+  groupEvent?: GroupEventRecord
   /** Files to fetch and decrypt; the server never sees their names or keys. */
   attachments?: Attachment[]
 }
@@ -72,6 +76,8 @@ export interface PresentContext {
   selfAccount: string
   /** The other person's member ID, for reactions and reply quotes. */
   partnerId?: string
+  /** In a group: the member ID of an account, for reactions and reply quotes. */
+  memberIdOf?: (account: string) => string
   nickOf: (memberId: string) => string
 }
 
@@ -105,7 +111,7 @@ export function presentMessage(message: Message, ctx: PresentContext): Message |
   const memberOf = (account: string) =>
     fold(account) === fold(ctx.selfAccount) || (record.own && account === record.account)
       ? 'you'
-      : (ctx.partnerId ?? '')
+      : (ctx.memberIdOf?.(account) ?? ctx.partnerId ?? '')
   if (p.t === 'control')
     return {
       ...message,
@@ -117,6 +123,7 @@ export function presentMessage(message: Message, ctx: PresentContext): Message |
         innerId: p.id,
         control: p.op,
         controlBy: record.own || fold(record.account) === fold(ctx.selfAccount) ? 'you' : 'peer',
+        controlAccount: record.account,
       },
     }
   if (p.t !== 'msg') return null

@@ -7,6 +7,7 @@ import {
   isHighlight,
   isIgnored,
   levelFor,
+  notifiesLikeDirect,
   sanitizeNotificationSettings,
   type LevelTarget,
   type NotificationSettings,
@@ -91,9 +92,12 @@ export const useNotificationStore = defineStore('notifications', () => {
     return true
   }
   const level = (c: LevelTarget) => levelFor(settings.value, c)
-  /** Your own level for a direct message. Channel levels are channel settings. */
-  function setLevel(c: Pick<Conversation, 'id' | 'kind' | 'party'>, value: NotifyLevel | null) {
-    if (c.kind !== 'direct' && !c.party) return
+  /** Your own level for a direct message or encrypted group. Channel levels are channel settings. */
+  function setLevel(
+    c: Pick<Conversation, 'id' | 'kind' | 'party'> & Partial<Pick<Conversation, 'name'>>,
+    value: NotifyLevel | null,
+  ) {
+    if (!notifiesLikeDirect(c)) return
     const levels = { ...settings.value.levels }
     if (value === null) delete levels[c.id]
     else levels[c.id] = value
@@ -443,10 +447,12 @@ export const useNotificationStore = defineStore('notifications', () => {
   onScopeDispose(platformNotifications.onPermissionChange(relaunched))
 
   // Push subscriptions can be renewed or revoked by the browser; keep the server in step.
-  void readPermission().then(dropIfRevoked).then(() => {
-    if (supported.push) void checkSubscription()
-    void refreshDevices()
-  })
+  void readPermission()
+    .then(dropIfRevoked)
+    .then(() => {
+      if (supported.push) void checkSubscription()
+      void refreshDevices()
+    })
 
   /**
    * The service worker reports a renewed subscription. Re-register without asking: only a
