@@ -42,6 +42,7 @@ test('catalog covers every existing command and its guided fields', () => {
     unignore: ['mask'],
     list: ['filter'],
     server: [],
+    encrypt: [],
     settings: [],
     banlist: [],
     gif: ['query'],

@@ -425,6 +425,7 @@
         "unignore": "Stop ignoring someone",
         "list": "Browse channels on this network",
         "server": "Open this network’s server window",
+        "encrypt": "Start or manage end-to-end encryption in this direct message",
         "settings": "Channel settings: topic, modes and bans",
         "banlist": "Show this channel’s bans",
         "gif": "Send a random matching GIF",

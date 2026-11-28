@@ -90,8 +90,9 @@ onBeforeUnmount(() => clearTimeout(sparkTimer))
 const irc = computed(() => appearance.settings.messageLayout === 'irc')
 const action = computed(() => props.message.kind === 'action')
 /** URL presentation is known before paint; stored text still drives copy, export and editing. */
+// Encrypted chats show links as plain links: a preview would hand the URL to the server.
 const mediaLinks = computed(() =>
-  props.message.deleted ? [] : messageMediaLinks(props.message.text),
+  props.message.deleted || props.message.e2ee ? [] : messageMediaLinks(props.message.text),
 )
 const { serverOrigin } = usePlatform()
 const presentedText = computed(() => {
@@ -447,6 +448,10 @@ function react(item: EmojiItem) {
             :message="message"
           />
         </div>
+        <MessageEncryption
+          v-if="message.e2ee && !message.deleted"
+          :message="message"
+        />
       </div>
     </div>
 
@@ -539,6 +544,10 @@ function react(item: EmojiItem) {
             :message="message"
           />
         </div>
+        <MessageEncryption
+          v-if="message.e2ee && !message.deleted"
+          :message="message"
+        />
         <MessageExtras
           v-if="hasExtras"
           :message="message"

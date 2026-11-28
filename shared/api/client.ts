@@ -578,6 +578,78 @@ export function createIRCordClient(apiBase: string, options: ClientOptions = {})
         }),
       )
     },
+    // End-to-end encryption (experimental, ircord/issues#19). Byte fields are base64 strings.
+    e2eeOwnDirectory: (signal?: AbortSignal) =>
+      read(client.GET('/api/v1/e2ee/identity', { signal })),
+    e2eePublishIdentity: (identityKey: string, reset = false) =>
+      read(client.PUT('/api/v1/e2ee/identity', { body: { identityKey, ...(reset && { reset }) } })),
+    e2eePutDevice: (deviceId: string, body: Body<'/api/v1/e2ee/devices/{deviceId}', 'put'>) =>
+      empty(
+        client.PUT('/api/v1/e2ee/devices/{deviceId}', { params: { path: { deviceId } }, body }),
+      ),
+    e2eeDeleteDevice: (deviceId: string) =>
+      empty(client.DELETE('/api/v1/e2ee/devices/{deviceId}', { params: { path: { deviceId } } })),
+    e2eeAddKeyPackages: (deviceId: string, keyPackages: string[]) =>
+      read(
+        client.POST('/api/v1/e2ee/devices/{deviceId}/key-packages', {
+          params: { path: { deviceId } },
+          body: { keyPackages },
+        }),
+      ),
+    e2eeAccount: (account: string, signal?: AbortSignal) =>
+      read(
+        client.GET('/api/v1/e2ee/accounts/{account}', { params: { path: { account } }, signal }),
+      ),
+    e2eeClaim: (account: string) =>
+      read(
+        client.POST('/api/v1/e2ee/accounts/{account}/key-packages/claim', {
+          params: { path: { account } },
+        }),
+      ),
+    e2eeCreateGroup: (body: Body<'/api/v1/e2ee/groups', 'post'>) =>
+      read(client.POST('/api/v1/e2ee/groups', { body })),
+    e2eeGroup: (groupId: string) =>
+      read(client.GET('/api/v1/e2ee/groups/{groupId}', { params: { path: { groupId } } })),
+    e2eePostCommit: (
+      groupId: string,
+      body: Body<'/api/v1/e2ee/groups/{groupId}/commits', 'post'>,
+    ) =>
+      read(
+        client.POST('/api/v1/e2ee/groups/{groupId}/commits', {
+          params: { path: { groupId } },
+          body,
+        }),
+      ),
+    e2eeCommits: (groupId: string, from: number) =>
+      read(
+        client.GET('/api/v1/e2ee/groups/{groupId}/commits', {
+          params: { path: { groupId }, query: { from, limit: 100 } },
+        }),
+      ),
+    e2eeWelcomes: (deviceId: string) =>
+      read(
+        client.GET('/api/v1/e2ee/devices/{deviceId}/welcomes', { params: { path: { deviceId } } }),
+      ),
+    e2eeDeleteWelcome: (id: number) =>
+      empty(client.DELETE('/api/v1/e2ee/welcomes/{id}', { params: { path: { id } } })),
+    e2eeConversation: (id: string, signal?: AbortSignal) =>
+      read(client.GET('/api/v1/e2ee/conversations/{id}', { params: { path: { id } }, signal })),
+    e2eeBindConversation: (id: string, body: Body<'/api/v1/e2ee/conversations/{id}', 'put'>) =>
+      read(client.PUT('/api/v1/e2ee/conversations/{id}', { params: { path: { id } }, body })),
+    e2eeTurnOff: (id: string, groupId: string) =>
+      read(
+        client.DELETE('/api/v1/e2ee/conversations/{id}', {
+          params: { path: { id }, query: { groupId } },
+        }),
+      ),
+    e2eeRelay: (body: Body<'/api/v1/e2ee/approvals', 'post'>) =>
+      read(client.POST('/api/v1/e2ee/approvals', { body })),
+    e2eeApprovals: (deviceId: string) =>
+      read(
+        client.GET('/api/v1/e2ee/devices/{deviceId}/approvals', { params: { path: { deviceId } } }),
+      ),
+    e2eeDeleteApproval: (id: number) =>
+      empty(client.DELETE('/api/v1/e2ee/approvals/{id}', { params: { path: { id } } })),
     connection: (id: string, signal?: AbortSignal) =>
       read(client.GET('/api/v1/networks/{id}/connection', { params: { path: { id } }, signal })),
     ping: (signal?: AbortSignal) => read(client.GET('/api/v1/ping', { signal })),

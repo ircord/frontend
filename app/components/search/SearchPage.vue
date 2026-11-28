@@ -54,14 +54,13 @@ watch(query, (q) => {
     debounced.value = (token ? q.slice(0, token.start) : q).trim()
   }, 220)
 })
-const { search, results, cursor, loadMore, loadingMore, moreError } = useMessageSearch(
-  debounced,
-  filters,
-  requestedSource,
-)
+const { search, results, cursor, loadMore, loadingMore, moreError, encryptedHits } =
+  useMessageSearch(debounced, filters, requestedSource)
 const coverageNote = computed(() => {
   const key = searchCoverageKey(search.data.value)
-  return key ? t(key) : ''
+  return [key ? t(key) : '', encryptedHits.value ? t('encryption.search.local') : '']
+    .filter(Boolean)
+    .join(' ')
 })
 const sourceHelp = computed(() =>
   offlineStatus.value.offline

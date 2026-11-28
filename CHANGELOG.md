@@ -3,6 +3,12 @@
 What changed for people using IRCord, newest release first. Each release lists what is **New**,
 **Improved** and **Fixed**, in plain words. Changes nobody using the app would notice are left out.
 
+## Unreleased
+
+### New
+
+- Experimental: start an end-to-end encrypted chat in a direct message, on servers whose operator turns encryption on. Only your devices and the other person's can read it. You can verify each other with a security code, approve your other devices with a QR code, and turn encryption off again, which both of you see. Encrypted chats keep files, replies, reactions and edits, and you search them on your own device.
+
 ## v0.10.1 — 2026-11-26
 
 ### New

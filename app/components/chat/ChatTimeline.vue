@@ -30,17 +30,41 @@ const startPartner = computed(() =>
 const { t, n, locale } = useI18n()
 const { day, time } = useTimeFormat()
 const history = useQuery(() => messagesQuery(chat.activeId))
-/** Deleted (redacted) messages leave the timeline entirely; replies still quote them as deleted. */
+const e2ee = useE2eeStore()
+// Encrypted history is decrypted as pages arrive; live messages are decrypted by the chat store.
+// A device that was just approved tries again what it could not read before.
+watch(
+  () => [history.data.value?.items, e2ee.phase, e2ee.retries] as const,
+  ([items]) => {
+    if (items?.some((m) => m.encrypted)) e2ee.ingest(items)
+  },
+  { immediate: true },
+)
+/**
+ * Deleted (redacted) messages leave the timeline entirely; replies still quote them as deleted.
+ * In encrypted conversations each message shows its decrypted copy, and events that only edit or
+ * react to another message leave the list.
+ */
 const messages = computed(() => {
   const retained = chat.outbox[chat.activeId] ?? []
   const historyItems = history.data.value?.items ?? []
   const isConfirmed = (m: Message) => m.confirmed || (!m.unconfirmed && !!m.upstreamId)
   const confirmed = new Set(historyItems.filter(isConfirmed).map((m) => m.clientId))
   const unresolved = new Set(retained.map((m) => m.clientId))
+  let unreadable = ''
   return [
     ...historyItems.filter((m) => isConfirmed(m) || !unresolved.has(m.clientId)),
     ...retained.filter((m) => !confirmed.has(m.clientId)),
-  ].filter((message) => message.kind !== 'system' && !message.deleted)
+  ].flatMap((message) => {
+    if (message.kind === 'system' || message.deleted) return []
+    const shown = e2ee.present(message)
+    if (!shown) return []
+    // A run of messages this device cannot read reads as one line, not a wall of placeholders.
+    const reason = shown.e2ee?.state === 'failed' ? (shown.e2ee.reason ?? '') : ''
+    if (reason && reason === unreadable) return []
+    unreadable = reason
+    return [shown]
+  })
 })
 const preferences = usePreferencesStore()
 const appearance = useAppearanceStore()
@@ -120,7 +144,12 @@ const firstShown = computed(() => {
   const revealed = revealedFrom.value
   const all = messageRows.value
   if (revealed?.conversation === chat.activeId)
-    return revealed.key === null ? 0 : Math.max(0, all.findIndex((row) => row.key === revealed.key))
+    return revealed.key === null
+      ? 0
+      : Math.max(
+          0,
+          all.findIndex((row) => row.key === revealed.key),
+        )
   return Math.max(0, all.length - cachedHistoryBatch)
 })
 function revealFrom(index: number) {
@@ -191,7 +220,8 @@ watch(
 const markerBefore = (row: Row | undefined) => {
   return !!markerId.value && firstOf(row)?.id === markerId.value
 }
-const grouped = (row: Row | undefined) => row?.kind === 'message' && row.grouped && !markerBefore(row)
+const grouped = (row: Row | undefined) =>
+  row?.kind === 'message' && row.grouped && !markerBefore(row)
 const firstMessageIndex = computed(() => (header.value ? 1 : 0))
 
 /** A row's place in the timeline, for the /attract cues. */
@@ -464,8 +494,7 @@ watch(
     // Back from another app while following: land on the newest message once the history caught up.
     // Only while still following: a reader who scrolled away by any means, even a scrollbar drag
     // no event reports, has left the catch-up.
-    if (resumeUntil > Date.now() && atBottom.value && !timeline.userInteracting())
-      scrollLatest()
+    if (resumeUntil > Date.now() && atBottom.value && !timeline.userInteracting()) scrollLatest()
     // Nothing is known while history first loads or after switching, and older history arrives
     // above the first known message: neither is news.
     const list = messages.value
@@ -915,8 +944,12 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
                 >{{ t('timeline.new') }}</span
               >
             </div>
+            <EncryptionEventRow
+              v-if="row.kind === 'message' && row.message.e2ee?.control"
+              :message="row.message"
+            />
             <MessageItem
-              v-if="row.kind === 'message'"
+              v-else-if="row.kind === 'message'"
               :message="row.message"
               :menus="menus"
               :message-actions="messageActions"

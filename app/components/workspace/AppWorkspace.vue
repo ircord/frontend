@@ -16,6 +16,8 @@ import type { MessageLink } from '../../../shared/utils/message-links'
  * overlays everything else opens through useWorkspaceActions().
  */
 const chat = useChatStore()
+// Starts end-to-end encryption on this device when the server offers it.
+const e2ee = useE2eeStore()
 const { t, n } = useI18n()
 const $t = t
 const router = useRouter()
@@ -857,6 +859,7 @@ onBeforeUnmount(() => {
       <ContextMenu />
       <PromptDialog />
       <ModerationDialog />
+      <EncryptionDialog v-if="e2ee.panel" />
       <ThemeLayer />
     </template>
   </div>

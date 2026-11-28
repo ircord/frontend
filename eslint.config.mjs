@@ -8,6 +8,8 @@ export default withNuxt(
       'public/data/**',
       // Vendored third-party build: scripts/vendor-local-speech.mjs writes it.
       'public/speech/**',
+      // The encryption core's wasm package: scripts/vendor-e2ee.mjs writes it.
+      'app/e2ee/vendor/**',
       'server/assets/**',
       '.nuxt/**',
       '.output/**',

@@ -26,6 +26,13 @@ export const settingsSections = [
   { id: 'profile', name: 'settings.sections.profile', icon: 'user', tone: 'blue', group: 'user' },
   { id: 'account', name: 'settings.sections.account', icon: 'key', tone: 'yellow', group: 'user' },
   {
+    id: 'encryption',
+    name: 'settings.sections.encryption',
+    icon: 'lock',
+    tone: 'green',
+    group: 'user',
+  },
+  {
     id: 'networks',
     name: 'settings.sections.networks',
     icon: 'globe',
@@ -404,7 +411,9 @@ export function settingsDestination(
 ): { section: SettingsSectionId; setting?: string } {
   // Sections that were merged into others still open, at their first setting.
   const id = retiredSections[target] ?? target
-  const section = settingsSections.find((s) => s.id === id && (id !== 'device' || access.nativeDevice))
+  const section = settingsSections.find(
+    (s) => s.id === id && (id !== 'device' || access.nativeDevice),
+  )
   if (section) return { section: section.id }
   const entry = byId.get(id)
   if (!entry) return { section: 'appearance' }

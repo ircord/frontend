@@ -24,7 +24,11 @@ const toggleStorage = readAloudStorage
 const spokenKey = 'ircord.readAloud.spoken'
 const enabled = ref(readLocal(toggleStorage, (v) => v === true))
 const speaking = ref(false)
-const queue: string[] = []
+/**
+ * Lines to read. A line from an encrypted chat carries its decrypted text for the voice model on
+ * this device and a generic line for a speech service, chosen when it is spoken.
+ */
+const queue: (string | { local: string; service: string })[] = []
 let generation = 0
 let controller: AbortController | undefined
 let audio: HTMLAudioElement | undefined
@@ -89,7 +93,11 @@ const allowedOrigin = import.meta.client
   : ''
 /** Whether this page can reach the service now, or needs reloading first. */
 export function speechNeedsReload(service: SpeechService) {
-  return !usePlatform().speechService && !import.meta.dev && speechOrigin(service.baseUrl) !== allowedOrigin
+  return (
+    !usePlatform().speechService &&
+    !import.meta.dev &&
+    speechOrigin(service.baseUrl) !== allowedOrigin
+  )
 }
 
 /**
@@ -131,9 +139,11 @@ async function speak(
     }
   } catch (error) {
     if ((error as Error)?.name === 'AbortError') throw error
-    throw new SpeechError(nativeSpeech
-      ? translate('workspaceUi.speech.nativeUnavailable')
-      : speechFailure(error, undefined, service.baseUrl, translate))
+    throw new SpeechError(
+      nativeSpeech
+        ? translate('workspaceUi.speech.nativeUnavailable')
+        : speechFailure(error, undefined, service.baseUrl, translate),
+    )
   }
   if (!response.ok)
     throw new SpeechError(speechFailure(null, response.status, service.baseUrl, translate))
@@ -172,7 +182,11 @@ async function drain(translate: SpeechTranslate) {
   try {
     while (queue.length && current === generation) {
       try {
-        await speak(queue.shift()!, translate)
+        const line = queue.shift()!
+        await speak(
+          typeof line === 'string' ? line : local?.active.value ? line.local : line.service,
+          translate,
+        )
       } catch (error) {
         warn(error, translate)
       }
@@ -244,7 +258,7 @@ export function useReadAloud() {
   function setEnabledByUser(value: boolean) {
     applyUserEnable(enabled.value, value, setEnabled, () => say(t('readAloud.enabledAnnouncement')))
   }
-  function say(text: string) {
+  function say(text: string | { local: string; service: string }) {
     if (!enabled.value) return
     enqueueBounded(queue, text)
     void drain(translate)
@@ -302,7 +316,7 @@ export function useHighlightReader() {
   const chat = useChatStore()
   const notifications = useNotificationStore()
   const reader = useReadAloud()
-  const off = chat.onIncoming((message: Message) => {
+  const off = chat.onIncoming(async (message: Message) => {
     if (!reader.enabled.value) return
     const c = chat.data?.conversations.find((x) => x.id === message.conversationId)
     if (!c) return
@@ -310,15 +324,30 @@ export function useHighlightReader() {
     const you = chat.recipientFor(c, message)
     if (!shouldReadAloud(notifications.settings, c, message, you, sender?.nick, new Date(), sender))
       return
-    const text = spokenText(
-      {
-        sender: sender?.nick,
-        channel: c.kind === 'channel' && !c.party ? channelTarget(c) : undefined,
-        text: message.text,
-        gif: !!message.gif,
-      },
-      (key, values) => (values ? t(key, values) : t(key)),
-    )
+    const line = (body: string) =>
+      spokenText(
+        {
+          sender: sender?.nick,
+          channel: c.kind === 'channel' && !c.party ? channelTarget(c) : undefined,
+          text: body,
+          gif: !!message.gif,
+        },
+        (key, values) => (values ? t(key, values) : t(key)),
+      )
+    // Decrypted text is read only by the voice model on this device; which voice speaks is
+    // decided when the line is read. A speech service gets a generic line, so an encrypted
+    // message never leaves the device in plaintext.
+    let text: string | { local: string; service: string } = line(message.text)
+    if (message.encrypted) {
+      const decrypted = local?.active.value
+        ? (await useE2eeStore().resolve([message]))[0]
+        : undefined
+      const generic = line(t('encryption.notification'))
+      text = {
+        local: decrypted?.e2ee?.state === 'ok' && decrypted.text ? line(decrypted.text) : generic,
+        service: generic,
+      }
+    }
     void claim(message.id).then((mine) => {
       if (mine) reader.say(text)
     })

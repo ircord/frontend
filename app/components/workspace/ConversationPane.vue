@@ -98,6 +98,7 @@ const emptyTitle = computed(() =>
         >
           <div class="conversation-history flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <ConnectionBanners /><InvitationBanner />
+            <EncryptionBanner v-if="!chat.serverView" />
             <ServerWindow v-if="chat.serverView" />
             <ChatTimeline
               v-else

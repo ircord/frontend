@@ -58,8 +58,12 @@ const tab = ref<SettingsSectionId>('appearance')
 const current = computed(() => settingsSections.find((t) => t.id === tab.value)!)
 /** Phone-sized touch screens leave out Shortcuts: keyboard shortcuts need a hardware keyboard. */
 const keyboardless = useMediaQuery('(max-width: 700px) and (pointer: coarse)')
+const e2ee = useE2eeStore()
 const listed = (id: SettingsSectionId) =>
-  (nativeDevice || id !== 'device') && !(keyboardless.value && id === 'shortcuts')
+  (nativeDevice || id !== 'device') &&
+  !(keyboardless.value && id === 'shortcuts') &&
+  // Encryption is an experimental server feature: listed only where the server offers it.
+  (id !== 'encryption' || e2ee.enabled)
 const allGroups = settingsGroups.map((group) => ({
   ...group,
   headingId: useId(),
@@ -445,6 +449,7 @@ function keydown(event: KeyboardEvent) {
             <ReadAloudSettings />
           </div>
           <PrivacySettings v-else-if="tab === 'privacy'" />
+          <EncryptionSettings v-else-if="tab === 'encryption'" />
           <EmoteSettings v-else-if="tab === 'emotes'" />
           <NotificationDevice v-else-if="nativeDevice && tab === 'device'" />
           <div

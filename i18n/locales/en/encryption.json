@@ -1,0 +1,157 @@
+{
+  "encryption": {
+    "experimental": "Experimental",
+    "experimentalHelp": "This feature has not had an outside security review yet. Do not rely on it to protect sensitive conversations.",
+    "trust": "An encrypted chat is only as safe as every device in it. Anyone who controls one of your devices, or one of {name}'s, can read it.",
+    "trustYou": "An encrypted chat is only as safe as every device in it. Anyone who controls one of your devices, or a device of the person you chat with, can read it.",
+    "webLimit": "In a browser, the server you use also sends the app's code. Encryption here keeps out the IRC network, a stolen server database and a curious operator, but not an operator who sends changed code. The desktop app does not have this limit.",
+    "storageLimit": "Your keys and your encrypted history are stored only in this browser. Clearing its site data deletes them, and they cannot be recovered.",
+    "blocked": {
+      "notDirect": "Encryption works in direct messages only.",
+      "network": "Encryption works between people on this IRCord server, on its own network.",
+      "selfAccount": "Log in to an account on this network to use encryption.",
+      "peerAccount": "{name} is not logged in to an account on this network.",
+      "peerNoKeys": "{name} has not set up encryption yet.",
+      "deviceNotReady": "Set up encryption on this device first.",
+      "bot": "Bots cannot take part in encrypted chats."
+    },
+    "lock": {
+      "off": "Not encrypted",
+      "on": "Encrypted, {name} not verified",
+      "verified": "Encrypted, {name} verified",
+      "attention": "Encryption needs your attention"
+    },
+    "dialog": {
+      "titleOff": "Start an encrypted chat",
+      "titleOn": "Encrypted chat",
+      "intro": "Messages you send from now on are encrypted on this device. Only your devices and {name}'s can read them. The server stores only ciphertext.",
+      "noAccept": "{name} does not need to accept. Their app shows that you turned on encryption, and either of you can turn it off again.",
+      "lost": "In this chat, link previews, server search and message text in push notifications stop working.",
+      "start": "Start encrypted chat",
+      "starting": "Starting…",
+      "askPeer": "Ask {name}",
+      "askText": "I'd like to use an encrypted chat with you. Open Settings → Encryption in IRCord to set it up.",
+      "on": "Messages in this chat are end-to-end encrypted.",
+      "verifyHeading": "Verify {name}",
+      "verifyHelp": "Compare this code with the one on {name}'s screen, in person or over another channel you trust. If they match, nobody is between you. One verification covers all of their devices.",
+      "verifiedState": "You verified {name}.",
+      "unverifiedState": "You have not verified {name} yet.",
+      "markVerified": "Codes match: mark as verified",
+      "unmarkVerified": "Remove verification",
+      "scan": "Scan their code",
+      "scanMatch": "The codes match. {name} is verified.",
+      "scanMismatch": "The codes do not match. Do not mark {name} as verified.",
+      "turnOff": "Turn off encryption",
+      "turnOffTitle": "Turn off encryption?",
+      "turnOffBody": "New messages will be sent unencrypted. {name} sees that you turned it off. Messages sent so far stay encrypted.",
+      "turnedOff": "Encryption is off.",
+      "codeFailed": "The security code is not available yet."
+    },
+    "event": {
+      "onYou": "You turned on end-to-end encryption.",
+      "onPeer": "{name} turned on end-to-end encryption. Messages from here on can only be read on your devices and {name}'s.",
+      "offYou": "You turned off end-to-end encryption.",
+      "offPeer": "{name} turned off end-to-end encryption.",
+      "verify": "Verify {name}"
+    },
+    "message": {
+      "pending": "Decrypting…",
+      "ownLost": "You sent this from this device, but its copy is no longer stored here.",
+      "unreadable": "This encrypted message cannot be read on this device.",
+      "notApproved": "Approve this device to read encrypted messages.",
+      "beforeDevice": "This message was encrypted before this device could read it. It stays readable on your other devices.",
+      "wrongConversation": "This encrypted message belongs to another conversation. It is not shown here.",
+      "senderMismatch": "This message did not come from the account that sent it. It is not shown.",
+      "identityChanged": "The sender's keys changed. Accept the change to read new messages.",
+      "notEncrypted": "Not encrypted",
+      "notEncryptedHelp": "This message arrived without encryption in an encrypted chat. It may come from another IRC client, or someone else could have added it.",
+      "actionUnavailable": "In an encrypted chat, you can reply to, react to and edit only encrypted messages this device can read.",
+      "fileLoading": "Decrypting the file…",
+      "fileFailed": "The file could not be decrypted.",
+      "download": "Download {name}"
+    },
+    "composer": {
+      "placeholder": "Encrypted message to {target}",
+      "approveFirst": "Approve this device to send encrypted messages.",
+      "notReady": "Encryption is not ready on this device yet.",
+      "rawBlocked": "Your chat with {name} is encrypted. Send the message in that chat, or turn off encryption first.",
+      "plainUpload": "This file was uploaded without encryption. Attach it again."
+    },
+    "reset": {
+      "title": "{name} started fresh with new encryption keys.",
+      "body": "Earlier messages stay readable here, but {name}'s new devices cannot read them. This is expected if {name} lost their devices. It would look the same if someone got into {name}'s account or the server interfered. If you are not sure, ask {name} another way.",
+      "verify": "Verify {name}",
+      "ok": "OK",
+      "acknowledgeFirst": "{name} has new encryption keys. Read the notice in your chat and select OK to continue."
+    },
+    "banner": {
+      "plaintext": "A message arrived without encryption in this encrypted chat. It is marked “Not encrypted”.",
+      "approve": "This chat is encrypted. Approve this device to read and send messages here.",
+      "approveAction": "Approve this device",
+      "resetElsewhere": "Encryption was reset from another device. This device cannot read new encrypted messages until it is approved again."
+    },
+    "settings": {
+      "section": "Encryption",
+      "intro": "End-to-end encrypted direct messages. Keys live only on your devices: there is no recovery key and no backup on the server.",
+      "thisDevice": "This device",
+      "state": {
+        "off": "The server does not offer encryption.",
+        "unsupported": "This browser cannot store encryption keys. It needs IndexedDB, Web Locks and Web Workers.",
+        "starting": "Starting…",
+        "waiting": "Waiting for the connection to the home network.",
+        "needsApproval": "This device needs approval from another of your devices before it can read encrypted chats.",
+        "resetElsewhere": "Encryption was reset from another device. Approve this device again, or start fresh.",
+        "ready": "Ready. This device can read and send encrypted messages.",
+        "readyIdentity": "Ready. This device holds your account's identity key and can approve your other devices.",
+        "failed": "Encryption could not start: {reason}"
+      },
+      "devices": "Devices with encryption",
+      "devicesHelp": "Each device has its own keys. A removed device cannot read messages sent after its removal.",
+      "current": "This device",
+      "added": "Added {date}",
+      "remove": "Remove",
+      "removeTitle": "Remove {name}?",
+      "removeBody": "It can no longer read new encrypted messages. Messages it already has stay on it.",
+      "approveDevice": "Approve a device",
+      "approveHelp": "Sign in on the new device and open Settings → Encryption there. Then scan its code here.",
+      "approveNeedsIdentity": "Only the device that set up encryption first can approve other devices in this version.",
+      "startFresh": "Start fresh",
+      "startFreshHelp": "Use this only when no approved device is left, or when one was stolen.",
+      "startFreshTitle": "Start fresh with new keys?",
+      "startFreshBody": "Your account gets a new security identity. This device cannot read earlier encrypted messages. Everyone you chat with encrypted sees a notice and must verify you again. Your other devices lose their approval.",
+      "startFreshConfirm": "Start fresh",
+      "secondDevice": "Your encrypted history exists only on your devices. Approve a second device so that losing this one does not lose it.",
+      "lastDeviceSignOut": "This is your only device that can read your encrypted chats. Logging out deletes its keys and its encrypted history for good."
+    },
+    "approval": {
+      "requestTitle": "Approve this device",
+      "requestHelp": "On a device that already has encryption, open Settings → Encryption and scan this code.",
+      "noCamera": "No camera? Type this code there:",
+      "keepSecret": "Keep this code to yourself. Someone who sees it could try to get their own device approved in place of this one.",
+      "waiting": "Waiting for approval…",
+      "approved": "This device is approved.",
+      "cancel": "Cancel",
+      "scanTitle": "Scan the new device's code",
+      "scanUnavailable": "This browser cannot scan codes. Type the code instead.",
+      "typeCode": "Or type the 20-digit code shown on the new device",
+      "waitingCount": "{count} device is waiting for approval. | {count} devices are waiting for approval.",
+      "pendingNone": "No device is waiting. Open Settings → Encryption on the new device first.",
+      "approveThis": "Approve",
+      "badCode": "Enter all 20 digits of the code.",
+      "notFound": "No waiting device has this code. Check the code, or open it on the new device again.",
+      "approving": "Approving and adding the device to your encrypted chats…",
+      "done": "The device is approved.",
+      "failed": "The device could not be approved: {reason}"
+    },
+    "scanner": {
+      "label": "Camera view for scanning a code",
+      "start": "Start camera",
+      "stop": "Stop camera",
+      "denied": "The camera is not available."
+    },
+    "search": {
+      "local": "Encrypted chats are searched on this device only."
+    },
+    "notification": "New encrypted message"
+  }
+}

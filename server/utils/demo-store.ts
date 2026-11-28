@@ -698,6 +698,7 @@ export function addNetwork(session: DemoSession, input: NetworkInput) {
       CASEMAPPING: 'rfc1459',
     },
     features: {
+      encryption: false,
       setname: true,
       metadata: [],
       away: true,

@@ -24,8 +24,9 @@ import type {
   Upload,
 } from '../../shared/types/chat'
 import type { GifItem } from '../../shared/types/media'
+import type { EncryptedUpload } from '../../shared/e2ee/types'
 import type { components } from '../../shared/generated/api'
-import { ApiError, MESSAGE_UPLOAD } from '../../shared/api/client'
+import { ApiError, MESSAGE_UPLOAD, type Body } from '../../shared/api/client'
 import { sendCopies, type SendCopy } from '../utils/send-copies'
 import { ATTRACT_MS, type AttractTarget } from '../../shared/utils/attract'
 import {
@@ -399,6 +400,13 @@ export const useChatStore = defineStore('chat', () => {
 
   const messageActionReason = (message: Message, action: MessageAction) => {
     const conversation = conversationSettings(message.conversationId)
+    // In an encrypted conversation replies, reactions and edits are encrypted events that name a
+    // decrypted message; the server would refuse them in plaintext.
+    if (action !== 'redact' && useE2eeStore().isEncrypted(message.conversationId)) {
+      if (!message.e2ee?.innerId) return translate('encryption.message.actionUnavailable')
+      if (action === 'edit' && message.e2ee.attachments?.length)
+        return translate('collectionsUi.features.edit.media')
+    }
     return actionReason(
       message,
       conversation,
@@ -618,6 +626,12 @@ export const useChatStore = defineStore('chat', () => {
     }))
 
   function putMessage(message: Message, seq = 0) {
+    // Encrypted messages are decrypted as they arrive, in order, on whichever page is open.
+    if (message.encrypted) {
+      const e2ee = useE2eeStore()
+      if (message.deleted) e2ee.forget(message)
+      else e2ee.ingest([message])
+    }
     if (message.clientId) {
       if (data.value?.demo || message.confirmed || (!message.unconfirmed && message.upstreamId))
         settle(message.conversationId, message.clientId)
@@ -1589,14 +1603,17 @@ export const useChatStore = defineStore('chat', () => {
     if (sending.has(clientId) || completedSends.has(clientId)) return
     const copy = localSends.get(clientId)
     const attachments = copy?.attachments
-    const payload = {
-      clientId,
-      text: message.text,
-      ...(message.replyTo ? { replyToId: message.replyTo.id } : {}),
-      ...(message.gif ? { gif: message.gif } : {}),
-      ...(message.kind === 'action' ? { kind: 'action' as const } : {}),
-      ...(attachments?.length ? { attachments } : {}),
-    }
+    // An encrypted send carries only its ciphertext: text, replies and files are inside it.
+    const payload: Body<'/api/v1/conversations/{id}/messages', 'post'> = message.encrypted
+      ? { clientId, text: '', encrypted: message.encrypted }
+      : {
+          clientId,
+          text: message.text,
+          ...(message.replyTo ? { replyToId: message.replyTo.id } : {}),
+          ...(message.gif ? { gif: message.gif } : {}),
+          ...(message.kind === 'action' ? { kind: 'action' as const } : {}),
+          ...(attachments?.length ? { attachments } : {}),
+        }
     if (!data.value?.demo) {
       if (!navigator.onLine) return
       sending.add(clientId)
@@ -1659,6 +1676,7 @@ export const useChatStore = defineStore('chat', () => {
       createdAt: entry.createdAt,
       kind: payload.kind ?? 'message',
       reactions: [],
+      ...(payload.encrypted ? { encrypted: payload.encrypted } : {}),
       ...(payload.gif ? { gif: payload.gif } : {}),
       ...(payload.attachments?.length ? { deliveryHasAttachments: true } : {}),
       ...(payload.replyToId
@@ -1774,6 +1792,8 @@ export const useChatStore = defineStore('chat', () => {
       conversationId?: string
       /** Send the text as written, without turning markdown into IRC formatting. */
       verbatim?: boolean
+      /** In an encrypted conversation: the words sent with files (their URLs stay inside). */
+      uploadText?: string
     } = {},
   ) {
     const targetId = options.conversationId ?? activeId.value
@@ -1799,6 +1819,37 @@ export const useChatStore = defineStore('chat', () => {
     if (!text.trim()) return false
     const uploads = options.uploads ?? (options.upload ? [options.upload] : [])
     const wireText = toWireText(text, !!(gif || uploads.length || options.verbatim))
+    // An encrypted conversation never takes plaintext: the message is encrypted on this device
+    // first, then goes through the outbox like any other send.
+    const e2ee = useE2eeStore()
+    if (e2ee.isEncrypted(targetId)) {
+      const pause = e2ee.sendPause(targetId)
+      if (pause) {
+        notify(pause)
+        return false
+      }
+      const files = uploads.flatMap((upload) => (upload as EncryptedUpload).e2ee ?? [])
+      if (files.length !== uploads.length) {
+        notify(translate('encryption.composer.plainUpload'), { error: true })
+        return false
+      }
+      const encryptedText = files.length ? (options.uploadText ?? '') : wireText
+      void e2ee
+        .sendMessage(targetId, {
+          text: encryptedText,
+          kind: options.kind,
+          replyTo,
+          attachments: files,
+          ...(gif && {
+            gif: { url: gif.url, width: gif.width, height: gif.height, title: gif.title },
+          }),
+        })
+        .catch((error) => notify(errorText(error, translate), { error: true }))
+      delete unreadMarkers[targetId]
+      delete unreadAnchors[targetId]
+      if (target.unreadFrom) void markRead(targetId)
+      return true
+    }
     const reason =
       (replyTo && messageActionReason(replyTo, 'replies')) ||
       messageTextReason(wireText, options.kind ?? 'message', target, targetNetwork, translate)
@@ -1858,6 +1909,43 @@ export const useChatStore = defineStore('chat', () => {
     if (target.unreadFrom) void markRead(targetId)
     const page = queryCache.getQueryData<MessagePage>(messagesQuery(targetId).key)
     if (!page || page.detached || page.hasNewer) void returnToPresent(targetId)
+    addSend(message)
+    transmit(message)
+    return true
+  }
+  /**
+   * Queues one encrypted line made by the encryption store. The ciphertext is final: retries
+   * send it unchanged, and this device already keeps its plaintext.
+   */
+  function sendEncrypted(conversationId: string, encrypted: NonNullable<Message['encrypted']>) {
+    const target = data.value?.conversations.find((c) => c.id === conversationId)
+    const targetNetwork = target && networkOf(target)
+    if (!target || !targetNetwork) return false
+    const clientId = crypto.randomUUID()
+    const message: Message = {
+      id: `pending-${clientId}`,
+      clientId,
+      conversationId,
+      senderId: 'you',
+      text: '',
+      createdAt: new Date().toISOString(),
+      kind: 'message',
+      reactions: [],
+      encrypted,
+      delivery: 'queued',
+    }
+    const copy: SendCopy = {
+      message,
+      attachments: [],
+      endpoint: { host: targetNetwork.host, port: targetNetwork.port, tls: targetNetwork.tls },
+    }
+    if (!copies.save(copy)) {
+      notify(translate('workspaceUi.message.outboxStorageFailed'), { error: true })
+      return false
+    }
+    localSends.set(clientId, copy)
+    const page = queryCache.getQueryData<MessagePage>(messagesQuery(conversationId).key)
+    if (!page || page.detached || page.hasNewer) void returnToPresent(conversationId)
     addSend(message)
     transmit(message)
     return true
@@ -1942,6 +2030,26 @@ export const useChatStore = defineStore('chat', () => {
   }
   /** Sends one IRC line to a network. Failures arrive as `command.error` notices. */
   function raw(line: string, target = networkId.value) {
+    // /msg, /notice and /quote must not send plaintext to someone you chat with encrypted.
+    const recipients = /^(?:PRIVMSG|NOTICE)\s+(\S+)/i.exec(line.trim())?.[1]
+    if (recipients) {
+      const e2ee = useE2eeStore()
+      const blocked = recipients
+        .split(',')
+        .find((nick) =>
+          data.value?.conversations.some(
+            (c) =>
+              c.networkId === target &&
+              c.kind === 'direct' &&
+              e2ee.isEncrypted(c.id) &&
+              foldPersonIdentity(c.name) === foldPersonIdentity(nick.replace(/^[@+%~&]+/, '')),
+          ),
+        )
+      if (blocked) {
+        notify(translate('encryption.composer.rawBlocked', { name: blocked }), { error: true })
+        return false
+      }
+    }
     if (
       socket?.readyState !== WebSocket.OPEN ||
       data.value?.networks.find((n) => n.id === target)?.status !== 'connected'
@@ -1980,6 +2088,13 @@ export const useChatStore = defineStore('chat', () => {
   async function react(message: Message, emoji: string) {
     const reason = messageActionReason(message, 'reactions')
     if (reason) return notify(reason)
+    // An encrypted message takes an encrypted reaction; choosing it again takes it back.
+    if (message.e2ee) {
+      const mine = message.reactions.some((r) => r.emoji === emoji && r.memberIds.includes('you'))
+      return useE2eeStore()
+        .react(message, emoji, mine)
+        .catch((error) => notifyError(error))
+    }
     const previous = cachedMessage(message)
     try {
       putMessageReply(
@@ -2040,6 +2155,15 @@ export const useChatStore = defineStore('chat', () => {
     const wireText = markdownToIrc(text.trim())
     if (!wireText) return false
     if (wireText === message.text) return true
+    if (message.e2ee) {
+      try {
+        await useE2eeStore().edit(message, wireText)
+        return true
+      } catch (error) {
+        notifyError(error)
+        return false
+      }
+    }
     const previous = cachedMessage(message)
     try {
       const result = await apiClient().edit(message.conversationId, message.id, wireText)
@@ -2598,6 +2722,7 @@ export const useChatStore = defineStore('chat', () => {
     openAround,
     returnToPresent,
     send,
+    sendEncrypted,
     raw,
     retry,
     checkDelivery,

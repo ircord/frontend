@@ -1,5 +1,6 @@
 import type { components } from '../generated/api'
 import type { Body } from '../api/client'
+import type { E2eePresentation } from '../e2ee/present'
 type Schema = components['schemas']
 export type Member = Schema['Member'] & { location?: string }
 
@@ -34,6 +35,8 @@ export type Message = Schema['Message'] & {
   deliveryError?: string
   deliveryHasAttachments?: boolean
   liveSeq?: number
+  /** Set by the encryption store on messages of encrypted conversations; never sent. */
+  e2ee?: E2eePresentation
 }
 
 export type ProfileUpdate = Schema['ProfileUpdate']
