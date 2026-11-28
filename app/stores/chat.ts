@@ -2466,38 +2466,31 @@ export const useChatStore = defineStore('chat', () => {
    * host, with its own types and availability, so it is kept apart from `capabilities.upload`,
    * which describes this server (theme backgrounds and profile pictures stay here).
    */
-  const messageUpload = shallowRef<{ maxBytes: number; types: string[] }>()
-  watch(networkId, async (id) => {
-    messageUpload.value = undefined
-    if (!id || data.value?.demo) return
-    void apiClient()
-      .fileProvider(id, MESSAGE_UPLOAD)
-      .then((provider) => {
+  const { limits: messageUpload, refresh: refreshMessageUpload } = createMessageUpload(
+    networkId,
+    (id) => apiClient().fileProvider(id, MESSAGE_UPLOAD),
+    () => !data.value?.demo,
+  )
+  // Immediate for the same reason as the message lookup: a saved workspace opens its network
+  // before this store finishes starting.
+  watch(
+    networkId,
+    async (id) => {
+      if (!id || data.value?.demo) return
+      patchBootstrap((b) => ({ ...b, capabilities: { ...b.capabilities, upload: undefined } }))
+      try {
+        const provider = await apiClient().fileProvider(id)
         if (networkId.value !== id) return
-        messageUpload.value = provider.available
-          ? { maxBytes: provider.maxBytes, types: provider.types ?? [] }
-          : undefined
-      })
-      .catch(() => {
-        /* Message uploads stay unavailable until provider discovery succeeds. */
-      })
-    patchBootstrap((b) => ({ ...b, capabilities: { ...b.capabilities, upload: undefined } }))
-    try {
-      const provider = await apiClient().fileProvider(id)
-      if (networkId.value !== id) return
-      patchBootstrap((b) => ({
-        ...b,
-        capabilities: {
-          ...b.capabilities,
-          upload: provider.available
-            ? { maxBytes: provider.maxBytes, types: provider.types ?? [] }
-            : undefined,
-        },
-      }))
-    } catch {
-      /* Uploading stays unavailable until provider discovery succeeds. */
-    }
-  })
+        patchBootstrap((b) => ({
+          ...b,
+          capabilities: { ...b.capabilities, upload: uploadLimits(provider) },
+        }))
+      } catch {
+        /* Uploading stays unavailable until provider discovery succeeds. */
+      }
+    },
+    { immediate: true },
+  )
 
   // ---- Browser lifecycle ----------------------------------------------------------------------
 
@@ -2765,6 +2758,7 @@ export const useChatStore = defineStore('chat', () => {
     saveCheckpoint,
     checkpointReady,
     messageUpload,
+    refreshMessageUpload,
     cursor,
     dispose,
   }

@@ -9,6 +9,10 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 - Experimental: a person’s menu now has Start encrypted chat, which opens your direct messages with them and the panel that starts encryption. When encryption cannot start, the item is unavailable and says why.
 
+### Fixed
+
+- Attaching files to messages works again after reloading the app. Before, it said the server doesn’t accept file uploads until you switched networks. If the network’s file host was briefly unavailable, attaching a file now checks again.
+
 ## v0.11.0 — 2026-11-28
 
 ### New

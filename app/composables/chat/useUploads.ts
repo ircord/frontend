@@ -59,6 +59,8 @@ export function useUploads() {
   const pending = computed(() => queues[chat.activeId] ?? [])
 
   async function add(files: FileList | File[]) {
+    // An earlier lookup can have failed or found the network's file host down; ask once more.
+    if (!capability.value) await chat.refreshMessageUpload()
     const limits = capability.value
     if (!limits) return chat.notify(t('mediaUi.uploads.serverUnavailable'))
     // Read back through the reactive map so pushes are tracked (`??=` returns the raw array).
