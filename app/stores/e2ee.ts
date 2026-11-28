@@ -551,12 +551,14 @@ export const useE2eeStore = defineStore('e2ee', () => {
           }>('joinGroup', fromBase64(w.welcome))
           for (const change of joined.identityChanges) await noteIdentityChange(change)
           delete fellOut[groupId]
+          // Another device of this account added this one: to the group it started, or later.
+          const own = sameAccount(joined.inviter.account, account.value)
           await recordEvents([
             {
               id: `${groupId}:welcome:${w.id}`,
               groupId,
               at: Date.parse(w.position.at) || Date.now(),
-              kind: joined.rejoined ? 'joined' : 'added',
+              kind: joined.rejoined ? 'joined' : own ? 'device-added' : 'added',
               by: joined.inviter.account,
               subject: account.value,
             },
@@ -1368,17 +1370,27 @@ export const useE2eeStore = defineStore('e2ee', () => {
     return dir
   }
 
+  /** Claims one key package for each of this account's other devices. */
+  async function claimOwnDevices() {
+    const ours = await apiClient().e2eeClaim(account.value)
+    return ours.items.filter((i) => i.deviceId !== info.value.deviceId)
+  }
+
   /**
    * Starts a direct chat carried over IRC, which reaches the person whichever IRCord server of
    * the home network they use. The server binds the conversation and delivers the Welcome to
-   * the person's server. Welcomes over IRC reach other accounts only, so of this account only
-   * this device takes part; the account's other devices see the chat as unreadable.
+   * the person's server, and to this account's other devices on this server.
    */
-  async function startChat(c: Conversation, peer: string, theirs: { keyPackage: string }[]) {
+  async function startChat(
+    c: Conversation,
+    peer: string,
+    theirs: { keyPackage: string }[],
+    own: { keyPackage: string }[],
+  ) {
     const started = await call<{ groupId: string; welcome: Uint8Array }>(
       'startDm',
       peer,
-      theirs.map((i) => fromBase64(i.keyPackage)),
+      [...theirs, ...own].map((i) => fromBase64(i.keyPackage)),
     )
     const previous = conversations[c.id]
     try {
@@ -1422,12 +1434,11 @@ export const useE2eeStore = defineStore('e2ee', () => {
     await flow(async () => {
       await pinPerson(peer, name)
       const theirs = await apiClient().e2eeClaim(peer)
+      const own = await claimOwnDevices()
       if (acrossServers.value) {
-        await startChat(c, peer, theirs.items)
+        await startChat(c, peer, theirs.items, own)
         return
       }
-      const ours = await apiClient().e2eeClaim(account.value)
-      const own = ours.items.filter((i) => i.deviceId !== info.value.deviceId)
       const started = await call<{ groupId: string; welcome: Uint8Array; groupInfo?: Uint8Array }>(
         'startDm',
         peer,
@@ -1765,6 +1776,9 @@ export const useE2eeStore = defineStore('e2ee', () => {
     const c = chat.conversationSettings(conversationId)
     if (!c || !eligible(conversationId)) return
     await refreshGroups()
+    // Another device of this account may have started a chat over IRC that this device joined
+    // just now: the server's list says so, and the record keeps it.
+    if (!chats[record.groupId]) await refreshChats()
     const peer = groupPeers[record.groupId]
     const expected = conversations[conversationId]?.peer || (await resolvePeer(c))
     if (!samePeer(peer, expected) || !peer) return
@@ -1976,7 +1990,8 @@ export const useE2eeStore = defineStore('e2ee', () => {
   /**
    * Creates an encrypted group with a title and people (their accounts). The server registers the
    * group's channel, gives each person the right to enter it and sends them the Welcome over IRC.
-   * Returns the channel conversation's ID once the server reports it.
+   * This account's other devices join it too. Returns the channel conversation's ID once the
+   * server reports it.
    */
   async function createGroup(title: string, people: string[]) {
     const wanted = [...new Set(people.map((p) => p.trim()).filter(Boolean))].filter(
@@ -1987,10 +2002,11 @@ export const useE2eeStore = defineStore('e2ee', () => {
       throw new Error(t('encryption.group.tooMany', { count: GROUP_MAX_ACCOUNTS }))
     return flow(async () => {
       const { packages, accounts } = await claimPeople(wanted)
+      const own = await claimOwnDevices()
       const created = await call<{ groupId: string; welcome: Uint8Array }>(
         'createGroup',
         title.trim(),
-        packages,
+        [...packages, ...own.map((i) => fromBase64(i.keyPackage))],
       )
       let answer: Awaited<ReturnType<ReturnType<typeof apiClient>['e2eeCreateChat']>>
       try {
@@ -2030,8 +2046,35 @@ export const useE2eeStore = defineStore('e2ee', () => {
     chats[groupId] = answer
     const id = answer.conversationId ?? ''
     const saved = !!id && (await saveGroupRecord(id, groupId, answer.inviter))
-    void sync()
+    void sync().then(() => flow(() => addMissingOwnDevices(groupId)).catch(() => {}))
     return saved ? id : ''
+  }
+
+  /**
+   * Adds this account's devices that a group lacks: those approved while the group was still an
+   * invitation. The server hands them the Welcome.
+   */
+  async function addMissingOwnDevices(groupId: string) {
+    const members = await call<DeviceRef[]>('members', groupId)
+    const own = await apiClient().e2eeOwnDirectory()
+    const missing = (deviceId: string) =>
+      deviceId !== info.value.deviceId &&
+      !members.some((m) => sameAccount(m.account, account.value) && m.deviceId === deviceId)
+    if (!own.devices.some((d) => missing(d.deviceId) && d.keyPackages > 0)) return
+    const items = (await apiClient().e2eeClaim(account.value)).items.filter((i) =>
+      missing(i.deviceId),
+    )
+    if (!items.length) return
+    await commitChat(
+      groupId,
+      () =>
+        call<Change>(
+          'addDevices',
+          groupId,
+          items.map((i) => fromBase64(i.keyPackage)),
+        ),
+      { added: [account.value] },
+    )
   }
 
   /** Declines an invitation: the inviter's client removes this account from the group. */
@@ -2342,15 +2385,16 @@ export const useE2eeStore = defineStore('e2ee', () => {
   }
 
   /**
-   * Adds one of this account's devices to every group this device is in. Chats carried over IRC
-   * are left out: their Welcomes reach other accounts' servers only, so the device could not
-   * join them.
+   * Adds one of this account's devices to every group this device is in. In a chat carried over
+   * IRC, the server hands the Welcome to the account's devices itself. Invitations not yet
+   * accepted are left out: accepting one adds the account's missing devices.
    */
   async function addOwnDevice(deviceId: string) {
     await flow(async () => {
       const list = await call<{ groupId: string }[]>('coreConversations')
       for (const group of list) {
-        if (chats[group.groupId]) continue
+        const c = chats[group.groupId]
+        if (c && (c.state !== 'joined' || fellOut[group.groupId])) continue
         const members = await call<{ account: string; deviceId: string }[]>(
           'members',
           group.groupId,
