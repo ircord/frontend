@@ -200,6 +200,12 @@ export const commands: CommandSpec[] = [
   },
   { name: 'server', args: '', description: 'Open this network’s server window', fields: [] },
   {
+    name: 'encrypt',
+    args: '',
+    description: 'Start or manage end-to-end encryption in this direct message',
+    fields: [],
+  },
+  {
     name: 'settings',
     args: '',
     description: 'Channel settings: topic, modes and bans',

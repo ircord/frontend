@@ -166,6 +166,7 @@ function openDetails() {
       <MessageContent :text="chat.active.topic" />
     </p>
     <div class="header-actions ml-auto flex shrink-0 items-center gap-1.5">
+      <EncryptionButton />
       <AppTooltip
         v-if="!chat.serverView && chat.active"
         :text="

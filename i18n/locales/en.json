@@ -1403,6 +1403,7 @@
       "appearance": "Appearance",
       "device": "Device",
       "emotes": "Emotes",
+      "encryption": "Encryption",
       "messages": "Messages",
       "networks": "Networks",
       "notifications": "Notifications",

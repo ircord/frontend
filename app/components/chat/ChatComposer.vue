@@ -26,6 +26,7 @@ const emit = defineEmits<{ cancelReply: [] }>()
 const { t, locale, n: $n } = useI18n()
 const $t = t
 const chat = useChatStore()
+const e2ee = useE2eeStore()
 const auth = useAuthStore()
 const library = useLibraryStore()
 const media = useMediaStore()
@@ -166,7 +167,10 @@ const placeholder = computed(() =>
             t('workspaceUi.composer.disconnected', { network: chat.network.name }))
     : rawMode.value
       ? t('workspaceUi.composer.commandPlaceholder', { target: target.value })
-      : t('workspaceUi.composer.messageTarget', { target: target.value }),
+      : e2ee.isEncrypted(chat.activeId)
+        ? (e2ee.sendPause(chat.activeId) ??
+          t('encryption.composer.placeholder', { target: target.value }))
+        : t('workspaceUi.composer.messageTarget', { target: target.value }),
 )
 
 /** The query of a /gif lookup running for the open conversation; shown until it finishes. */
@@ -334,10 +338,16 @@ function spend(origin: string, text: string, reply: Message | undefined) {
 function editLatest(event: KeyboardEvent) {
   if (event.key !== 'ArrowUp' || draft.value || event.isComposing) return false
   if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return false
-  const latest = (history.data.value?.items ?? []).findLast(
-    (m) =>
-      m.senderId === 'you' && !m.deleted && !m.delivery && !!messageActions.editing(m)?.allowed,
-  )
+  const latest = (history.data.value?.items ?? [])
+    .map((m) => e2ee.present(m))
+    .findLast(
+      (m) =>
+        !!m &&
+        m.senderId === 'you' &&
+        !m.deleted &&
+        !m.delivery &&
+        !!messageActions.editing(m)?.allowed,
+    )
   if (!latest) return false
   event.preventDefault()
   messageEditing.start(latest)

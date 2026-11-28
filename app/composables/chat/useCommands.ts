@@ -224,6 +224,15 @@ export function useCommands() {
         case 'server':
           if (network) chat.activate(serverViewId(network.id))
           break
+        case 'encrypt': {
+          // Opens the encryption panel, which starts, verifies and turns off encryption.
+          const e2ee = useE2eeStore()
+          if (!e2ee.enabled) return (chat.notify(t('encryption.settings.state.off')), 'kept')
+          if (!c || c.kind !== 'direct' || c.party)
+            return (chat.notify(t('encryption.blocked.notDirect')), 'kept')
+          e2ee.panel = c.id
+          break
+        }
         case 'settings':
           actions.channelSettings(c!.id)
           break

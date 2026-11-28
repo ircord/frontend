@@ -173,6 +173,9 @@ export const useAuthStore = defineStore('auth', () => {
   // Signing out or deleting the account reloads, so no store keeps the old account's state.
   async function logout() {
     try {
+      // Signing out deletes this device's encryption keys and its decrypted messages. A session
+      // that merely expires keeps them (expire below).
+      if (status.value === 'signed-in') await useE2eeStore().signOut()
       await apiClient().logout()
     } catch (error) {
       useChatStore().notify(errorText(error, (key) => app.$i18n.t(key)))
@@ -182,10 +185,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
   /** Asks "Log out of IRCord?" first; every sign-out control goes through here. */
   async function confirmLogout() {
+    const lastDevice = status.value === 'signed-in' && useE2eeStore().lastDevice
     if (
       await usePrompt().confirm({
         title: app.$i18n.t('workspaceUi.shell.logoutTitle'),
-        body: app.$i18n.t('workspaceUi.shell.logoutBody'),
+        body: lastDevice
+          ? `${app.$i18n.t('workspaceUi.shell.logoutBody')} ${app.$i18n.t('encryption.settings.lastDeviceSignOut')}`
+          : app.$i18n.t('workspaceUi.shell.logoutBody'),
         confirm: app.$i18n.t('common.logOut'),
         danger: true,
       })

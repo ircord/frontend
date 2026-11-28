@@ -1,0 +1,3 @@
+ircord/e2ee 6bff88cf86ebb27e1cd7cbfc3bd272becd40c377
+Built with tools/wasm.sh build (wasm-bindgen --target web).
+MIT licence: https://github.com/ircord/e2ee/blob/6bff88cf86ebb27e1cd7cbfc3bd272becd40c377/LICENSE

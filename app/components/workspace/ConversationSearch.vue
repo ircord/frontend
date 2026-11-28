@@ -61,9 +61,15 @@ const { search, results, cursor, loadMore, loadingMore, moreError } = useMessage
   scope,
   requestedSource,
 )
+const e2ee = useE2eeStore()
 const coverageNote = computed(() => {
   const key = searchCoverageKey(search.data.value)
-  return key ? t(key) : ''
+  return [
+    key ? t(key) : '',
+    e2ee.isEncrypted(props.conversation.id) ? t('encryption.search.local') : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 })
 const resultCount = computed(() =>
   search.data.value?.source?.actual === 'upstream' &&

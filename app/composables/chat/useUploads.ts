@@ -2,6 +2,8 @@ import type { Message, Upload } from '../../../shared/types/chat'
 import { MESSAGE_UPLOAD, UploadError } from '../../../shared/api/client'
 import { channelTarget } from '../../../shared/utils/irc'
 import { formatBytes } from '../../../shared/utils/bytes'
+import { encryptFile } from '../../../shared/e2ee/codec'
+import type { Attachment, EncryptedUpload } from '../../../shared/e2ee/types'
 
 export interface PendingFile {
   key: string
@@ -102,17 +104,43 @@ export function useUploads() {
     if (list) queues[conversationId] = list.filter((p) => p.key !== key)
   }
 
-  function upload(item: PendingFile, networkId: string): Promise<Upload> {
+  async function upload(item: PendingFile, networkId: string, encrypted = false): Promise<Upload> {
     item.controller = new AbortController()
-    return apiClient().upload(
-      item.file,
+    const onProgress = (progress: number) => {
+      item.progress = progress
+    }
+    if (!encrypted)
+      return apiClient().upload(
+        item.file,
+        networkId,
+        onProgress,
+        item.controller.signal,
+        MESSAGE_UPLOAD,
+      )
+    // In an encrypted chat the file is encrypted here first: the server stores an opaque blob,
+    // and the key, name and type travel inside the encrypted message.
+    const sealed = await encryptFile(await item.file.arrayBuffer())
+    const blob = new File([sealed.bytes as BlobPart], 'encrypted', {
+      type: 'application/octet-stream',
+    })
+    const result = await apiClient().upload(
+      blob,
       networkId,
-      (progress) => {
-        item.progress = progress
-      },
+      onProgress,
       item.controller.signal,
       MESSAGE_UPLOAD,
     )
+    const e2ee: Attachment = {
+      url: new URL(result.url, instanceOrigin()).href,
+      key: sealed.key,
+      sha256: sealed.sha256,
+      name: item.file.name,
+      mime: item.file.type || 'application/octet-stream',
+      size: item.file.size,
+      ...(item.width && { width: item.width }),
+      ...(item.height && { height: item.height }),
+    }
+    return { ...result, e2ee } as EncryptedUpload
   }
 
   /** Upload all files before publishing the batch; a retry reuses already completed uploads. */
@@ -136,10 +164,16 @@ export function useUploads() {
         }
         return
       }
+      const encrypted = useE2eeStore().isEncrypted(conversationId)
       for (const item of batch) {
         if (item.cancelled) continue
+        // A file uploaded before encryption was turned on is uploaded again, encrypted.
+        if (encrypted && item.upload && !(item.upload as EncryptedUpload).e2ee) {
+          void chat.deleteUpload(item.upload.id)
+          item.upload = undefined
+        }
         try {
-          item.upload ??= await upload(item, networkId)
+          item.upload ??= await upload(item, networkId, encrypted)
         } catch (error) {
           if (item.cancelled) continue
           item.status = 'failed'

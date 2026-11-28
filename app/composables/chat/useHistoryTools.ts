@@ -57,7 +57,9 @@ export function useHistoryTools() {
     busy.value = true
     chat.notify(t('workspaceUi.history.preparing'))
     try {
-      const messages = await collect(conversationId, () => false)
+      // Encrypted messages are written as this device decrypted them: the export is the only
+      // way to take a copy of encrypted history off a device.
+      const messages = await useE2eeStore().resolve(await collect(conversationId, () => false))
       const name = label(conversationId)
       const network = chat.data?.conversations.find((c) => c.id === conversationId)
       const networkName = network ? chat.networkOf(network)?.name : ''

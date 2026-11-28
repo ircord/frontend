@@ -32,6 +32,7 @@ function networkDefaults(
           : {}),
     },
     features: {
+      encryption: false,
       setname: true,
       metadata: [],
       away: true,
@@ -229,6 +230,7 @@ export function createFixtures(): { bootstrap: Bootstrap; messages: Record<strin
         capabilities: ['history'],
         ...networkDefaults('OFTC', {
           features: {
+            encryption: false,
             setname: false,
             metadata: [],
             away: true,

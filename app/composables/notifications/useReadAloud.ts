@@ -89,7 +89,11 @@ const allowedOrigin = import.meta.client
   : ''
 /** Whether this page can reach the service now, or needs reloading first. */
 export function speechNeedsReload(service: SpeechService) {
-  return !usePlatform().speechService && !import.meta.dev && speechOrigin(service.baseUrl) !== allowedOrigin
+  return (
+    !usePlatform().speechService &&
+    !import.meta.dev &&
+    speechOrigin(service.baseUrl) !== allowedOrigin
+  )
 }
 
 /**
@@ -131,9 +135,11 @@ async function speak(
     }
   } catch (error) {
     if ((error as Error)?.name === 'AbortError') throw error
-    throw new SpeechError(nativeSpeech
-      ? translate('workspaceUi.speech.nativeUnavailable')
-      : speechFailure(error, undefined, service.baseUrl, translate))
+    throw new SpeechError(
+      nativeSpeech
+        ? translate('workspaceUi.speech.nativeUnavailable')
+        : speechFailure(error, undefined, service.baseUrl, translate),
+    )
   }
   if (!response.ok)
     throw new SpeechError(speechFailure(null, response.status, service.baseUrl, translate))
@@ -302,7 +308,7 @@ export function useHighlightReader() {
   const chat = useChatStore()
   const notifications = useNotificationStore()
   const reader = useReadAloud()
-  const off = chat.onIncoming((message: Message) => {
+  const off = chat.onIncoming(async (message: Message) => {
     if (!reader.enabled.value) return
     const c = chat.data?.conversations.find((x) => x.id === message.conversationId)
     if (!c) return
@@ -310,11 +316,23 @@ export function useHighlightReader() {
     const you = chat.recipientFor(c, message)
     if (!shouldReadAloud(notifications.settings, c, message, you, sender?.nick, new Date(), sender))
       return
+    // Decrypted text is read only by the voice model on this device. A speech service gets a
+    // generic line instead, so an encrypted message never leaves the device in plaintext.
+    let body = message.text
+    if (message.encrypted) {
+      const decrypted = local?.active.value
+        ? (await useE2eeStore().resolve([message]))[0]
+        : undefined
+      body =
+        decrypted?.e2ee?.state === 'ok' && decrypted.text
+          ? decrypted.text
+          : t('encryption.notification')
+    }
     const text = spokenText(
       {
         sender: sender?.nick,
         channel: c.kind === 'channel' && !c.party ? channelTarget(c) : undefined,
-        text: message.text,
+        text: body,
         gif: !!message.gif,
       },
       (key, values) => (values ? t(key, values) : t(key)),

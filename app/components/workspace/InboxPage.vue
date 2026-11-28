@@ -324,7 +324,11 @@ function toggle(item: InboxItem) {
                             />{{ reasonLabel(reason) }}</span
                           ></template
                         ><span v-if="item.status === 'available'"
-                          ><em v-if="item.kind === 'action'">{{ item.excerpt }}</em
+                          ><em
+                            v-if="item.encrypted"
+                            class="text-muted-foreground"
+                            >{{ $t('encryption.notification') }}</em
+                          ><em v-else-if="item.kind === 'action'">{{ item.excerpt }}</em
                           ><template v-else>{{ item.excerpt }}</template></span
                         >
                         <span

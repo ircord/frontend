@@ -40,6 +40,7 @@ export default defineNuxtConfig({
       'account',
       'admin',
       'chat',
+      'encryption',
       'media',
       'network',
       'search',
@@ -87,6 +88,7 @@ export default defineNuxtConfig({
           'en/collections.json',
           'en/media.json',
           'en/themes.json',
+          'en/encryption.json',
         ],
       },
     ],
@@ -153,9 +155,11 @@ export default defineNuxtConfig({
   },
   // The production server passes each request's peer address on and sets its own timeouts and
   // body cap (see the file). Development keeps Nitro's dev server.
-  $production: desktopOutput ? {} : {
-    nitro: { entry: fileURLToPath(new URL('./server/entry.bun.ts', import.meta.url)) },
-  },
+  $production: desktopOutput
+    ? {}
+    : {
+        nitro: { entry: fileURLToPath(new URL('./server/entry.bun.ts', import.meta.url)) },
+      },
   // Nuxt polls /_nuxt/builds/latest.json for a newer build (default hourly). useAppUpdate also
   // checks on every WebSocket reconnect; this poll covers tabs whose socket never dropped.
   experimental: {
