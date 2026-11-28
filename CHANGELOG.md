@@ -12,6 +12,7 @@ What changed for people using IRCord, newest release first. Each release lists w
 ### Fixed
 
 - Attaching files to messages works again after reloading the app. Before, it said the server doesn’t accept file uploads until you switched networks. If the network’s file host was briefly unavailable, attaching a file now checks again.
+- Experimental: turning encryption off in a direct message now turns it off for both of you, also after the other person was offline. Turning it on again starts a new encrypted chat, also where an earlier version left it on for only one of you.
 
 ## v0.11.0 — 2026-11-28
 
