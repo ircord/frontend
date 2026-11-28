@@ -33,6 +33,14 @@ function collect(name) {
   walk(defs[name])
 }
 collect('ServerEvent')
+// Fields that backends still in service (v0.9.0) leave out of their events. The validator
+// accepts events without them, so this client keeps working against those servers.
+const addedAfterReleasedBackend = { EncryptionCapability: ['groups', 'acrossServers'] }
+for (const [name, fields] of Object.entries(addedAfterReleasedBackend)) {
+  const def = structuredClone(defs[name])
+  def.required = def.required?.filter((field) => !fields.includes(field))
+  defs[name] = def
+}
 const eventSchema = JSON.parse(
   JSON.stringify({
     $schema: 'https://json-schema.org/draft/2020-12/schema',

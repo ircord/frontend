@@ -96,6 +96,16 @@ export async function encryptFile(data: ArrayBuffer | Uint8Array) {
   return { bytes: file, key: toBase64Url(raw), sha256: toHex(await sha256(file)) }
 }
 
+/**
+ * The 32-byte key of an attachment, or undefined unless the text is canonical base64url: 43
+ * characters, no padding and zero trailing bits (wire.md section 6.4).
+ */
+function fileKey(text: string) {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(text)) return undefined
+  const raw = fromBase64(text)
+  return raw.length === 32 && toBase64Url(raw) === text ? raw : undefined
+}
+
 /** Checks and decrypts a downloaded encrypted file. Throws when it was changed. */
 export async function decryptFile(
   data: ArrayBuffer | Uint8Array,
@@ -103,8 +113,8 @@ export async function decryptFile(
 ) {
   const file = bytesOf(data)
   if (toHex(await sha256(file)) !== attachment.sha256) throw new Error('The file was changed.')
-  const raw = fromBase64(attachment.key)
-  if (raw.length !== 32 || file.length < 12 + 16) throw new Error('The file is not readable.')
+  const raw = fileKey(attachment.key)
+  if (!raw || file.length < 12 + 16) throw new Error('The file is not readable.')
   const key = await crypto.subtle.importKey('raw', raw as BufferSource, 'AES-GCM', false, [
     'decrypt',
   ])

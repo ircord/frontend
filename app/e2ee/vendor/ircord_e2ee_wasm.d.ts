@@ -28,9 +28,31 @@ export class E2eeDevice {
      */
     acceptIdentityChange(account: string, identity_key: Uint8Array | number[]): Array<any>;
     addDevices(group_id: string, key_packages: Array<any>): any;
+    /**
+     * The admins present in a group now: `[{ account, identityKey }]`.
+     */
+    admins(group_id: string): Array<any>;
+    /**
+     * Tries the candidate commits for the current epoch in position order
+     * and applies the first one the core accepts. Returns `{ accepted,
+     * rejected }`: `accepted` is `undefined` or `{ index, own: true, epoch }`
+     * or `{ index, own: false, applied }`; `rejected` is `[{ index, code,
+     * message }]`.
+     */
+    applyCandidates(group_id: string, candidates: Array<any>): any;
     certificateRequest(): Uint8Array;
     certifyDevice(request: Uint8Array | number[]): Uint8Array;
+    /**
+     * Checks a signed device list. Returns `{ account, counter, devices,
+     * stale: [{ groupId, device }] }`.
+     */
+    checkDeviceList(list: Uint8Array | number[]): any;
     confirmCommit(group_id: string): void;
+    /**
+     * Every conversation: `[{ kind: "dm", groupId, peer }]` and
+     * `[{ kind: "group", groupId, settings }]`.
+     */
+    conversations(): Array<any>;
     /**
      * The first device of an account: makes a new identity key.
      */
@@ -39,6 +61,11 @@ export class E2eeDevice {
      * A further device of an account, waiting for a certificate.
      */
     static createDevice(store: StateStore, account: string): E2eeDevice;
+    /**
+     * Starts a group. Returns `{ groupId, settings, members, welcome }`;
+     * the Welcome goes to every added account.
+     */
+    createGroup(title: string, key_packages: Array<any>): any;
     discardCommit(group_id: string): void;
     /**
      * Encrypts plain text with a new message id. Returns `{ id, tags }`.
@@ -48,6 +75,7 @@ export class E2eeDevice {
      * Encrypts a payload given as JSON. Returns the tag values, one per line.
      */
     encrypt(group_id: string, payload_json: string): Array<any>;
+    epochAuthenticator(group_id: string): Uint8Array;
     epoch(group_id: string): number;
     /**
      * The state blob as last saved.
@@ -55,17 +83,33 @@ export class E2eeDevice {
     exportState(): Uint8Array;
     forgetGroup(group_id: string): void;
     /**
+     * `{ title, creator, admins }` of a group.
+     */
+    groupSettings(group_id: string): any;
+    /**
      * `[{ groupId, peer }]`.
      */
     groups(): Array<any>;
+    handOver(group_id: string, account: string): any;
     installCertificate(certificate: Uint8Array | number[]): void;
     isActive(group_id: string): boolean;
+    isGroup(group_id: string): boolean;
     joinDm(welcome: Uint8Array | number[]): any;
+    /**
+     * Joins a group from a Welcome. Returns `{ groupId, settings, members,
+     * inviter, identityChanges, rejoined }`.
+     */
+    joinGroup(welcome: Uint8Array | number[]): any;
     /**
      * `count` single-use key packages, as an array of `Uint8Array`.
      */
     keyPackages(count: number): Array<any>;
     lastResortKeyPackage(): Uint8Array;
+    /**
+     * Removes an account's devices and adds its new ones in one commit:
+     * letting a person who started fresh back in. Needs an admin.
+     */
+    letBackIn(group_id: string, account: string, key_packages: Array<any>): any;
     members(group_id: string): any;
     /**
      * Opens the device whose state `store.load()` returns.
@@ -82,12 +126,25 @@ export class E2eeDevice {
     pin(account: string): any;
     processCommit(commit: Uint8Array | number[]): any;
     /**
+     * Answers a rejoin request that arrived from `ircAccount`.
+     */
+    readmit(group_id: string, request: Uint8Array | number[], irc_account: string): any;
+    /**
      * Decrypts one `+ircord/e2ee` tag value. An `own` result is not
      * authenticated and must not change any state on the page. Returns
      * `{ kind: "message", groupId, sender, payload }` (payload as JSON text),
      * `{ kind: "partial", groupId, have, of }` or `{ kind: "own", groupId }`.
      */
     receive(tag_value: string, irc_account: string): any;
+    /**
+     * A signed request to be let back into a group this device lost step
+     * with, for the conversation to see.
+     */
+    rejoinRequest(group_id: string): Uint8Array;
+    /**
+     * Removes every device of the given accounts. Needs an admin.
+     */
+    removeAccounts(group_id: string, accounts: Array<any>): any;
     /**
      * Removes devices given as `[{ account, deviceId }]`.
      */
@@ -97,8 +154,15 @@ export class E2eeDevice {
      */
     securityCode(peer: string): any;
     selfUpdate(group_id: string): any;
+    setAdmin(group_id: string, account: string, admin: boolean): any;
+    setGroupTitle(group_id: string, title: string): any;
     setTagBudget(chars: number): void;
     setVerified(account: string, verified: boolean): void;
+    /**
+     * Signs this account's device list from device ids in hex. Needs the
+     * identity key.
+     */
+    signDeviceList(device_ids: Array<any>): Uint8Array;
     startDm(peer: string, key_packages: Array<any>): any;
     readonly account: string;
     readonly certificate: Uint8Array | undefined;
@@ -136,39 +200,56 @@ export interface InitOutput {
     readonly e2eedevice_acceptIdentityChange: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly e2eedevice_account: (a: number) => [number, number];
     readonly e2eedevice_addDevices: (a: number, b: number, c: number, d: any) => [number, number, number];
+    readonly e2eedevice_admins: (a: number, b: number, c: number) => [number, number, number];
+    readonly e2eedevice_applyCandidates: (a: number, b: number, c: number, d: any) => [number, number, number];
     readonly e2eedevice_certificate: (a: number) => [number, number];
     readonly e2eedevice_certificateRequest: (a: number) => [number, number, number, number];
     readonly e2eedevice_certifyDevice: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly e2eedevice_checkDeviceList: (a: number, b: number, c: number) => [number, number, number];
     readonly e2eedevice_confirmCommit: (a: number, b: number, c: number) => [number, number];
+    readonly e2eedevice_conversations: (a: number) => [number, number, number];
     readonly e2eedevice_createAccount: (a: any, b: number, c: number) => [number, number, number];
     readonly e2eedevice_createDevice: (a: any, b: number, c: number) => [number, number, number];
+    readonly e2eedevice_createGroup: (a: number, b: number, c: number, d: any) => [number, number, number];
     readonly e2eedevice_deviceId: (a: number) => [number, number];
     readonly e2eedevice_deviceKey: (a: number) => [number, number];
     readonly e2eedevice_discardCommit: (a: number, b: number, c: number) => [number, number];
     readonly e2eedevice_encrypt: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly e2eedevice_encryptText: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly e2eedevice_epoch: (a: number, b: number, c: number) => [number, number, number];
+    readonly e2eedevice_epochAuthenticator: (a: number, b: number, c: number) => [number, number, number, number];
     readonly e2eedevice_exportState: (a: number) => [number, number];
     readonly e2eedevice_forgetGroup: (a: number, b: number, c: number) => [number, number];
+    readonly e2eedevice_groupSettings: (a: number, b: number, c: number) => [number, number, number];
     readonly e2eedevice_groups: (a: number) => any;
+    readonly e2eedevice_handOver: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly e2eedevice_holdsIdentity: (a: number) => number;
     readonly e2eedevice_identityKey: (a: number) => [number, number];
     readonly e2eedevice_installCertificate: (a: number, b: number, c: number) => [number, number];
     readonly e2eedevice_isActive: (a: number, b: number, c: number) => [number, number, number];
+    readonly e2eedevice_isGroup: (a: number, b: number, c: number) => [number, number, number];
     readonly e2eedevice_joinDm: (a: number, b: number, c: number) => [number, number, number];
+    readonly e2eedevice_joinGroup: (a: number, b: number, c: number) => [number, number, number];
     readonly e2eedevice_keyPackages: (a: number, b: number) => [number, number, number];
     readonly e2eedevice_lastResortKeyPackage: (a: number) => [number, number, number, number];
+    readonly e2eedevice_letBackIn: (a: number, b: number, c: number, d: number, e: number, f: any) => [number, number, number];
     readonly e2eedevice_members: (a: number, b: number, c: number) => [number, number, number];
     readonly e2eedevice_open: (a: any) => [number, number, number];
     readonly e2eedevice_pin: (a: number, b: number, c: number) => any;
     readonly e2eedevice_pinIdentity: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly e2eedevice_processCommit: (a: number, b: number, c: number) => [number, number, number];
+    readonly e2eedevice_readmit: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
     readonly e2eedevice_receive: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly e2eedevice_rejoinRequest: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly e2eedevice_removeAccounts: (a: number, b: number, c: number, d: any) => [number, number, number];
     readonly e2eedevice_removeDevices: (a: number, b: number, c: number, d: any) => [number, number, number];
     readonly e2eedevice_securityCode: (a: number, b: number, c: number) => [number, number, number];
     readonly e2eedevice_selfUpdate: (a: number, b: number, c: number) => [number, number, number];
+    readonly e2eedevice_setAdmin: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+    readonly e2eedevice_setGroupTitle: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly e2eedevice_setTagBudget: (a: number, b: number) => [number, number];
     readonly e2eedevice_setVerified: (a: number, b: number, c: number, d: number) => [number, number];
+    readonly e2eedevice_signDeviceList: (a: number, b: any) => [number, number, number, number];
     readonly e2eedevice_startDm: (a: number, b: number, c: number, d: any) => [number, number, number];
     readonly envelopeClass: (a: number, b: number) => [number, number, number, number];
     readonly newMessageId: () => [number, number, number, number];
