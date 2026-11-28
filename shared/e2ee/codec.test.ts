@@ -71,6 +71,21 @@ test('an encrypted file decrypts only with its key and unchanged bytes', async (
   await assert.rejects(decryptFile(sealed.bytes, { ...sealed, key: other.key }))
 })
 
+test('an encrypted file opens only with its key in canonical base64url', async () => {
+  const data = new TextEncoder().encode('a picture, really')
+  let sealed = await encryptFile(data)
+  while (!/[-_]/.test(sealed.key)) sealed = await encryptFile(data)
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+  const last = alphabet.indexOf(sealed.key.at(-1)!)
+  for (const key of [
+    `${sealed.key}=`,
+    sealed.key.replace(/-/g, '+').replace(/_/g, '/'),
+    sealed.key.slice(0, -1) + alphabet[last + 1],
+    sealed.key.slice(0, -1),
+  ])
+    await assert.rejects(decryptFile(sealed.bytes, { ...sealed, key }), /not readable/)
+})
+
 test('approval codes are 20 random digits, read and typed in groups', () => {
   const code = newApprovalCode()
   assert.match(code, /^\d{20}$/)

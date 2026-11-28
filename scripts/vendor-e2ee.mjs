@@ -28,7 +28,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repository = 'https://github.com/ircord/e2ee.git'
-const commit = '6bff88cf86ebb27e1cd7cbfc3bd272becd40c377'
+const commit = '1c01f989770d4da6e8e42e28d65d14042200c624'
 const files = [
   'ircord_e2ee_wasm.js',
   'ircord_e2ee_wasm.d.ts',

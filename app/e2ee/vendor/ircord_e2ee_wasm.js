@@ -75,6 +75,39 @@ export class E2eeDevice {
         return takeFromExternrefTable0(ret[0]);
     }
     /**
+     * The admins present in a group now: `[{ account, identityKey }]`.
+     * @param {string} group_id
+     * @returns {Array<any>}
+     */
+    admins(group_id) {
+        const ptr0 = passStringToWasm0(group_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.e2eedevice_admins(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * Tries the candidate commits for the current epoch in position order
+     * and applies the first one the core accepts. Returns `{ accepted,
+     * rejected }`: `accepted` is `undefined` or `{ index, own: true, epoch }`
+     * or `{ index, own: false, applied }`; `rejected` is `[{ index, code,
+     * message }]`.
+     * @param {string} group_id
+     * @param {Array<any>} candidates
+     * @returns {any}
+     */
+    applyCandidates(group_id, candidates) {
+        const ptr0 = passStringToWasm0(group_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.e2eedevice_applyCandidates(this.__wbg_ptr, ptr0, len0, candidates);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * @returns {Uint8Array}
      */
     certificateRequest() {
@@ -114,6 +147,21 @@ export class E2eeDevice {
         return v2;
     }
     /**
+     * Checks a signed device list. Returns `{ account, counter, devices,
+     * stale: [{ groupId, device }] }`.
+     * @param {Uint8Array | number[]} list
+     * @returns {any}
+     */
+    checkDeviceList(list) {
+        const ptr0 = passArray8ToWasm0(list, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.e2eedevice_checkDeviceList(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * @param {string} group_id
      */
     confirmCommit(group_id) {
@@ -123,6 +171,18 @@ export class E2eeDevice {
         if (ret[1]) {
             throw takeFromExternrefTable0(ret[0]);
         }
+    }
+    /**
+     * Every conversation: `[{ kind: "dm", groupId, peer }]` and
+     * `[{ kind: "group", groupId, settings }]`.
+     * @returns {Array<any>}
+     */
+    conversations() {
+        const ret = wasm.e2eedevice_conversations(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
     }
     /**
      * The first device of an account: makes a new identity key.
@@ -153,6 +213,22 @@ export class E2eeDevice {
             throw takeFromExternrefTable0(ret[1]);
         }
         return E2eeDevice.__wrap(ret[0]);
+    }
+    /**
+     * Starts a group. Returns `{ groupId, settings, members, welcome }`;
+     * the Welcome goes to every added account.
+     * @param {string} title
+     * @param {Array<any>} key_packages
+     * @returns {any}
+     */
+    createGroup(title, key_packages) {
+        const ptr0 = passStringToWasm0(title, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.e2eedevice_createGroup(this.__wbg_ptr, ptr0, len0, key_packages);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
     }
     /**
      * @returns {string}
@@ -239,6 +315,21 @@ export class E2eeDevice {
     }
     /**
      * @param {string} group_id
+     * @returns {Uint8Array}
+     */
+    epochAuthenticator(group_id) {
+        const ptr0 = passStringToWasm0(group_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.e2eedevice_epochAuthenticator(this.__wbg_ptr, ptr0, len0);
+        if (ret[3]) {
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v2;
+    }
+    /**
+     * @param {string} group_id
      * @returns {number}
      */
     epoch(group_id) {
@@ -272,12 +363,49 @@ export class E2eeDevice {
         }
     }
     /**
+     * `{ title, creator, admins }` of a group.
+     * @param {string} group_id
+     * @returns {any}
+     */
+    groupSettings(group_id) {
+        const ptr0 = passStringToWasm0(group_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.e2eedevice_groupSettings(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * `[{ groupId, peer }]`.
      * @returns {Array<any>}
      */
     groups() {
         const ret = wasm.e2eedevice_groups(this.__wbg_ptr);
         return ret;
+    }
+    /**
+     * @param {string} group_id
+     * @param {string} account
+     * @returns {any}
+     */
+    handOver(group_id, account) {
+        let ptr0, len0, ptr1, len1;
+        try {
+            ptr0 = passStringToWasm0(group_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            len0 = WASM_VECTOR_LEN;
+            ptr1 = passStringToWasm0(account, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            len1 = WASM_VECTOR_LEN;
+        } catch (e) {
+            if (ptr1) { wasm.__wbindgen_free(ptr1, len1 * 1, 1); }
+            if (ptr0) { wasm.__wbindgen_free(ptr0, len0 * 1, 1); }
+            throw e;
+        }
+        const ret = wasm.e2eedevice_handOver(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
     }
     /**
      * @returns {boolean}
@@ -323,6 +451,19 @@ export class E2eeDevice {
         return ret[0] !== 0;
     }
     /**
+     * @param {string} group_id
+     * @returns {boolean}
+     */
+    isGroup(group_id) {
+        const ptr0 = passStringToWasm0(group_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.e2eedevice_isGroup(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0] !== 0;
+    }
+    /**
      * @param {Uint8Array | number[]} welcome
      * @returns {any}
      */
@@ -330,6 +471,21 @@ export class E2eeDevice {
         const ptr0 = passArray8ToWasm0(welcome, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.e2eedevice_joinDm(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * Joins a group from a Welcome. Returns `{ groupId, settings, members,
+     * inviter, identityChanges, rejoined }`.
+     * @param {Uint8Array | number[]} welcome
+     * @returns {any}
+     */
+    joinGroup(welcome) {
+        const ptr0 = passArray8ToWasm0(welcome, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.e2eedevice_joinGroup(this.__wbg_ptr, ptr0, len0);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -358,6 +514,32 @@ export class E2eeDevice {
         var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
         wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
         return v1;
+    }
+    /**
+     * Removes an account's devices and adds its new ones in one commit:
+     * letting a person who started fresh back in. Needs an admin.
+     * @param {string} group_id
+     * @param {string} account
+     * @param {Array<any>} key_packages
+     * @returns {any}
+     */
+    letBackIn(group_id, account, key_packages) {
+        let ptr0, len0, ptr1, len1;
+        try {
+            ptr0 = passStringToWasm0(group_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            len0 = WASM_VECTOR_LEN;
+            ptr1 = passStringToWasm0(account, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            len1 = WASM_VECTOR_LEN;
+        } catch (e) {
+            if (ptr1) { wasm.__wbindgen_free(ptr1, len1 * 1, 1); }
+            if (ptr0) { wasm.__wbindgen_free(ptr0, len0 * 1, 1); }
+            throw e;
+        }
+        const ret = wasm.e2eedevice_letBackIn(this.__wbg_ptr, ptr0, len0, ptr1, len1, key_packages);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
     }
     /**
      * @param {string} group_id
@@ -445,6 +627,34 @@ export class E2eeDevice {
         return takeFromExternrefTable0(ret[0]);
     }
     /**
+     * Answers a rejoin request that arrived from `ircAccount`.
+     * @param {string} group_id
+     * @param {Uint8Array | number[]} request
+     * @param {string} irc_account
+     * @returns {any}
+     */
+    readmit(group_id, request, irc_account) {
+        let ptr0, len0, ptr1, len1, ptr2, len2;
+        try {
+            ptr0 = passStringToWasm0(group_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            len0 = WASM_VECTOR_LEN;
+            ptr1 = passArray8ToWasm0(request, wasm.__wbindgen_malloc);
+            len1 = WASM_VECTOR_LEN;
+            ptr2 = passStringToWasm0(irc_account, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            len2 = WASM_VECTOR_LEN;
+        } catch (e) {
+            if (ptr2) { wasm.__wbindgen_free(ptr2, len2 * 1, 1); }
+            if (ptr1) { wasm.__wbindgen_free(ptr1, len1 * 1, 1); }
+            if (ptr0) { wasm.__wbindgen_free(ptr0, len0 * 1, 1); }
+            throw e;
+        }
+        const ret = wasm.e2eedevice_readmit(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * Decrypts one `+ircord/e2ee` tag value. An `own` result is not
      * authenticated and must not change any state on the page. Returns
      * `{ kind: "message", groupId, sender, payload }` (payload as JSON text),
@@ -466,6 +676,38 @@ export class E2eeDevice {
             throw e;
         }
         const ret = wasm.e2eedevice_receive(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * A signed request to be let back into a group this device lost step
+     * with, for the conversation to see.
+     * @param {string} group_id
+     * @returns {Uint8Array}
+     */
+    rejoinRequest(group_id) {
+        const ptr0 = passStringToWasm0(group_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.e2eedevice_rejoinRequest(this.__wbg_ptr, ptr0, len0);
+        if (ret[3]) {
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v2;
+    }
+    /**
+     * Removes every device of the given accounts. Needs an admin.
+     * @param {string} group_id
+     * @param {Array<any>} accounts
+     * @returns {any}
+     */
+    removeAccounts(group_id, accounts) {
+        const ptr0 = passStringToWasm0(group_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.e2eedevice_removeAccounts(this.__wbg_ptr, ptr0, len0, accounts);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -514,6 +756,54 @@ export class E2eeDevice {
         return takeFromExternrefTable0(ret[0]);
     }
     /**
+     * @param {string} group_id
+     * @param {string} account
+     * @param {boolean} admin
+     * @returns {any}
+     */
+    setAdmin(group_id, account, admin) {
+        const val3 = +admin;
+        let ptr0, len0, ptr1, len1;
+        try {
+            ptr0 = passStringToWasm0(group_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            len0 = WASM_VECTOR_LEN;
+            ptr1 = passStringToWasm0(account, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            len1 = WASM_VECTOR_LEN;
+        } catch (e) {
+            if (ptr1) { wasm.__wbindgen_free(ptr1, len1 * 1, 1); }
+            if (ptr0) { wasm.__wbindgen_free(ptr0, len0 * 1, 1); }
+            throw e;
+        }
+        const ret = wasm.e2eedevice_setAdmin(this.__wbg_ptr, ptr0, len0, ptr1, len1, val3);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @param {string} group_id
+     * @param {string} title
+     * @returns {any}
+     */
+    setGroupTitle(group_id, title) {
+        let ptr0, len0, ptr1, len1;
+        try {
+            ptr0 = passStringToWasm0(group_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            len0 = WASM_VECTOR_LEN;
+            ptr1 = passStringToWasm0(title, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            len1 = WASM_VECTOR_LEN;
+        } catch (e) {
+            if (ptr1) { wasm.__wbindgen_free(ptr1, len1 * 1, 1); }
+            if (ptr0) { wasm.__wbindgen_free(ptr0, len0 * 1, 1); }
+            throw e;
+        }
+        const ret = wasm.e2eedevice_setGroupTitle(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * @param {number} chars
      */
     setTagBudget(chars) {
@@ -534,6 +824,21 @@ export class E2eeDevice {
         if (ret[1]) {
             throw takeFromExternrefTable0(ret[0]);
         }
+    }
+    /**
+     * Signs this account's device list from device ids in hex. Needs the
+     * identity key.
+     * @param {Array<any>} device_ids
+     * @returns {Uint8Array}
+     */
+    signDeviceList(device_ids) {
+        const ret = wasm.e2eedevice_signDeviceList(this.__wbg_ptr, device_ids);
+        if (ret[3]) {
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
     }
     /**
      * @param {string} peer
