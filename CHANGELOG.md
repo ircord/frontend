@@ -5,13 +5,16 @@ What changed for people using IRCord, newest release first. Each release lists w
 
 ## Unreleased
 
+### New
+
+- Experimental: create encrypted groups with a title and the people you choose, from the lock next to Direct messages. People can be on any IRCord server of the same network, and each gets an invitation to join or decline. The creator and the admins they appoint add and remove people, everyone can leave, and the group’s details show each person’s devices and how many of them you verified. Every message in an encrypted group notifies you, unless you mute the group.
+- Experimental: encrypted direct messages now also work with people on other IRCord servers of the same network. When encryption for your account is set up on another IRCord server, the app says so and points you there.
+
 ## v0.11.1 — 2026-11-28
 
 ### New
 
 - Experimental: a person’s menu now has Start encrypted chat, which opens your direct messages with them and the panel that starts encryption. When encryption cannot start, the item is unavailable and says why.
-- Experimental: create encrypted groups with a title and the people you choose, from the lock next to Direct messages. People can be on any IRCord server of the same network, and each gets an invitation to join or decline. The creator and the admins they appoint add and remove people, everyone can leave, and the group’s details show each person’s devices and how many of them you verified. Every message in an encrypted group notifies you, unless you mute the group.
-- Experimental: encrypted direct messages now also work with people on other IRCord servers of the same network. When encryption for your account is set up on another IRCord server, the app says so and points you there.
 
 ### Fixed
 
