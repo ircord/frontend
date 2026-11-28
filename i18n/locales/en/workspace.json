@@ -496,6 +496,8 @@
       "banBody": "Sets a ban on {nick}!*{'@'}*. They can’t rejoin until it is removed.",
       "profile": "Profile",
       "message": "Message",
+      "startEncryptedChat": "Start encrypted chat",
+      "openEncryptedChat": "Open encrypted chat",
       "mention": "Mention",
       "copyNick": "Copy nick",
       "stopIgnoring": "Stop ignoring",

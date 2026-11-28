@@ -20,6 +20,8 @@ export function useMenus(messageActions = useMessageActions()) {
   const library = useLibraryStore()
   const saved = useSavedStore()
   const notifications = useNotificationStore()
+  const e2ee = useE2eeStore()
+  const navigation = useConversationNavigation()
   const actions = useWorkspaceActions()
   const messageEditing = useMessageEditing()
   const { deletion, editing, deleteMessage, reactWith, unreadable, copyMessage } = messageActions
@@ -137,6 +139,51 @@ export function useMenus(messageActions = useMessageActions()) {
       choice('all', t('workspaceUi.menus.allMessages')),
       choice('mentions', t('workspaceUi.menus.onlyMentions')),
       choice('none', t('workspaceUi.menus.mute')),
+    ]
+  }
+
+  /**
+   * Starting an encrypted chat with a person, while the server offers encryption. It opens the
+   * direct conversation and its encryption panel; it is disabled with the reason when it cannot
+   * start. An already encrypted conversation is offered to open instead.
+   */
+  function encryptedChatItems(person: Member, networkId: string | undefined): MenuEntry[] {
+    if (!e2ee.enabled || !networkId) return []
+    const existing = chat.data?.conversations.find(
+      (c) =>
+        c.kind === 'direct' &&
+        !c.party &&
+        c.networkId === networkId &&
+        (chat.directPartner(c)?.id === person.id ||
+          c.name.toLowerCase() === person.nick.toLowerCase()),
+    )
+    if (existing && e2ee.isEncrypted(existing.id))
+      return [
+        {
+          label: t('workspaceUi.menus.openEncryptedChat'),
+          icon: 'lock',
+          action: () => chat.activate(existing.id),
+        },
+      ]
+    const blocker = e2ee.personBlocker(person, networkId)
+    return [
+      {
+        label: t('workspaceUi.menus.startEncryptedChat'),
+        icon: 'lock',
+        disabled: !!blocker,
+        hint: blocker ? t('workspaceUi.menus.unavailable') : undefined,
+        title: blocker ? t(`encryption.blocked.${blocker}`, { name: person.nick }) : undefined,
+        action: async () => {
+          try {
+            const c = await chat.direct.mutateAsync({ memberId: person.id, networkId })
+            // Navigation closes open dialogs, so the panel opens once the conversation is shown.
+            await navigation.open(c.id)
+            e2ee.panel = c.id
+          } catch (cause) {
+            chat.notify(errorText(cause, t), { error: true })
+          }
+        },
+      },
     ]
   }
 
@@ -277,6 +324,7 @@ export function useMenus(messageActions = useMessageActions()) {
                     .mutateAsync(person.id)
                     .catch((cause) => chat.notify(errorText(cause, t), { error: true })),
               },
+              ...encryptedChatItems(person, network?.id),
               {
                 label: t('workspaceUi.menus.mention'),
                 icon: 'at',

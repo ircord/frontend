@@ -3,6 +3,12 @@
 What changed for people using IRCord, newest release first. Each release lists what is **New**,
 **Improved** and **Fixed**, in plain words. Changes nobody using the app would notice are left out.
 
+## Unreleased
+
+### New
+
+- Experimental: a person’s menu now has Start encrypted chat, which opens your direct messages with them and the panel that starts encryption. When encryption cannot start, the item is unavailable and says why.
+
 ## v0.11.0 — 2026-11-28
 
 ### New

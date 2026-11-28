@@ -1,5 +1,6 @@
 import { acceptHMRUpdate, defineStore } from 'pinia'
-import type { Conversation, Message } from '../../shared/types/chat'
+import type { Conversation, Member, Message } from '../../shared/types/chat'
+import { startBlockerFor, type StartBlocker } from '../../shared/e2ee/start'
 import type {
   Attachment,
   ConversationRecord,
@@ -47,9 +48,7 @@ export type E2eePhase =
   | 'ready'
   | 'failed'
 
-/** Why a conversation cannot start encryption, as a catalog key, or undefined when it can. */
-export type StartBlocker =
-  'notDirect' | 'network' | 'selfAccount' | 'peerAccount' | 'peerNoKeys' | 'deviceNotReady' | 'bot'
+export type { StartBlocker }
 
 type Directory = Awaited<ReturnType<ReturnType<typeof apiClient>['e2eeOwnDirectory']>>
 
@@ -581,13 +580,35 @@ export const useE2eeStore = defineStore('e2ee', () => {
   /** What stops `start`, checked without asking the server. */
   function startBlocker(c: Conversation | undefined): StartBlocker | undefined {
     if (!c || c.kind !== 'direct' || c.party) return 'notDirect'
-    if (!homeNetwork.value || c.networkId !== homeNetwork.value.id) return 'network'
-    if (!account.value) return 'selfAccount'
-    const partner = chat.directPartner(c)
-    if (partner?.role === 'bot') return 'bot'
-    if (!peerOf(c)) return 'peerAccount'
-    if (!ready.value) return 'deviceNotReady'
-    return peerKeys[peerOf(c).toLowerCase()] === false ? 'peerNoKeys' : undefined
+    const peer = peerOf(c)
+    return startBlockerFor({
+      networkId: c.networkId,
+      homeNetworkId: homeNetwork.value?.id,
+      selfAccount: account.value,
+      bot: chat.directPartner(c)?.role === 'bot',
+      peer,
+      ready: ready.value,
+      peerHasKeys: peerKeys[peer.toLowerCase()],
+    })
+  }
+  /**
+   * What stops encryption with a person before a direct conversation exists, for the person menu.
+   * An account the network has not reported yet does not block, and neither do the person's
+   * keys: the dialog looks both up again, so a stale answer here would not lock anyone out.
+   */
+  function personBlocker(person: Member, networkId: string): StartBlocker | undefined {
+    const known =
+      person.account && person.account !== '*'
+        ? person.account
+        : whoisAccounts[person.nick.toLowerCase()]
+    return startBlockerFor({
+      networkId,
+      homeNetworkId: homeNetwork.value?.id,
+      selfAccount: account.value,
+      bot: person.role === 'bot',
+      peer: known || (person.account === '*' ? '' : undefined),
+      ready: ready.value,
+    })
   }
   /** Whether people have published keys, as far as this session checked. */
   const peerKeys = reactive<Record<string, boolean>>({})
@@ -1330,6 +1351,7 @@ export const useE2eeStore = defineStore('e2ee', () => {
     isEncrypted: computed(() => isEncrypted),
     present: computed(() => present),
     startBlocker: computed(() => startBlocker),
+    personBlocker: computed(() => personBlocker),
     sendPause: computed(() => sendPause),
     checkPeerKeys,
     resolvePeer,
