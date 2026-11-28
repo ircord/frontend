@@ -1,17 +1,20 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  approvalCode,
-  approvalDigest,
   approvalQr,
   decryptFile,
   encryptedToTag,
   encryptFile,
+  formatApprovalCode,
   fromBase64,
   fromHex,
   messagePayload,
+  newApprovalCode,
+  normalizeApprovalCode,
+  openApprovalRequest,
   openHandover,
   parseApprovalQr,
+  sealApprovalRequest,
   sealHandover,
   tagToEncrypted,
   toBase64,
@@ -68,39 +71,39 @@ test('an encrypted file decrypts only with its key and unchanged bytes', async (
   await assert.rejects(decryptFile(sealed.bytes, { ...sealed, key: other.key }))
 })
 
-test('the approval code binds the request and the identity key', async () => {
+test('approval codes are 20 random digits, read and typed in groups', () => {
+  const code = newApprovalCode()
+  assert.match(code, /^\d{20}$/)
+  assert.notEqual(newApprovalCode(), code)
+  assert.match(formatApprovalCode(code), /^\d{5} \d{5} \d{5} \d{5}$/)
+  assert.equal(normalizeApprovalCode(formatApprovalCode(code)), code)
+  assert.equal(normalizeApprovalCode('12345 67890'), undefined)
+  assert.equal(parseApprovalQr(approvalQr(code)), code)
+  assert.equal(parseApprovalQr(`ircord-e2ee-approve:1:${code}`), undefined)
+})
+
+test('only the holder of the code can make a request the approving device accepts', async () => {
+  const code = newApprovalCode()
   const request = Uint8Array.from({ length: 116 }, (_, i) => i)
-  const identity = Uint8Array.from({ length: 32 }, (_, i) => 255 - i)
-  const digest = await approvalDigest(request, identity)
-  assert.match(approvalCode(digest), /^\d{5} \d{5}$/)
-  assert.equal(approvalCode(digest), approvalCode(await approvalDigest(request, identity)))
-  const swappedRequest = request.slice()
-  swappedRequest[3] = 0
-  assert.notEqual(toHex(await approvalDigest(swappedRequest, identity)), toHex(digest))
-  const swappedKey = identity.slice()
-  swappedKey[0] = 0
-  assert.notEqual(toHex(await approvalDigest(request, swappedKey)), toHex(digest))
+  const posted = await sealApprovalRequest(code, request)
+  assert.deepEqual(await openApprovalRequest(code, posted), request)
+  // A server that swaps the request, or does not know the code, is refused.
+  const swapped = posted.slice()
+  swapped[3]! ^= 1
+  assert.equal(await openApprovalRequest(code, swapped), undefined)
+  assert.equal(await openApprovalRequest(newApprovalCode(), posted), undefined)
+  const forged = await sealApprovalRequest(newApprovalCode(), request)
+  assert.equal(await openApprovalRequest(code, forged), undefined)
 })
 
-test('the approval QR code carries the device, the digest and the secret', async () => {
-  const digest = await approvalDigest(new Uint8Array(10), new Uint8Array(32))
-  const secret = crypto.getRandomValues(new Uint8Array(16))
-  const device = 'ab'.repeat(16)
-  const parsed = parseApprovalQr(approvalQr(device, digest, secret))
-  assert.equal(parsed?.deviceId, device)
-  assert.equal(parsed?.digest, toHex(digest))
-  assert.deepEqual(parsed?.secret, secret)
-  assert.equal(parseApprovalQr('ircord-e2ee:1:deadbeef'), undefined)
-  assert.equal(parseApprovalQr(`ircord-e2ee-approve:1:${device}:${toHex(digest)}`), undefined)
-})
-
-test('the approval handover opens only with the QR secret', async () => {
-  const secret = crypto.getRandomValues(new Uint8Array(16))
-  const sealed = await sealHandover(secret, { verified: [{ account: 'bob', identityKey: 'AA==' }] })
-  assert.deepEqual(await openHandover(secret, sealed), {
-    verified: [{ account: 'bob', identityKey: 'AA==' }],
-  })
-  await assert.rejects(openHandover(crypto.getRandomValues(new Uint8Array(16)), sealed))
+test('the approval answer opens only with the code', async () => {
+  const code = newApprovalCode()
+  const sealed = await sealHandover(code, { certificate: 'AA==', verified: [] })
+  assert.deepEqual(await openHandover(code, sealed), { certificate: 'AA==', verified: [] })
+  await assert.rejects(openHandover(newApprovalCode(), sealed))
+  const changed = sealed.slice()
+  changed[20]! ^= 1
+  await assert.rejects(openHandover(code, changed))
 })
 
 test('search tokens are lower-case words', () => {

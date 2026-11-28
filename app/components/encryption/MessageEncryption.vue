@@ -22,7 +22,8 @@ async function load(attachment: Attachment) {
   try {
     // The URL comes from the other person: fetch only this server's own files.
     const url = new URL(attachment.url, instanceOrigin())
-    if (url.origin !== new URL(instanceOrigin()).origin) throw new Error('foreign file host')
+    if (url.origin !== new URL(instanceOrigin()).origin || !url.pathname.startsWith('/files/'))
+      throw new Error('not an uploaded file')
     const response = await instanceFetch(url, { credentials: 'same-origin' })
     if (!response.ok) throw new Error(String(response.status))
     const plain = await decryptFile(await response.arrayBuffer(), attachment)

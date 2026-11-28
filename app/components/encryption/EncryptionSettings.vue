@@ -1,6 +1,4 @@
 <script setup lang="ts" vapor>
-import { parseApprovalQr } from '../../../shared/e2ee/codec'
-import type { PendingApproval } from '../../stores/e2ee'
 /**
  * Settings → Encryption: this device's encryption state, approving devices in both directions,
  * the account's devices, and starting fresh. Shown only when the server offers encryption.
@@ -57,36 +55,38 @@ onBeforeUnmount(() => request.value?.cancel())
 
 // ---- This device approves another ---------------------------------------------------------------
 
-const pending = ref<PendingApproval[]>([])
+const waiting = ref(0)
 const approving = ref(false)
 const approveStatus = ref('')
 const approveProblem = ref('')
-let pendingTimer: ReturnType<typeof setInterval> | undefined
+const typedCode = ref('')
+let waitingTimer: ReturnType<typeof setInterval> | undefined
 const canApprove = computed(() => e2ee.ready && !!e2ee.info.holdsIdentity)
-async function refreshPending() {
+async function refreshWaiting() {
   if (!canApprove.value || approving.value) return
-  pending.value = await e2ee.pendingApprovals().catch(() => [])
+  waiting.value = await e2ee.waitingApprovals().catch(() => 0)
 }
 watch(
   canApprove,
   (on) => {
-    clearInterval(pendingTimer)
+    clearInterval(waitingTimer)
     if (!on) return
-    void refreshPending()
-    pendingTimer = setInterval(() => void refreshPending(), 3000)
+    void refreshWaiting()
+    waitingTimer = setInterval(() => void refreshWaiting(), 3000)
   },
   { immediate: true },
 )
-onBeforeUnmount(() => clearInterval(pendingTimer))
+onBeforeUnmount(() => clearInterval(waitingTimer))
 
-async function approve(item: PendingApproval, secret?: Uint8Array) {
+/** Approves the device whose code was scanned or typed. */
+async function approve(code: string) {
   approving.value = true
   approveProblem.value = ''
   approveStatus.value = t('encryption.approval.approving')
   try {
-    await e2ee.approve(item, secret)
+    await e2ee.approve(code)
     approveStatus.value = t('encryption.approval.done')
-    pending.value = pending.value.filter((p) => p.id !== item.id)
+    typedCode.value = ''
   } catch (error) {
     approveStatus.value = ''
     approveProblem.value = t('encryption.approval.failed', {
@@ -94,21 +94,13 @@ async function approve(item: PendingApproval, secret?: Uint8Array) {
     })
   } finally {
     approving.value = false
+    void refreshWaiting()
   }
 }
 const scanning = ref(false)
-async function scanned(text: string) {
+function scanned(text: string) {
   scanning.value = false
-  const code = parseApprovalQr(text)
-  await refreshPending()
-  const item =
-    code && pending.value.find((p) => p.deviceId === code.deviceId && p.digest === code.digest)
-  if (!code || !item) {
-    approveProblem.value = t('encryption.approval.notFound')
-    return
-  }
-  approveStatus.value = t('encryption.approval.scanned')
-  await approve(item, code.secret)
+  void approve(text)
 }
 
 // ---- Devices and starting fresh -----------------------------------------------------------------
@@ -211,6 +203,9 @@ async function startFresh() {
               >{{ request.code }}</strong
             >
           </p>
+          <p class="m-0 text-[13px] text-muted-foreground">
+            {{ t('encryption.approval.keepSecret') }}
+          </p>
           <p
             class="m-0 text-[13px] text-muted-foreground"
             role="status"
@@ -282,34 +277,41 @@ async function startFresh() {
             />{{ t('encryption.approval.scanTitle') }}
           </UiButton>
         </div>
-        <div
+        <form
           class="grid gap-2"
           data-encryption-pending
+          @submit.prevent="approve(typedCode)"
         >
-          <strong class="text-[13px]">{{ t('encryption.approval.pending') }}</strong>
-          <p
-            v-if="!pending.length"
-            class="m-0 text-[13px] text-muted-foreground"
+          <label
+            class="text-[13px] font-[600]"
+            for="encryption-approval-code"
+            >{{ t('encryption.approval.typeCode') }}</label
           >
-            {{ t('encryption.approval.pendingNone') }}
-          </p>
-          <div
-            v-for="item in pending"
-            :key="item.id"
-            class="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
-          >
-            <span class="font-code text-[15px] tracking-wider tabular-nums">{{
-              t('encryption.approval.pendingCode', { code: item.code })
-            }}</span>
+          <div class="flex flex-wrap items-center gap-2">
+            <UiInput
+              id="encryption-approval-code"
+              v-model="typedCode"
+              class="max-w-72 font-code tabular-nums"
+              inputmode="numeric"
+              autocomplete="off"
+              :placeholder="'00000 00000 00000 00000'"
+            />
             <UiButton
               size="sm"
-              :disabled="approving"
-              @click="approve(item)"
+              type="submit"
+              :disabled="approving || !typedCode.trim()"
             >
               {{ t('encryption.approval.approveThis') }}
             </UiButton>
           </div>
-        </div>
+          <p class="m-0 text-[13px] text-muted-foreground">
+            {{
+              waiting
+                ? t('encryption.approval.waitingCount', { count: waiting }, waiting)
+                : t('encryption.approval.pendingNone')
+            }}
+          </p>
+        </form>
       </template>
       <p
         v-else

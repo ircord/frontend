@@ -121,85 +121,114 @@ export async function decryptFile(
 //
 // A new device asks an approved device of the same account for a certificate. The core makes the
 // certificate request and the certificate (wire.md sections 3.1 and 3.2); how they travel is left
-// to the client. This client:
+// to the client. Everything here travels through the backend's approval relay, so the server
+// sees it all, except the approval code: 20 random digits that the new device shows (as text and
+// in a QR code) and the person carries to the approving device by scanning or typing.
 //
-// 1. On the new device: reads the account's identity key from the key directory, makes a
-//    certificate request R and a random secret S, and posts R through the backend's approval
-//    relay to the account's `pending` mailbox. It shows a QR code with its device ID, the digest
-//    D = SHA-256("ircord-e2ee/1 approval" || 0x00 || R || identity key) and S, and a short code
-//    made from D.
-// 2. On the approving device: computes D for each pending request with its own identity key. It
-//    accepts the request whose D matches the scanned QR code, or the one whose short code the
-//    person confirms. It certifies R and relays the certificate to the new device, with the
-//    encrypted chat list and verification marks encrypted under a key derived from S (only after
-//    a QR scan, since S never passes the server).
-// 3. On the new device: installs the certificate only if its identity key is the one D was made
-//    with. A server that swapped R or the identity key changes D, so the codes do not match.
+// 1. The new device makes a certificate request R and posts R || HMAC(code, R) to the account's
+//    `pending` mailbox.
+// 2. The approving device takes the code from the person and certifies only a request whose HMAC
+//    checks out under it. A server cannot make one: it does not know the code, and an HMAC over
+//    66 random bits cannot be guessed within the relay's ten-minute lifetime. The approving device
+//    sends back the certificate, its verification marks and its list of encrypted chats, sealed
+//    with AES-GCM under a key derived from the code.
+// 3. The new device installs only a certificate that arrives sealed under its code, so it never
+//    takes an identity key from the server.
 
 export const APPROVAL_MAILBOX = 'pending'
-const APPROVAL_LABEL = new TextEncoder().encode('ircord-e2ee/1 approval\0')
+export const APPROVAL_DIGITS = 20
+const encoder = new TextEncoder()
 
-export async function approvalDigest(request: Uint8Array, identityKey: Uint8Array) {
-  const input = new Uint8Array(APPROVAL_LABEL.length + request.length + identityKey.length)
-  input.set(APPROVAL_LABEL)
-  input.set(request, APPROVAL_LABEL.length)
-  input.set(identityKey, APPROVAL_LABEL.length + request.length)
-  return sha256(input)
+/** A new approval code: 20 uniformly random decimal digits. */
+export function newApprovalCode() {
+  let code = ''
+  while (code.length < APPROVAL_DIGITS)
+    for (const byte of crypto.getRandomValues(new Uint8Array(32)))
+      if (byte < 250 && code.length < APPROVAL_DIGITS) code += String(byte % 10)
+  return code
 }
 
-/** Ten digits in two groups, from the first ten bytes of the digest: what people compare. */
-export function approvalCode(digest: Uint8Array) {
-  const group = (from: number) =>
-    (
-      Number(
-        [...digest.subarray(from, from + 5)].reduce((n, b) => (n << 8n) | BigInt(b), 0n) % 100000n,
-      ) + 100000
-    )
-      .toString()
-      .slice(1)
-  return `${group(0)} ${group(5)}`
+/** The code in groups of five digits, as people read and type it. */
+export const formatApprovalCode = (code: string) => code.replace(/(\d{5})(?=\d)/g, '$1 ')
+
+/** The 20 digits of a typed or scanned code, or undefined when it is not one. */
+export function normalizeApprovalCode(input: string) {
+  const digits = input.replace(/[\s-]/g, '')
+  return new RegExp(`^\\d{${APPROVAL_DIGITS}}$`).test(digits) ? digits : undefined
 }
 
-const QR_PREFIX = 'ircord-e2ee-approve:1:'
+const QR_PREFIX = 'ircord-e2ee-approve:2:'
 
-export function approvalQr(deviceId: string, digest: Uint8Array, secret: Uint8Array) {
-  return `${QR_PREFIX}${deviceId}:${toHex(digest)}:${toBase64Url(secret)}`
-}
+export const approvalQr = (code: string) => `${QR_PREFIX}${code}`
 
+/** The approval code in a scanned QR code, or undefined when it is not one. */
 export function parseApprovalQr(text: string) {
-  if (!text.startsWith(QR_PREFIX)) return undefined
-  const [deviceId, digest, secret] = text.slice(QR_PREFIX.length).split(':')
-  if (!deviceId || !/^[0-9a-f]{32}$/.test(deviceId) || !digest || !/^[0-9a-f]{64}$/.test(digest))
-    return undefined
-  if (!secret || !/^[A-Za-z0-9_-]{22}$/.test(secret)) return undefined
-  return { deviceId, digest, secret: fromBase64(secret) }
+  return text.startsWith(QR_PREFIX)
+    ? normalizeApprovalCode(text.slice(QR_PREFIX.length))
+    : undefined
 }
 
-async function handoverKey(secret: Uint8Array, usage: KeyUsage) {
-  const base = await crypto.subtle.importKey('raw', secret as BufferSource, 'HKDF', false, [
+async function approvalKey(
+  code: string,
+  info: string,
+  algorithm: HmacImportParams | AesKeyAlgorithm,
+  usages: KeyUsage[],
+) {
+  const base = await crypto.subtle.importKey('raw', encoder.encode(code), 'HKDF', false, [
     'deriveKey',
   ])
   return crypto.subtle.deriveKey(
-    {
-      name: 'HKDF',
-      hash: 'SHA-256',
-      salt: new Uint8Array(32),
-      info: new TextEncoder().encode('ircord-e2ee/1 approval handover'),
-    },
+    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: encoder.encode(info) },
     base,
-    { name: 'AES-GCM', length: 256 },
+    algorithm,
     false,
-    [usage],
+    usages,
   )
 }
 
-export async function sealHandover(secret: Uint8Array, value: unknown) {
+const macKey = (code: string, usage: KeyUsage) =>
+  approvalKey(
+    code,
+    'ircord-e2ee/1 approval request',
+    { name: 'HMAC', hash: 'SHA-256', length: 256 },
+    [usage],
+  )
+
+/** What the new device posts: the certificate request followed by its 32-byte HMAC. */
+export async function sealApprovalRequest(code: string, request: Uint8Array) {
+  const tag = new Uint8Array(
+    await crypto.subtle.sign('HMAC', await macKey(code, 'sign'), request as BufferSource),
+  )
+  const out = new Uint8Array(request.length + tag.length)
+  out.set(request)
+  out.set(tag, request.length)
+  return out
+}
+
+/** The certificate request in a posted message, if it was made with this code. */
+export async function openApprovalRequest(code: string, message: Uint8Array) {
+  if (message.length <= 32) return undefined
+  const request = message.subarray(0, message.length - 32)
+  const valid = await crypto.subtle.verify(
+    'HMAC',
+    await macKey(code, 'verify'),
+    message.subarray(message.length - 32) as BufferSource,
+    request as BufferSource,
+  )
+  return valid ? request.slice() : undefined
+}
+
+const handoverKey = (code: string, usage: KeyUsage) =>
+  approvalKey(code, 'ircord-e2ee/1 approval handover', { name: 'AES-GCM', length: 256 }, [usage])
+
+/** Seals the approving device's answer under the approval code. */
+export async function sealHandover(code: string, value: unknown) {
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const sealed = new Uint8Array(
     await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv },
-      await handoverKey(secret, 'encrypt'),
-      new TextEncoder().encode(JSON.stringify(value)),
+      await handoverKey(code, 'encrypt'),
+      encoder.encode(JSON.stringify(value)),
     ),
   )
   const out = new Uint8Array(12 + sealed.length)
@@ -208,10 +237,11 @@ export async function sealHandover(secret: Uint8Array, value: unknown) {
   return out
 }
 
-export async function openHandover(secret: Uint8Array, data: Uint8Array): Promise<unknown> {
+/** Opens an answer sealed under the approval code; throws for anything else. */
+export async function openHandover(code: string, data: Uint8Array): Promise<unknown> {
   const plain = await crypto.subtle.decrypt(
     { name: 'AES-GCM', iv: data.subarray(0, 12) as BufferSource },
-    await handoverKey(secret, 'decrypt'),
+    await handoverKey(code, 'decrypt'),
     data.subarray(12) as BufferSource,
   )
   return JSON.parse(new TextDecoder().decode(plain))

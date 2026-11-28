@@ -60,6 +60,7 @@ export class E2eeClient {
   private readonly changeListeners = new Set<(what: string) => void>()
   private stopped = false
   private readonly settings = new Map<string, unknown[]>()
+  private readonly handled = new Map<string, Promise<unknown>>()
 
   constructor(readonly account: string) {
     this.channel = new BroadcastChannel(`ircord-e2ee:${account}`)
@@ -185,9 +186,18 @@ export class E2eeClient {
         this.leaderKnown = true
         for (const id of this.pending.keys()) this.dispatch(id)
         break
-      case 'call':
+      case 'call': {
         if (!this.leader) break
-        this.runLocal(message.method, message.args).then(
+        // A tab resends its waiting calls when it learns of a new leader; one this tab already
+        // ran (or is running) is answered again, never run twice.
+        const key = `${message.tab}:${message.id}`
+        let run = this.handled.get(key)
+        if (!run) {
+          run = this.runLocal(message.method, message.args)
+          this.handled.set(key, run)
+          setTimeout(() => this.handled.delete(key), 120_000)
+        }
+        run.then(
           (result) =>
             this.channel.postMessage({ type: 'reply', to: message.tab, id: message.id, result }),
           (error: unknown) =>
@@ -207,6 +217,7 @@ export class E2eeClient {
             }),
         )
         break
+      }
       case 'reply': {
         if (message.to !== this.tab) break
         const p = this.pending.get(message.id)

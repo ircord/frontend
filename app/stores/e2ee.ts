@@ -10,14 +10,18 @@ import type {
 } from '../../shared/e2ee/types'
 import {
   APPROVAL_MAILBOX,
-  approvalCode,
-  approvalDigest,
   approvalQr,
   encryptedToTag,
+  formatApprovalCode,
   fromBase64,
   messagePayload,
+  newApprovalCode,
   newPayloadId,
+  normalizeApprovalCode,
+  openApprovalRequest,
   openHandover,
+  parseApprovalQr,
+  sealApprovalRequest,
   sealHandover,
   tagToEncrypted,
   toBase64,
@@ -46,15 +50,6 @@ export type E2eePhase =
 /** Why a conversation cannot start encryption, as a catalog key, or undefined when it can. */
 export type StartBlocker =
   'notDirect' | 'network' | 'selfAccount' | 'peerAccount' | 'peerNoKeys' | 'deviceNotReady' | 'bot'
-
-export interface PendingApproval {
-  id: number
-  deviceId: string
-  code: string
-  digest: string
-  request: Uint8Array
-  at: string
-}
 
 type Directory = Awaited<ReturnType<ReturnType<typeof apiClient>['e2eeOwnDirectory']>>
 
@@ -237,15 +232,22 @@ export const useE2eeStore = defineStore('e2ee', () => {
       phase.value = 'needs-approval'
       return
     }
+    // The first device's identity publish failed: publish it again.
+    if (!own.identity && status.holdsIdentity && status.identityKey) {
+      await apiClient().e2eePublishIdentity(toBase64(status.identityKey))
+      return settle()
+    }
     const identity = own.identity && fromBase64(own.identity.identityKey)
     if (!identity || !status.identityKey || !sameBytes(identity, status.identityKey)) {
       phase.value = 'reset-elsewhere'
       return
     }
     if (!own.devices.some((d) => d.deviceId === status.deviceId)) {
-      // Published under this identity but missing: the first publish failed, or another
-      // device removed this one. Only the identity holder can bring itself back.
-      if (status.holdsIdentity) await registerDevice()
+      // Missing from the directory: a device whose publish never completed publishes itself
+      // again. One that was published was removed by another device, and stays out.
+      const certificate = await call<Uint8Array | undefined>('certificate')
+      const ours = certificate && sameBytes(certificateIdentity(certificate), identity)
+      if (ours && !wasRegistered()) await registerDevice()
       else {
         phase.value = 'reset-elsewhere'
         return
@@ -257,6 +259,7 @@ export const useE2eeStore = defineStore('e2ee', () => {
       retries.value++
     }
     phase.value = 'ready'
+    await refreshGroups()
     await refreshPins()
     void sync()
   }
@@ -274,8 +277,13 @@ export const useE2eeStore = defineStore('e2ee', () => {
     })
     const packages = await call<Uint8Array[]>('keyPackages', KEY_PACKAGE_BATCH)
     await apiClient().e2eeAddKeyPackages(info.value.deviceId!, packages.map(toBase64))
+    writeLocal(registeredKey(), info.value.deviceId!)
     directory.value = await apiClient().e2eeOwnDirectory()
   }
+  /** Whether this device's directory entry was published once (so a missing one was removed). */
+  const registeredKey = () => `ircord.${auth.account?.id}.e2ee-registered`
+  const wasRegistered = () =>
+    readLocal(registeredKey(), (v) => (typeof v === 'string' ? v : '')) === info.value.deviceId
 
   async function refreshPins() {
     const peers = new Set(Object.values(conversations).map((c) => c.peer))
@@ -315,14 +323,45 @@ export const useE2eeStore = defineStore('e2ee', () => {
         .e2eeDeleteWelcome(welcome.id)
         .catch(() => {})
     }
-    const groups = await call<{ groupId: string; peer: string }[]>('groups')
+    const groups = await refreshGroups()
     for (const group of groups) await catchUp(group.groupId)
     await removeSignedOutDevices(groups)
     await topUp()
   }
 
+  // A commit this device made and posted, until it knows whether the log took it. It is kept in
+  // this browser's storage, so a tab that closes in between leaves the answer to the next one.
+  const pendingKey = (groupId: string) => `ircord.${auth.account?.id}.e2ee-commit.${groupId}`
+  const pendingCommit = (groupId: string) =>
+    readLocal(pendingKey(groupId), (v) =>
+      v && typeof v === 'object' && 'epoch' in v && 'commit' in v
+        ? (v as { epoch: number; commit: string })
+        : undefined,
+    )
+
+  /**
+   * Settles a commit whose fate this device does not know: merged when the log holds exactly it
+   * at its epoch, dropped when the log holds another one or none. Returns false while the log
+   * cannot be read, so nothing is guessed.
+   */
+  async function settlePending(groupId: string) {
+    const pending = pendingCommit(groupId)
+    if (!pending) return true
+    const page = await apiClient()
+      .e2eeCommits(groupId, pending.epoch)
+      .catch(() => undefined)
+    if (!page) return false
+    const logged = page.items.find((c) => c.epoch === pending.epoch)
+    if (logged && logged.commit === pending.commit)
+      await call('confirmCommit', groupId).catch(() => {})
+    else await call('discardCommit', groupId).catch(() => {})
+    writeLocal(pendingKey(groupId), null)
+    return true
+  }
+
   /** Applies a group's commits from this device's epoch on. */
   async function catchUp(groupId: string) {
+    if (!(await settlePending(groupId))) return
     for (;;) {
       const epoch = await call<number>('epoch', groupId).catch(() => -1)
       if (epoch < 0) return
@@ -332,11 +371,18 @@ export const useE2eeStore = defineStore('e2ee', () => {
       const commits = page?.items.filter((c) => c.epoch >= epoch) ?? []
       if (!commits.length) return
       for (const commit of commits) {
+        const apply = () =>
+          call<{ removedSelf: boolean }>('processCommit', fromBase64(commit.commit))
         try {
-          const applied = await call<{ removedSelf: boolean }>(
-            'processCommit',
-            fromBase64(commit.commit),
-          )
+          let applied: { removedSelf: boolean }
+          try {
+            applied = await apply()
+          } catch {
+            // A commit this device made but never posted (it is recorded before posting) blocks
+            // every other one: drop it and try again.
+            await call('discardCommit', groupId).catch(() => {})
+            applied = await apply()
+          }
           if (applied.removedSelf) return
         } catch {
           return
@@ -357,24 +403,34 @@ export const useE2eeStore = defineStore('e2ee', () => {
     }>,
     welcomeFor: { account: string; deviceId: string }[] = [],
   ) {
+    if (!(await settlePending(groupId))) return false
     for (let attempt = 0; attempt < 3; attempt++) {
       const change = await make()
+      const commit = toBase64(change.commit)
+      writeLocal(pendingKey(groupId), { epoch: change.epoch, commit })
       try {
         await apiClient().e2eePostCommit(groupId, {
           epoch: change.epoch,
-          commit: toBase64(change.commit),
+          commit,
           ...(change.groupInfo && { groupInfo: toBase64(change.groupInfo) }),
           ...(change.welcome && {
             welcomes: welcomeFor.map((d) => ({ ...d, welcome: toBase64(change.welcome!) })),
           }),
         })
-        await call('confirmCommit', groupId)
-        return true
       } catch (error) {
+        if (!status409(error)) {
+          // A timeout or a server error may have stored it anyway: the log decides.
+          await settlePending(groupId)
+          throw error
+        }
         await call('discardCommit', groupId).catch(() => {})
-        if (!status409(error)) throw error
+        writeLocal(pendingKey(groupId), null)
         await catchUp(groupId)
+        continue
       }
+      await call('confirmCommit', groupId)
+      writeLocal(pendingKey(groupId), null)
+      return true
     }
     return false
   }
@@ -488,6 +544,20 @@ export const useE2eeStore = defineStore('e2ee', () => {
   // ---- Conversations ---------------------------------------------------------------------------
 
   const isEncrypted = (conversationId: string) => !!conversations[conversationId]?.on
+  /** Each group's other person, as MLS (not the server) says. */
+  const groupPeers = reactive<Record<string, string>>({})
+  async function refreshGroups() {
+    const groups = await call<{ groupId: string; peer: string }[]>('groups').catch(() => [])
+    for (const id of Object.keys(groupPeers)) delete groupPeers[id]
+    for (const g of groups) groupPeers[g.groupId] = g.peer
+    return groups
+  }
+  const samePeer = (a?: string, b?: string) => !!a && !!b && a.toLowerCase() === b.toLowerCase()
+  /** Encryption works in direct, non-party conversations on the home network only. */
+  const eligible = (conversationId: string) => {
+    const c = chat.conversationSettings(conversationId)
+    return !!c && c.kind === 'direct' && !c.party && c.networkId === homeNetwork.value?.id
+  }
   /** Accounts found by WHOIS, by folded nick: a direct message alone does not tell. */
   const whoisAccounts = reactive<Record<string, string>>({})
   const peerOf = (c: Conversation) => {
@@ -630,13 +700,14 @@ export const useE2eeStore = defineStore('e2ee', () => {
   /** The current group of an encrypted conversation, replacing one that was forgotten. */
   async function activeGroup(conversationId: string) {
     const record = conversations[conversationId]!
-    const groups = await call<{ groupId: string }[]>('groups')
-    if (groups.some((g) => g.groupId === record.groupId)) return record.groupId
+    await refreshGroups()
+    // A group counts only if MLS says it is a DM with this conversation's person.
+    if (samePeer(groupPeers[record.groupId], record.peer)) return record.groupId
     // The other person started fresh and already made a replacement group this device joined.
     const server = await apiClient()
       .e2eeConversation(conversationId)
       .catch(() => undefined)
-    if (server?.groupId && groups.some((g) => g.groupId === server.groupId)) {
+    if (server?.groupId && samePeer(groupPeers[server.groupId], record.peer)) {
       await saveConversation({ ...toRaw(record), groupId: server.groupId })
       return server.groupId
     }
@@ -729,7 +800,11 @@ export const useE2eeStore = defineStore('e2ee', () => {
     const fresh = messages.filter(
       (m) =>
         m.encrypted &&
-        !plain.has(m.encrypted.payload) &&
+        // A ciphertext dropped into a channel is never decrypted there.
+        eligible(m.conversationId) &&
+        // Already read, unless this is the echo that tells this device its own message's ID.
+        (!plain.has(m.encrypted.payload) ||
+          (!plain.get(m.encrypted.payload)!.messageId && !m.id.startsWith('pending-'))) &&
         !failures.has(m.encrypted.payload) &&
         !queued.has(m.encrypted.payload),
     )
@@ -833,15 +908,23 @@ export const useE2eeStore = defineStore('e2ee', () => {
     // Only a newer event changes the state, so replaying history cannot undo a later choice.
     if (current?.at && current.at > record.at) return
     if (payload.op === 'encryption-on') await turnedOn(message.conversationId, record)
-    else if (current)
+    // Only the conversation's own current group can turn it off: a server cannot replay a
+    // genuine "off" from another chat here.
+    else if (current?.on && record.groupId === current.groupId)
       await saveConversation({ ...toRaw(current), on: false, by: record.account, at: record.at })
   }
 
-  /** Records a conversation as encrypted in the record's group, here and on the server. */
+  /**
+   * Records a conversation as encrypted in the record's group, here and on the server: only when
+   * MLS says that group is a DM with this conversation's person.
+   */
   async function turnedOn(conversationId: string, record: PlainRecord) {
-    const groups = await call<{ groupId: string; peer: string }[]>('groups')
-    const peer = groups.find((g) => g.groupId === record.groupId)?.peer
-    if (!peer) return
+    const c = chat.conversationSettings(conversationId)
+    if (!c || !eligible(conversationId)) return
+    await refreshGroups()
+    const peer = groupPeers[record.groupId]
+    const expected = conversations[conversationId]?.peer || (await resolvePeer(c))
+    if (!samePeer(peer, expected) || !peer) return
     const current = conversations[conversationId]
     await saveConversation({
       conversationId,
@@ -874,23 +957,27 @@ export const useE2eeStore = defineStore('e2ee', () => {
     }
     // A device without its own record (new, or after starting fresh) takes the server's word
     // that a conversation is encrypted, so it never offers to send plaintext into it.
+    const c = chat.conversationSettings(conversationId)
     if (
+      c &&
+      eligible(conversationId) &&
       !serverChecked.has(conversationId) &&
-      !conversations[conversationId] &&
-      chat.data?.conversations.some((c) => c.id === conversationId && c.kind === 'direct')
+      !conversations[conversationId]
     ) {
       serverChecked.add(conversationId)
       const server = await apiClient()
         .e2eeConversation(conversationId)
         .catch(() => undefined)
-      if (server?.encrypted && server.groupId && server.peer && !conversations[conversationId])
-        await saveConversation({
-          conversationId,
-          groupId: server.groupId,
-          peer: server.peer,
-          on: true,
-          at: Date.now(),
-        })
+      if (server?.encrypted && !conversations[conversationId]) {
+        // The server's word turns encryption on, never off, and never picks the person: the
+        // group is used only if MLS says it is a DM with the person this chat resolves to.
+        await refreshGroups()
+        const peer = (await resolvePeer(c)) || server.peer || ''
+        const groupId =
+          server.groupId && samePeer(groupPeers[server.groupId], peer) ? server.groupId : ''
+        if (peer && !conversations[conversationId])
+          await saveConversation({ conversationId, groupId, peer, on: true, at: Date.now() })
+      }
     }
     const peer = conversations[conversationId]?.peer
     if (peer) void checkPeer(peer)
@@ -923,13 +1010,28 @@ export const useE2eeStore = defineStore('e2ee', () => {
   function present(message: Message): Message | null {
     const conversation = conversations[message.conversationId]
     if (!message.encrypted && !conversation) return message
-    const partner = (() => {
-      const c = chat.conversationSettings(message.conversationId)
-      return c ? chat.directPartner(c)?.id : undefined
-    })()
+    const c = chat.conversationSettings(message.conversationId)
+    const partner = c ? chat.directPartner(c)?.id : undefined
+    let record = message.encrypted ? plain.get(message.encrypted.payload) : undefined
+    let failure = message.encrypted ? failures.get(message.encrypted.payload) : undefined
+    if (message.encrypted && !eligible(message.conversationId)) {
+      record = undefined
+      failure = t('encryption.message.unreadable')
+    } else if (record && !record.own) {
+      // The server says which conversation a ciphertext belongs to; MLS says whose it is. A
+      // message from another chat's group, or from someone else, is not shown as this chat's.
+      const expected = conversation?.peer || (c ? peerOf(c) : '')
+      const group = groupPeers[record.groupId]
+      const fromHere =
+        samePeer(record.account, account.value) || !expected || samePeer(record.account, expected)
+      if ((group && expected && !samePeer(group, expected)) || !fromHere) {
+        record = undefined
+        failure = t('encryption.message.wrongConversation')
+      }
+    }
     return presentMessage(message, {
-      record: message.encrypted ? plain.get(message.encrypted.payload) : undefined,
-      failure: message.encrypted ? failures.get(message.encrypted.payload) : undefined,
+      record,
+      failure,
       effects: effects.value.get(message.conversationId),
       conversation,
       selfAccount: account.value,
@@ -984,15 +1086,14 @@ export const useE2eeStore = defineStore('e2ee', () => {
 
   // ---- Device approval -------------------------------------------------------------------------
 
-  /** On a device that needs approval: the QR code, the short code, and a wait for the certificate. */
+  /**
+   * On a device that needs approval: shows a new approval code (as text and QR code) and waits
+   * for a certificate sealed under it. See the handshake in shared/e2ee/codec.ts.
+   */
   async function requestApproval(onApproved: () => void) {
     if (!info.value.device) info.value = await call<E2eeStatus>('createDevice', account.value)
-    const own = await apiClient().e2eeOwnDirectory()
-    if (!own.identity) throw new Error(t('encryption.approval.noIdentity'))
-    const identityKey = fromBase64(own.identity.identityKey)
-    const request = await call<Uint8Array>('certificateRequest')
-    const digest = await approvalDigest(request, identityKey)
-    const secret = crypto.getRandomValues(new Uint8Array(16))
+    const code = newApprovalCode()
+    const request = await sealApprovalRequest(code, await call<Uint8Array>('certificateRequest'))
     const deviceId = info.value.deviceId!
     const post = () =>
       apiClient()
@@ -1000,49 +1101,50 @@ export const useE2eeStore = defineStore('e2ee', () => {
         .catch(() => undefined)
     await post()
     let stopped = false
+    let busy = false
     const repost = setInterval(() => void post(), 8 * 60_000)
+    const stop = () => {
+      stopped = true
+      clearInterval(poll)
+      clearInterval(repost)
+    }
     const poll = setInterval(async () => {
-      if (stopped) return
-      const messages = await apiClient()
-        .e2eeApprovals(deviceId)
-        .catch(() => undefined)
-      for (const item of messages?.items ?? []) {
-        try {
-          const body = JSON.parse(new TextDecoder().decode(fromBase64(item.payload))) as {
-            certificate: string
-            handover?: string
+      if (stopped || busy) return
+      busy = true
+      try {
+        const messages = await apiClient()
+          .e2eeApprovals(deviceId)
+          .catch(() => undefined)
+        for (const item of messages?.items ?? []) {
+          let answer: { certificate?: unknown } | undefined
+          try {
+            // Only an answer sealed under this device's code counts: the server cannot make one.
+            answer = (await openHandover(code, fromBase64(item.payload))) as typeof answer
+          } catch {
+            continue
           }
-          const certificate = fromBase64(body.certificate)
-          // Only a certificate from the identity key the codes were made with.
-          if (!sameBytes(certificateIdentity(certificate), identityKey)) continue
-          stopped = true
-          info.value = await call<E2eeStatus>('installCertificate', certificate)
-          await registerDevice()
-          if (body.handover)
-            await applyHandover(await openHandover(secret, fromBase64(body.handover)))
+          if (typeof answer?.certificate !== 'string') continue
+          stop()
           await apiClient()
             .e2eeDeleteApproval(item.id)
             .catch(() => {})
-          clearInterval(poll)
-          clearInterval(repost)
-          client?.announce('device')
-          await settle()
+          info.value = await call<E2eeStatus>('installCertificate', fromBase64(answer.certificate))
+          try {
+            await registerDevice()
+            await applyHandover(answer)
+          } finally {
+            // A failed publish is retried by settle: this device was never registered.
+            client?.announce('device')
+            await settle().catch(() => {})
+          }
           onApproved()
           return
-        } catch {
-          // A message that is not a valid answer is ignored; the next poll tries again.
         }
+      } finally {
+        busy = false
       }
     }, 2000)
-    return {
-      qr: approvalQr(deviceId, digest, secret),
-      code: approvalCode(digest),
-      cancel: () => {
-        stopped = true
-        clearInterval(poll)
-        clearInterval(repost)
-      },
-    }
+    return { qr: approvalQr(code), code: formatApprovalCode(code), cancel: stop }
   }
 
   async function applyHandover(value: unknown) {
@@ -1063,62 +1165,55 @@ export const useE2eeStore = defineStore('e2ee', () => {
         await saveConversation({ ...record })
   }
 
-  /** On an approved device: the requests waiting in the account's approval mailbox. */
-  async function pendingApprovals(): Promise<PendingApproval[]> {
-    const identityKey = info.value.identityKey
-    if (!identityKey) return []
+  /** On an approved device: how many devices wait in the account's approval mailbox. */
+  async function waitingApprovals() {
     const messages = await apiClient().e2eeApprovals(APPROVAL_MAILBOX)
-    const out: PendingApproval[] = []
-    for (const item of messages.items) {
-      const request = fromBase64(item.payload)
-      const digest = await approvalDigest(request, identityKey)
-      out.push({
-        id: item.id,
-        deviceId: requestDevice(request),
-        code: approvalCode(digest),
-        digest: toHex(digest),
-        request,
-        at: item.createdAt,
-      })
-    }
-    return out
+    return messages.items.length
   }
 
   /**
-   * Approves a new device: certifies it, relays the certificate (with this device's encrypted chat
-   * list and verification marks when the QR secret is known), then adds it to every group.
+   * Approves the new device that shows `input` (its approval code, typed or scanned): certifies
+   * its request, sends back the certificate with this device's verification marks and encrypted
+   * chat list, sealed under the code, then adds the device to every group. Throws when no waiting
+   * request was made with that code.
    */
-  async function approve(request: PendingApproval, secret?: Uint8Array) {
-    const certificate = await call<Uint8Array>('certifyDevice', request.request)
-    let handover: Uint8Array | undefined
-    if (secret) {
-      const verified: { account: string; identityKey: string }[] = []
-      for (const peer of new Set(Object.values(conversations).map((c) => c.peer))) {
-        const pin = await call<{ identityKey: Uint8Array; verified: boolean } | undefined>(
-          'pin',
-          peer,
-        )
-        if (pin?.verified) verified.push({ account: peer, identityKey: toBase64(pin.identityKey) })
+  async function approve(input: string) {
+    const code = parseApprovalQr(input) ?? normalizeApprovalCode(input)
+    if (!code) throw new Error(t('encryption.approval.badCode'))
+    const messages = await apiClient().e2eeApprovals(APPROVAL_MAILBOX)
+    let found: { id: number; request: Uint8Array } | undefined
+    for (const item of messages.items) {
+      const request = await openApprovalRequest(code, fromBase64(item.payload))
+      if (request) {
+        found = { id: item.id, request }
+        break
       }
-      handover = await sealHandover(secret, {
-        verified,
-        conversations: Object.values(conversations).map((c) => toRaw(c)),
-      })
     }
-    const body = new TextEncoder().encode(
-      JSON.stringify({
-        certificate: toBase64(certificate),
-        ...(handover && { handover: toBase64(handover) }),
-      }),
-    )
+    if (!found) throw new Error(t('encryption.approval.notFound'))
+    const deviceId = requestDevice(found.request)
+    const certificate = await call<Uint8Array>('certifyDevice', found.request)
+    const verified: { account: string; identityKey: string }[] = []
+    for (const peer of new Set(Object.values(conversations).map((c) => c.peer))) {
+      const pin = await call<{ identityKey: Uint8Array; verified: boolean } | undefined>(
+        'pin',
+        peer,
+      )
+      if (pin?.verified) verified.push({ account: peer, identityKey: toBase64(pin.identityKey) })
+    }
+    const sealed = await sealHandover(code, {
+      certificate: toBase64(certificate),
+      verified,
+      conversations: Object.values(conversations).map((c) => toRaw(c)),
+    })
     await apiClient().e2eeRelay({
       fromDevice: info.value.deviceId!,
-      toDevice: request.deviceId,
-      payload: toBase64(body),
+      toDevice: deviceId,
+      payload: toBase64(sealed),
     })
     await apiClient()
-      .e2eeDeleteApproval(request.id)
+      .e2eeDeleteApproval(found.id)
       .catch(() => {})
+    const request = { deviceId }
     // The new device publishes its key packages once it installed the certificate.
     for (let i = 0; i < 90; i++) {
       const own = await apiClient().e2eeOwnDirectory()
@@ -1252,7 +1347,7 @@ export const useE2eeStore = defineStore('e2ee', () => {
     setVerified,
     acceptReset,
     requestApproval,
-    pendingApprovals,
+    waitingApprovals,
     approve,
     removeDevice,
     startFresh,

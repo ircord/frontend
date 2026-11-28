@@ -78,10 +78,14 @@ function openDb(name: string) {
 }
 
 /** Writes the newest state blob. Called after every operation, before its result is returned. */
-async function persist() {
-  if (!dirty || !db || !blob) return
-  const tx = db.transaction(STATE, 'readwrite', { durability: 'strict' })
-  tx.objectStore(STATE).put(blob, 'device')
+async function persist(records: PlainRecord[] = []) {
+  if ((!dirty || !blob) && !records.length) return
+  if (!db) return
+  // The state and the plaintexts it produced commit together: a decrypted message whose key
+  // the state already spent can never be lost between two writes.
+  const tx = db.transaction([STATE, PLAIN], 'readwrite', { durability: 'strict' })
+  if (dirty && blob) tx.objectStore(STATE).put(blob, 'device')
+  for (const record of records) tx.objectStore(PLAIN).put(record)
   await done(tx)
   dirty = false
 }
@@ -241,8 +245,7 @@ const methods: Record<string, (...args: never[]) => unknown> = {
     }
     // The state goes first: a stored plaintext without its ratchet state is harmless, the
     // reverse could reuse a message key after a crash.
-    await persist()
-    await putRecords(PLAIN, records)
+    await persist(records)
     return { tags, records }
   },
 
@@ -260,6 +263,14 @@ const methods: Record<string, (...args: never[]) => unknown> = {
     const tx = db!.transaction(PLAIN, 'readonly')
     const known = (await request(tx.objectStore(PLAIN).get(key))) as PlainRecord | undefined
     if (known) {
+      // A ciphertext the server shows again elsewhere, or under another account, is refused,
+      // as the first decryption would have refused it.
+      if (known.conversationId !== meta.conversationId)
+        throw Object.assign(new Error('This message belongs to another conversation'), {
+          code: 'malformed',
+        })
+      if (!known.own && known.account.toLowerCase() !== account.toLowerCase())
+        throw Object.assign(new Error('The sender does not match'), { code: 'sender-mismatch' })
       if (!known.messageId && meta.messageId) {
         known.messageId = meta.messageId
         await putRecords(PLAIN, [known])
@@ -295,8 +306,7 @@ const methods: Record<string, (...args: never[]) => unknown> = {
         payload.t === 'msg' && typeof payload.text === 'string' ? payload.text : '',
       )
     } else record.hidden = true
-    await persist()
-    await putRecords(PLAIN, [record])
+    await persist([record])
     return record
   },
 
