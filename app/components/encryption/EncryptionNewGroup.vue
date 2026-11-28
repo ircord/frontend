@@ -31,6 +31,9 @@ function close() {
 
 async function create() {
   addEntry()
+  // Names left in the field become chips first, with any reason they cannot join.
+  await nextTick()
+  if (blocked.value) return
   busy.value = true
   problem.value = ''
   try {

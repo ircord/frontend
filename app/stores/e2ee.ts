@@ -1855,7 +1855,7 @@ export const useE2eeStore = defineStore('e2ee', () => {
     if (peer) void checkPeer(peer)
     // Someone invited before they set up encryption may have done so since.
     if (conversations[conversationId]?.pending?.length)
-      void flow(() => addPendingNow(conversationId, true)).catch(() => {})
+      void flow(() => addPendingNow(conversationId)).catch(() => {})
   }
 
   /** The server deleted a message: its plaintext leaves this device too. */
@@ -2018,8 +2018,10 @@ export const useE2eeStore = defineStore('e2ee', () => {
    * server reports it.
    *
    * People who have not set up encryption yet stay pending: each gets one ordinary message that
-   * says only that they were invited and need to set up encryption, sent to `nicks[account]` (or
-   * the account name), and joins once their keys appear.
+   * says only that they were invited and need to set up encryption, and joins once their keys
+   * appear. The message goes to the nick logged in to their account: `nicks[account]` from the
+   * picker, or the network's people search. An account the search does not know fails, so a typo
+   * is not invited.
    */
   async function createGroup(title: string, people: string[], nicks: Record<string, string> = {}) {
     const wanted = [...new Set(people.map((p) => p.trim()).filter(Boolean))].filter(
@@ -2029,9 +2031,15 @@ export const useE2eeStore = defineStore('e2ee', () => {
     if (wanted.length + 1 > GROUP_MAX_ACCOUNTS)
       throw new Error(t('encryption.group.tooMany', { count: GROUP_MAX_ACCOUNTS }))
     const waiting: string[] = []
-    for (const person of wanted)
-      if ((await checkPeerKeys(person)) === false && !peerUnreachable[person.toLowerCase()])
-        waiting.push(person)
+    const reach: Record<string, string> = {}
+    for (const person of wanted) {
+      if ((await checkPeerKeys(person)) !== false || peerUnreachable[person.toLowerCase()]) continue
+      const nick = nicks[person.toLowerCase()] || (await lookUpAccount(person))
+      if (nick === undefined)
+        throw new Error(t('encryption.group.unknownAccount', { name: person }))
+      if (nick) reach[person.toLowerCase()] = nick
+      waiting.push(person)
+    }
     const ready = wanted.filter((p) => !waiting.includes(p))
     if (!ready.length) throw new Error(t('encryption.group.needReadyPerson'))
     const id = await flow(async () => {
@@ -2076,47 +2084,84 @@ export const useE2eeStore = defineStore('e2ee', () => {
       await saveConversation({ ...conversations[id]!, pending: waiting })
       // Only that they were invited: never the group's title or its people.
       const text = t('encryption.group.pendingNotice')
-      for (const person of waiting)
-        chat.raw(`PRIVMSG ${nicks[person.toLowerCase()] || person} :${text}`, homeNetwork.value?.id)
+      const offline: string[] = []
+      for (const person of waiting) {
+        const nick = reach[person.toLowerCase()]
+        if (nick) chat.raw(`PRIVMSG ${nick} :${text}`, homeNetwork.value?.id)
+        else offline.push(person)
+      }
+      if (offline.length)
+        chat.notify(t('encryption.group.pendingNotSent', { names: offline.join(', ') }))
     }
     return id
   }
 
   /**
+   * Finds the nick logged in to an account through the network's people search: '' when the
+   * account exists but nobody uses it right now, undefined when the search does not know it.
+   */
+  async function lookUpAccount(person: string) {
+    const page = await apiClient()
+      .people({
+        networkId: homeNetwork.value?.id ?? '',
+        purpose: 'services',
+        query: person,
+        limit: 20,
+      })
+      .catch(() => undefined)
+    // Without an answer the account cannot be checked: invite it, without a message.
+    if (!page || page.status !== 'ready') return ''
+    const found = page.items.find((p) => p.eligible && sameAccount(p.servicesAccount, person))
+    if (!found) return undefined
+    return (found.presence !== 'offline' && found.nickname) || ''
+  }
+
+  /**
    * Adds the pending people of a group (see `createGroup`) whose keys have appeared. Checks each
-   * person at most once a minute unless `now`; runs inside `flow`.
+   * person at most once a minute; runs inside `flow`. Each person is added on their own, so one
+   * who cannot be added does not hold up the others.
    */
   const pendingChecked = new Map<string, number>()
-  async function addPendingNow(conversationId: string, now = false) {
+  async function addPendingNow(conversationId: string) {
     const record = conversations[conversationId]
-    const view = record && groups[record.groupId]
-    if (!record?.pending?.length || !view) return
-    const c = chats[record.groupId]
-    if (!c || c.state !== 'joined' || fellOut[record.groupId]) return
-    if (!isGroupAdmin(view, account.value)) return
-    const ready: string[] = []
+    if (!record?.pending?.length || !canAddPending(conversationId)) return
+    const done: string[] = []
     for (const person of record.pending) {
-      const key = person.toLowerCase()
-      if (view.members.some((m) => sameAccount(m.account, person))) ready.push(person)
-      else if (now || Date.now() - (pendingChecked.get(key) ?? 0) > 60_000) {
-        pendingChecked.set(key, Date.now())
-        if (await checkPeerKeys(person)) ready.push(person)
+      const view = groups[record.groupId]!
+      if (view.members.some((m) => sameAccount(m.account, person))) {
+        done.push(person)
+        continue
       }
+      const key = person.toLowerCase()
+      if (Date.now() - (pendingChecked.get(key) ?? 0) < 60_000) continue
+      pendingChecked.set(key, Date.now())
+      if (!(await checkPeerKeys(person))) continue
+      // A full group waits until someone leaves.
+      if (view.members.length + 1 > GROUP_MAX_ACCOUNTS) break
+      // Keys that cannot be claimed yet, or someone who changed the group at the same time:
+      // the person stays pending for the next check.
+      if (await addPeopleNow(record.groupId, [person]).catch(() => false)) done.push(person)
     }
-    if (!ready.length) return
-    const joining = ready.filter((p) => !view.members.some((m) => sameAccount(m.account, p)))
-    if (joining.length) {
-      // People without keys again, or someone who changed the group at the same time, stay
-      // pending for the next check.
-      const added = await addPeopleNow(record.groupId, joining).catch(() => false)
-      if (!added) return
-    }
+    if (!done.length) return
     const current = conversations[conversationId]
     if (current)
       await saveConversation({
         ...current,
-        pending: (current.pending ?? []).filter((p) => !ready.some((r) => sameAccount(p, r))),
+        pending: (current.pending ?? []).filter((p) => !done.some((r) => sameAccount(p, r))),
       })
+  }
+  /** Whether this device adds a group's pending people: it is in the group, as an admin. */
+  function canAddPending(conversationId: string) {
+    const record = conversations[conversationId]
+    const view = record && groups[record.groupId]
+    const c = record && chats[record.groupId]
+    return (
+      !!view &&
+      !!c &&
+      c.state === 'joined' &&
+      !fellOut[record.groupId] &&
+      isGroupAdmin(view, account.value)
+    )
   }
   async function addAllPending() {
     for (const [id, record] of Object.entries(conversations))
@@ -2192,7 +2237,13 @@ export const useE2eeStore = defineStore('e2ee', () => {
       (p) => !view.members.some((m) => sameAccount(m.account, p)),
     )
     if (!wanted.length) return
-    if (view.members.length + wanted.length > GROUP_MAX_ACCOUNTS)
+    // People still pending keep their place.
+    const pending = (conversations[conversationId]?.pending ?? []).filter(
+      (p) =>
+        !view.members.some((m) => sameAccount(m.account, p)) &&
+        !wanted.some((w) => sameAccount(w, p)),
+    )
+    if (view.members.length + pending.length + wanted.length > GROUP_MAX_ACCOUNTS)
       throw new Error(t('encryption.group.tooMany', { count: GROUP_MAX_ACCOUNTS }))
     await flow(async () => {
       if (!(await addPeopleNow(groupId, wanted))) throw new Error(t('encryption.group.busy'))
@@ -2607,6 +2658,7 @@ export const useE2eeStore = defineStore('e2ee', () => {
     declineInvitation,
     addPeople,
     cancelPending,
+    canAddPending: computed(() => canAddPending),
     removePerson,
     setAdmin,
     handOver,

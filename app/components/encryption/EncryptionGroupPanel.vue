@@ -332,7 +332,11 @@ async function leave(close: boolean) {
               </span>
             </div>
             <p class="m-0 text-[12px] text-muted-foreground">
-              {{ t('encryption.group.pendingHelp') }}
+              {{
+                e2ee.canAddPending(conversation.id)
+                  ? t('encryption.group.pendingHelp')
+                  : t('encryption.group.pendingStalled')
+              }}
             </p>
             <div class="flex flex-wrap gap-1.5">
               <UiButton

@@ -111,14 +111,18 @@ watch(
 )
 onBeforeUnmount(() => clearTimeout(timer))
 
-const typed = computed(() =>
-  typedAccounts(query.value).filter(
-    (name) =>
-      !people.value.some((p) => sameAccount(p, name)) &&
-      !sameAccount(name, e2ee.account) &&
-      !candidates.value.some((c) => sameAccount(c.account, name)),
-  ),
-)
+/**
+ * Account names to add as typed. One name that a suggestion already offers needs no extra choice;
+ * several names are added together, known or not.
+ */
+const typed = computed(() => {
+  const names = typedAccounts(query.value).filter(
+    (name) => !people.value.some((p) => sameAccount(p, name)) && !sameAccount(name, e2ee.account),
+  )
+  return names.length === 1 && candidates.value.some((c) => sameAccount(c.account, names[0]))
+    ? []
+    : names
+})
 const options = computed(() => {
   const exact = candidates.value.filter((c) =>
     typedAccounts(query.value).some((name) => sameAccount(c.account, name)),
@@ -144,28 +148,42 @@ function detail(c: GroupCandidate) {
   const who = c.nick && !sameAccount(c.nick, c.account) ? `${c.account} · @${c.nick}` : c.account
   return waits(c.account) ? `${who} · ${t('encryption.group.waitsForKeysShort')}` : who
 }
-/** Where each chosen person gets the message that they were invited: their nick. */
+/**
+ * Where chosen people get the message that they were invited: the nick of someone met in a direct
+ * message or channel. The store looks up everyone else.
+ */
 defineExpose({
   nicks: () =>
     Object.fromEntries(
-      people.value.map((account) => [
-        account.toLowerCase(),
-        chosen[account.toLowerCase()]?.nick || account,
-      ]),
+      people.value.flatMap((account) => {
+        const seen = chosen[account.toLowerCase()]
+        return seen?.nick && seen.source !== 'search' ? [[account.toLowerCase(), seen.nick]] : []
+      }),
     ),
 })
 
-function add(account: string, seen?: GroupCandidate) {
-  if (people.value.some((p) => sameAccount(p, account))) return
-  if (seen) chosen[account.toLowerCase()] = seen
-  people.value = [...people.value, account]
-  checkKeys([account])
+/** Adds people in one change: the model shows a change only once the parent takes it. */
+function add(found: { account: string; seen?: GroupCandidate }[]) {
+  const next = [...people.value]
+  for (const { account, seen } of found) {
+    if (next.some((p) => sameAccount(p, account))) continue
+    if (seen) chosen[account.toLowerCase()] = seen
+    next.push(account)
+  }
+  people.value = next
+  checkKeys(found.map((f) => f.account))
 }
 function select(key: string) {
-  if (key === 'typed') for (const name of typed.value) add(name)
+  if (key === 'typed')
+    add(
+      typed.value.map((account) => ({
+        account,
+        seen: candidates.value.find((c) => sameAccount(c.account, account)),
+      })),
+    )
   else {
     const c = candidate(key)
-    if (c?.account) add(c.account, c)
+    if (c?.account) add([{ account: c.account, seen: c }])
   }
   query.value = ''
 }
