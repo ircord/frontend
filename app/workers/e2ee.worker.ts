@@ -18,6 +18,7 @@ import {
   type ConversationRecord,
   type E2eeErrorShape,
   type E2eeStatus,
+  type GroupEventRecord,
   type NoticeRecord,
   type PlainRecord,
 } from '../../shared/e2ee/types'
@@ -26,6 +27,8 @@ const STATE = 'state'
 const PLAIN = 'plain'
 const CONVERSATIONS = 'conversations'
 const NOTICES = 'notices'
+/** Lines for an encrypted group's timeline: who added, removed or promoted whom. */
+const EVENTS = 'events'
 
 let db: IDBDatabase | undefined
 /** The account whose database is open. */
@@ -60,16 +63,22 @@ const done = (tx: IDBTransaction) =>
 
 function openDb(name: string) {
   return new Promise<IDBDatabase>((resolve, reject) => {
-    const open = indexedDB.open(name, 1)
-    open.onupgradeneeded = () => {
+    const open = indexedDB.open(name, 2)
+    open.onupgradeneeded = ({ oldVersion }) => {
       const d = open.result
-      d.createObjectStore(STATE)
-      const plain = d.createObjectStore(PLAIN, { keyPath: 'key' })
-      plain.createIndex('conversation', ['conversationId', 'at'])
-      plain.createIndex('message', 'messageId')
-      plain.createIndex('tokens', 'tokens', { multiEntry: true })
-      d.createObjectStore(CONVERSATIONS, { keyPath: 'conversationId' })
-      d.createObjectStore(NOTICES, { keyPath: 'id' })
+      if (oldVersion < 1) {
+        d.createObjectStore(STATE)
+        const plain = d.createObjectStore(PLAIN, { keyPath: 'key' })
+        plain.createIndex('conversation', ['conversationId', 'at'])
+        plain.createIndex('message', 'messageId')
+        plain.createIndex('tokens', 'tokens', { multiEntry: true })
+        d.createObjectStore(CONVERSATIONS, { keyPath: 'conversationId' })
+        d.createObjectStore(NOTICES, { keyPath: 'id' })
+      }
+      if (oldVersion < 2) {
+        const events = d.createObjectStore(EVENTS, { keyPath: 'id' })
+        events.createIndex('group', ['groupId', 'at'])
+      }
     }
     open.onsuccess = () => resolve(open.result)
     open.onerror = () => reject(open.error)
@@ -212,6 +221,30 @@ const methods: Record<string, (...args: never[]) => unknown> = {
   confirmCommit: (groupId: string) => need().confirmCommit(groupId),
   discardCommit: (groupId: string) => need().discardCommit(groupId),
   processCommit: (commit: Uint8Array) => need().processCommit(commit),
+
+  // Groups of several accounts, and the in-band log (wire.md section 7).
+  coreConversations: () => need().conversations(),
+  createGroup: (title: string, keyPackages: Uint8Array[]) => need().createGroup(title, keyPackages),
+  joinGroup: (welcome: Uint8Array) => need().joinGroup(welcome),
+  groupSettings: (groupId: string) => need().groupSettings(groupId),
+  isGroup: (groupId: string) => need().isGroup(groupId),
+  removeAccounts: (groupId: string, accounts: string[]) => need().removeAccounts(groupId, accounts),
+  letBackIn: (groupId: string, account: string, keyPackages: Uint8Array[]) =>
+    need().letBackIn(groupId, account, keyPackages),
+  setGroupTitle: (groupId: string, title: string) => need().setGroupTitle(groupId, title),
+  setAdmin: (groupId: string, account: string, admin: boolean) =>
+    need().setAdmin(groupId, account, admin),
+  handOver: (groupId: string, account: string) => need().handOver(groupId, account),
+  /** Tries one epoch's candidate commits in position order; the first the core accepts wins. */
+  applyCandidates: (groupId: string, candidates: Uint8Array[]) =>
+    need().applyCandidates(groupId, candidates),
+  rejoinRequest: (groupId: string) => need().rejoinRequest(groupId),
+  readmit: (groupId: string, request: Uint8Array, account: string) =>
+    need().readmit(groupId, request, account),
+  signDeviceList: (deviceIds: string[]) => need().signDeviceList(deviceIds),
+  checkDeviceList: (list: Uint8Array) => need().checkDeviceList(list),
+  groupEvents: () => getAll<GroupEventRecord>(EVENTS),
+  putGroupEvents: (records: GroupEventRecord[]) => putRecords(EVENTS, records),
 
   /**
    * Encrypts a payload and keeps its plaintext, so this device can show its own message when the

@@ -52,7 +52,7 @@ const messages = computed(() => {
   const confirmed = new Set(historyItems.filter(isConfirmed).map((m) => m.clientId))
   const unresolved = new Set(retained.map((m) => m.clientId))
   let unreadable = ''
-  return [
+  const shownHistory = [
     ...historyItems.filter((m) => isConfirmed(m) || !unresolved.has(m.clientId)),
     ...retained.filter((m) => !confirmed.has(m.clientId)),
   ].flatMap((message) => {
@@ -65,6 +65,23 @@ const messages = computed(() => {
     unreadable = reason
     return [shown]
   })
+  // An encrypted group's lines ("Peter added Alex") come from commits, not from the server's
+  // history: each goes before the first message after it, within the loaded window.
+  const events = e2ee.groupEventMessages(chat.activeId)
+  if (!events.length) return shownHistory
+  // Older lines than the loaded window wait until it reaches them (a short history is whole).
+  const at = (m: Message) => Date.parse(m.createdAt) || 0
+  const first = shownHistory[0] ? at(shownHistory[0]) : 0
+  const out: Message[] = []
+  let next = 0
+  const sorted = events
+    .filter((e) => at(e) >= first || historyItems.length < 50)
+    .sort((a, b) => at(a) - at(b))
+  for (const message of shownHistory) {
+    while (next < sorted.length && at(sorted[next]!) <= at(message)) out.push(sorted[next++]!)
+    out.push(message)
+  }
+  return [...out, ...sorted.slice(next)]
 })
 const preferences = usePreferencesStore()
 const appearance = useAppearanceStore()
@@ -866,14 +883,20 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
               class="welcome-symbol inline-flex items-center justify-center w-14 h-14 rounded-full [background:linear-gradient(135deg,color-mix(in_srgb,var(--accent)_24%,var(--raised)),color-mix(in_srgb,var(--accent)_6%,var(--raised)))] text-primary shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_35%,transparent)] mb-3"
               ><AppIcon
                 :name="
-                  chat.active?.party ? 'users' : chat.active?.kind === 'direct' ? 'message' : 'hash'
+                  chat.active?.party
+                    ? 'users'
+                    : e2ee.isGroupChannel(chat.active)
+                      ? 'lock'
+                      : chat.active?.kind === 'direct'
+                        ? 'message'
+                        : 'hash'
                 "
                 :size="24"
             /></span>
             <h2 class="text-[26px] font-bold tracking-[-0.02em] mb-1">
               {{
-                chat.active?.party
-                  ? conversationName(chat.active)
+                chat.active?.party || e2ee.isGroupChannel(chat.active)
+                  ? conversationName(chat.active!)
                   : chat.active?.kind === 'direct'
                     ? (chat.directPartner(chat.active)?.displayName ?? chat.active.name)
                     : `#${chat.active?.name}`
@@ -883,9 +906,11 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
               {{
                 chat.active?.party
                   ? t('workspaceUi.party.beginning')
-                  : chat.active?.kind === 'direct'
-                    ? t('timeline.directBeginning')
-                    : t('timeline.channelBeginning', { channel: `#${chat.active?.name}` })
+                  : e2ee.isGroupChannel(chat.active)
+                    ? t('encryption.group.beginning')
+                    : chat.active?.kind === 'direct'
+                      ? t('timeline.directBeginning')
+                      : t('timeline.channelBeginning', { channel: `#${chat.active?.name}` })
               }}
               <template v-if="startPartner?.bio"
                 ><br /><MessageRuns :text="startPartner.bio"
@@ -945,7 +970,10 @@ onBeforeUnmount(() => document.removeEventListener('copy', onCopy))
               >
             </div>
             <EncryptionEventRow
-              v-if="row.kind === 'message' && row.message.e2ee?.control"
+              v-if="
+                row.kind === 'message' &&
+                (row.message.e2ee?.control || row.message.e2ee?.groupEvent)
+              "
               :message="row.message"
             />
             <MessageItem

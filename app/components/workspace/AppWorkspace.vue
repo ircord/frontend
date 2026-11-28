@@ -639,7 +639,9 @@ const title = computed(() =>
       ? partyName(chat.active.party, auth.account?.id, t('workspaceUi.party.unnamed'))
       : chat.active?.kind === 'direct'
         ? (chat.directPartner(chat.active)?.displayName ?? chat.active.name)
-        : chat.active?.name,
+        : e2ee.isGroupChannel(chat.active)
+          ? e2ee.groupOf(chat.active!.id)?.title || t('encryption.group.untitled')
+          : chat.active?.name,
 )
 provideWorkspacePane({
   title,
@@ -860,6 +862,7 @@ onBeforeUnmount(() => {
       <PromptDialog />
       <ModerationDialog />
       <EncryptionDialog v-if="e2ee.panel" />
+      <EncryptionNewGroup v-if="e2ee.groupDialog" />
       <ThemeLayer />
     </template>
   </div>

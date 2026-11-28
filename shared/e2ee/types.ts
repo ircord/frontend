@@ -60,7 +60,7 @@ export type Payload = { v: 1; id: string; part?: { i: number; n: number } } & (
   | { t: 'react'; target: string; emoji: string; remove?: boolean }
   | { t: 'edit'; target: string; text: string }
   | { t: 'delete'; target: string }
-  | { t: 'control'; op: 'encryption-on' | 'encryption-off' }
+  | { t: 'control'; op: 'encryption-on' | 'encryption-off' | 'left' }
 )
 
 /** One decrypted (or self-sent) ciphertext, keyed by the SHA-256 of its base64url payload. */
@@ -86,19 +86,92 @@ export interface PlainRecord {
 }
 
 /**
- * This device's own record of a direct conversation's encryption. A device trusts this list, not
- * the server, to decide whether a conversation is encrypted.
+ * This device's own record of a conversation's encryption: a direct conversation, or an
+ * encrypted group's channel. A device trusts this list, not the server, to decide whether a
+ * conversation is encrypted.
  */
 export interface ConversationRecord {
   conversationId: string
   /** The MLS group ID (32 hex digits). */
   groupId: string
-  /** The other person's account. */
+  /** The other person's account in a direct conversation; '' in a group. */
   peer: string
   on: boolean
   /** Who turned encryption on or off last, and when (milliseconds). */
   by?: string
   at?: number
+  /** `group`: an encrypted group in its own channel. Absent: a direct conversation. */
+  kind?: 'group'
+  /**
+   * `irc`: commits and Welcomes travel over IRC (the /e2ee/chats operations), so the people can be
+   * on different IRCord servers. Absent: the server's own log, for direct chats of phase 1.
+   */
+  transport?: 'irc'
+  /** A group's title, as its MLS state says. */
+  title?: string
+}
+
+/** One line of an encrypted group's timeline, from a commit this device applied. */
+export interface GroupEventRecord {
+  /** The group, the epoch and the line's position in that commit. */
+  id: string
+  groupId: string
+  /** When this device applied the commit, in milliseconds. */
+  at: number
+  kind:
+    | 'added'
+    | 'removed'
+    | 'left'
+    | 'device-added'
+    | 'device-removed'
+    | 'admin'
+    | 'not-admin'
+    | 'title'
+    | 'created'
+    | 'joined'
+    | 'removed-you'
+  /** The account that made the change. */
+  by: string
+  /** The account it concerns, or the new title. */
+  subject?: string
+}
+
+/** How a group's members and settings look to this device, read from MLS. */
+export interface GroupView {
+  groupId: string
+  title: string
+  creator: string
+  admins: string[]
+  /** Each account in the group with its device IDs (hex). */
+  members: { account: string; devices: string[] }[]
+}
+
+/** The text form of group IDs on the server: base64url of the 16 bytes; the core uses hex. */
+export function groupIdToServer(hex: string) {
+  const bytes = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  let text = ''
+  for (const b of bytes) text += String.fromCharCode(b)
+  return btoa(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+export function groupIdFromServer(id: string) {
+  const plain = atob(id.replace(/-/g, '+').replace(/_/g, '/'))
+  return [...plain].map((c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('')
+}
+
+/** The channel of an encrypted group: `#e2ee-` and its ID in lowercase hex. */
+export const GROUP_CHANNEL_PREFIX = '#e2ee-'
+export const groupChannel = (hex: string) => `${GROUP_CHANNEL_PREFIX}${hex}`
+/**
+ * The group ID (hex) a channel name stands for, or '' when it is not a group's channel. The
+ * name may come with or without its `#`, as conversations carry it without.
+ */
+export function groupOfChannel(name: string) {
+  const lower = `#${name.toLowerCase().replace(/^#/, '')}`
+  if (!lower.startsWith(GROUP_CHANNEL_PREFIX)) return ''
+  const hex = lower.slice(GROUP_CHANNEL_PREFIX.length)
+  return /^[0-9a-f]{32}$/.test(hex) ? hex : ''
 }
 
 /** A warning this device keeps until the person acknowledges it. */

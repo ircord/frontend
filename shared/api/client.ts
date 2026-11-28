@@ -645,6 +645,58 @@ export function createIRCordClient(apiBase: string, options: ClientOptions = {})
           params: { path: { id }, query: { groupId } },
         }),
       ),
+    e2eePutDeviceList: (list: string, counter: number) =>
+      read(client.PUT('/api/v1/e2ee/device-list', { body: { list, counter } })),
+    // Encrypted chats carried over IRC (phase 2): direct chats with anyone on the home network
+    // and groups. Group IDs here are base64url; the core names them in hex.
+    e2eeChats: () => read(client.GET('/api/v1/e2ee/chats')),
+    e2eeCreateChat: (body: Body<'/api/v1/e2ee/chats', 'post'>) =>
+      read(client.POST('/api/v1/e2ee/chats', { body })),
+    e2eeJoinChat: (groupId: string) =>
+      read(client.POST('/api/v1/e2ee/chats/{groupId}/join', { params: { path: { groupId } } })),
+    e2eeDeclineChat: (groupId: string) =>
+      empty(client.POST('/api/v1/e2ee/chats/{groupId}/decline', { params: { path: { groupId } } })),
+    e2eeLeaveChat: (groupId: string, close = false) =>
+      empty(
+        client.DELETE('/api/v1/e2ee/chats/{groupId}', {
+          params: { path: { groupId }, ...(close && { query: { close } }) },
+        }),
+      ),
+    e2eePostChatCommit: (
+      groupId: string,
+      body: Body<'/api/v1/e2ee/chats/{groupId}/commits', 'post'>,
+    ) =>
+      read(
+        client.POST('/api/v1/e2ee/chats/{groupId}/commits', {
+          params: { path: { groupId } },
+          body,
+        }),
+      ),
+    e2eeChatCommits: (groupId: string, from: number) =>
+      read(
+        client.GET('/api/v1/e2ee/chats/{groupId}/commits', {
+          params: { path: { groupId }, query: { from, limit: 100 } },
+        }),
+      ),
+    e2eeChatWelcomes: (deviceId: string) =>
+      read(
+        client.GET('/api/v1/e2ee/devices/{deviceId}/chat-welcomes', {
+          params: { path: { deviceId } },
+        }),
+      ),
+    e2eeDeleteChatWelcome: (id: number) =>
+      empty(client.DELETE('/api/v1/e2ee/chat-welcomes/{id}', { params: { path: { id } } })),
+    e2eeRequestRejoin: (
+      groupId: string,
+      body: Body<'/api/v1/e2ee/chats/{groupId}/rejoin', 'post'>,
+    ) =>
+      empty(
+        client.POST('/api/v1/e2ee/chats/{groupId}/rejoin', { params: { path: { groupId } }, body }),
+      ),
+    e2eeRejoins: (groupId: string) =>
+      read(client.GET('/api/v1/e2ee/chats/{groupId}/rejoins', { params: { path: { groupId } } })),
+    e2eeDeleteRejoin: (id: number) =>
+      empty(client.DELETE('/api/v1/e2ee/rejoins/{id}', { params: { path: { id } } })),
     e2eeRelay: (body: Body<'/api/v1/e2ee/approvals', 'post'>) =>
       read(client.POST('/api/v1/e2ee/approvals', { body })),
     e2eeApprovals: (deviceId: string) =>

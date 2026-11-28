@@ -1,7 +1,8 @@
 <script setup lang="ts" vapor>
 /**
  * One direct conversation's encryption: start it, verify the other person, or turn it off. Every
- * state shows the trust caveat in plain words, and the web client's limit.
+ * state shows the trust caveat in plain words, and the web client's limit. An encrypted group's
+ * channel shows its group panel instead.
  */
 const { t } = useI18n()
 const chat = useChatStore()
@@ -9,6 +10,7 @@ const e2ee = useE2eeStore()
 const actions = useWorkspaceActions()
 const prompt = usePrompt()
 const conversation = computed(() => chat.data?.conversations.find((c) => c.id === e2ee.panel))
+const group = computed(() => e2ee.isGroupChannel(conversation.value))
 const name = computed(() =>
   conversation.value
     ? (chat.directPartner(conversation.value)?.nick ?? conversation.value.name)
@@ -18,28 +20,18 @@ const record = computed(() =>
   conversation.value ? e2ee.conversations[conversation.value.id] : undefined,
 )
 const encrypted = computed(() => !!record.value?.on)
-const verified = computed(() => !!record.value && !!e2ee.pins[record.value.peer]?.verified)
 const blocker = computed(() => e2ee.startBlocker(conversation.value))
 const busy = ref(false)
 const problem = ref('')
-const code = shallowRef<{ digits: string; qr: string }>()
-const scanResult = ref<'match' | 'mismatch' | ''>('')
-const scanning = ref(false)
 
 watch(
   () => [conversation.value?.id, encrypted.value, e2ee.ready] as const,
   async ([id, on, ready]) => {
     problem.value = ''
-    code.value = undefined
-    scanResult.value = ''
     const c = conversation.value
-    if (!id || !c || !ready) return
-    if (!on) {
-      const peer = await e2ee.resolvePeer(c)
-      if (peer) void e2ee.checkPeerKeys(peer)
-    }
-    if (on && record.value)
-      code.value = await e2ee.securityCode(record.value.peer).catch(() => undefined)
+    if (!id || !c || !ready || on || group.value) return
+    const peer = await e2ee.resolvePeer(c)
+    if (peer) void e2ee.checkPeerKeys(peer)
   },
   { immediate: true },
 )
@@ -90,27 +82,15 @@ async function turnOff() {
     busy.value = false
   }
 }
-
-async function setVerified(value: boolean) {
-  if (record.value) await e2ee.setVerified(record.value.peer, value)
-}
-
-async function scanned(text: string) {
-  scanning.value = false
-  const match = !!code.value && text.trim() === code.value.qr
-  scanResult.value = match ? 'match' : 'mismatch'
-  if (match) await setVerified(true)
-}
-
-/** The 60 digits in four lines of three groups, as people read them out. */
-const codeLines = computed(() => {
-  const groups = code.value?.digits.split(' ') ?? []
-  return [0, 3, 6, 9].map((i) => groups.slice(i, i + 3).join(' '))
-})
 </script>
 <template>
+  <EncryptionGroupPanel
+    v-if="conversation && group"
+    :conversation="conversation"
+    @close="close"
+  />
   <AppDialog
-    v-if="conversation"
+    v-else-if="conversation"
     :title="encrypted ? t('encryption.dialog.titleOn') : t('encryption.dialog.titleOff')"
     @close="close"
   >
@@ -135,100 +115,11 @@ const codeLines = computed(() => {
             :size="15"
           />{{ t('encryption.dialog.on') }}
         </p>
-        <section
-          class="grid gap-3 rounded-lg border border-border p-3"
-          data-encryption-verify
-        >
-          <h3 class="m-0 text-[14px] font-[650]">
-            {{ t('encryption.dialog.verifyHeading', { name }) }}
-          </h3>
-          <p
-            class="m-0 flex items-center gap-1.5"
-            :class="verified ? 'text-success' : 'text-muted-foreground'"
-          >
-            <AppIcon
-              :name="verified ? 'shield' : 'help'"
-              :size="14"
-            />{{
-              verified
-                ? t('encryption.dialog.verifiedState', { name })
-                : t('encryption.dialog.unverifiedState', { name })
-            }}
-          </p>
-          <p class="m-0 text-muted-foreground">{{ t('encryption.dialog.verifyHelp', { name }) }}</p>
-          <div
-            v-if="code"
-            class="flex flex-wrap items-start gap-4"
-          >
-            <QrCode
-              class="size-32"
-              :text="code.qr"
-              :label="t('encryption.dialog.verifyHeading', { name })"
-            />
-            <div
-              class="font-code text-[15px] leading-7 tracking-wide tabular-nums"
-              data-security-code
-            >
-              <div
-                v-for="(line, i) in codeLines"
-                :key="i"
-              >
-                {{ line }}
-              </div>
-            </div>
-          </div>
-          <p
-            v-else
-            class="m-0 text-muted-foreground"
-          >
-            {{ t('encryption.dialog.codeFailed') }}
-          </p>
-          <div class="flex flex-wrap gap-2">
-            <UiButton
-              v-if="!verified"
-              size="sm"
-              :disabled="!code"
-              @click="setVerified(true)"
-            >
-              {{ t('encryption.dialog.markVerified') }}
-            </UiButton>
-            <UiButton
-              v-else
-              size="sm"
-              variant="secondary"
-              @click="setVerified(false)"
-            >
-              {{ t('encryption.dialog.unmarkVerified') }}
-            </UiButton>
-            <UiButton
-              v-if="code && !scanning"
-              size="sm"
-              variant="secondary"
-              @click="scanning = true"
-            >
-              <AppIcon
-                name="qr"
-                :size="15"
-              />{{ t('encryption.dialog.scan') }}
-            </UiButton>
-          </div>
-          <QrScanner
-            v-if="scanning"
-            @result="scanned"
-          />
-          <p
-            v-if="scanResult"
-            class="m-0"
-            :class="scanResult === 'match' ? 'text-success' : 'text-destructive'"
-            role="status"
-          >
-            {{
-              scanResult === 'match'
-                ? t('encryption.dialog.scanMatch', { name })
-                : t('encryption.dialog.scanMismatch', { name })
-            }}
-          </p>
-        </section>
+        <EncryptionVerify
+          v-if="record"
+          :peer="record.peer"
+          :name="name"
+        />
       </template>
 
       <div
@@ -242,6 +133,12 @@ const codeLines = computed(() => {
         />
         <div class="grid gap-1.5">
           <p class="m-0">{{ t('encryption.trust', { name }) }}</p>
+          <p
+            v-if="e2ee.acrossServers"
+            class="m-0"
+          >
+            {{ t('encryption.trustServers', { name }) }}
+          </p>
           <p class="m-0 text-muted-foreground">{{ t('encryption.webLimit') }}</p>
         </div>
       </div>
@@ -250,8 +147,13 @@ const codeLines = computed(() => {
         v-if="!e2ee.ready"
         class="m-0 text-muted-foreground"
       >
-        {{ t('encryption.blocked.deviceNotReady') }}
+        {{
+          e2ee.phase === 'elsewhere'
+            ? t('encryption.settings.state.elsewhere')
+            : t('encryption.blocked.deviceNotReady')
+        }}
         <button
+          v-if="e2ee.phase !== 'elsewhere'"
           type="button"
           class="text-primary underline-offset-2 hover:underline"
           @click="(close(), actions.settings('encryption'))"
@@ -276,7 +178,7 @@ const codeLines = computed(() => {
 
       <div class="form-actions mt-1 flex items-center justify-end gap-2">
         <UiButton
-          v-if="!encrypted && blocker === 'peerNoKeys'"
+          v-if="!encrypted && (blocker === 'peerNoKeys' || blocker === 'peerNoKeysAcross')"
           variant="secondary"
           @click="ask"
         >

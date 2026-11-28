@@ -8,6 +8,7 @@ const { t, n: $n } = useI18n()
 const { dragWindow } = usePlatform()
 const $t = t
 const chat = useChatStore()
+const e2ee = useE2eeStore()
 const statusNow = useNow({ interval: 1000 })
 const menus = useMenus()
 const actions = useWorkspaceActions()
@@ -110,7 +111,7 @@ function openDetails() {
       <AppIcon
         v-else
         class="channel-header-icon shrink-0 text-primary"
-        name="hash"
+        :name="e2ee.isGroupChannel(chat.active) ? 'lock' : 'hash'"
         :size="19"
       />
       <h1

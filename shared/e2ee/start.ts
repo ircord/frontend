@@ -1,6 +1,14 @@
 /** Why encryption with a person cannot start, as a key under `encryption.blocked`. */
 export type StartBlocker =
-  'notDirect' | 'network' | 'selfAccount' | 'peerAccount' | 'peerNoKeys' | 'deviceNotReady' | 'bot'
+  | 'notDirect'
+  | 'network'
+  | 'selfAccount'
+  | 'peerAccount'
+  | 'peerNoKeys'
+  | 'peerNoKeysAcross'
+  | 'peerNoAnswer'
+  | 'deviceNotReady'
+  | 'bot'
 
 /** What decides whether encryption with a person can start, as far as this client knows. */
 export interface StartFacts {
@@ -20,6 +28,13 @@ export interface StartFacts {
   ready: boolean
   /** Whether the person published keys; undefined when not checked in this session. */
   peerHasKeys?: boolean
+  /** The person's IRCord server did not answer when asked for their keys over IRC. */
+  peerUnreachable?: boolean
+  /**
+   * This server asks other IRCord servers for keys (phase 2): a person without keys may also
+   * use a server that cannot answer yet.
+   */
+  acrossServers?: boolean
 }
 
 /** The first thing that stops encryption from starting, or undefined when it can start. */
@@ -29,5 +44,7 @@ export function startBlockerFor(facts: StartFacts): StartBlocker | undefined {
   if (facts.bot) return 'bot'
   if (facts.peer === '') return 'peerAccount'
   if (!facts.ready) return 'deviceNotReady'
-  return facts.peerHasKeys === false ? 'peerNoKeys' : undefined
+  if (facts.peerUnreachable) return 'peerNoAnswer'
+  if (facts.peerHasKeys !== false) return undefined
+  return facts.acrossServers ? 'peerNoKeysAcross' : 'peerNoKeys'
 }
